@@ -259,9 +259,14 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 
 /* ═══════════ STATE / ROUTING ═══════════ */
 let cfg={url:'',tok:''}, route={v:'home',c:''}, M=null, charts={}, timer=null;
+var LS_KEY='cltDeckCfg';
+function saveCfg(){try{if(cfg.url&&cfg.tok)localStorage.setItem(LS_KEY,JSON.stringify({url:cfg.url,tok:cfg.tok}))}catch(e){}}
+function loadCfg(){try{const s=localStorage.getItem(LS_KEY);if(s){const o=JSON.parse(s);cfg.url=cfg.url||o.url||'';cfg.tok=cfg.tok||o.tok||''}}catch(e){}}
 function readHash(){const h=new URLSearchParams(location.hash.slice(1));
   cfg.url=h.get('e')||cfg.url;cfg.tok=h.get('t')||cfg.tok;
-  route.v=h.get('v')||'home';route.c=h.get('c')||''}
+  route.v=h.get('v')||'home';route.c=h.get('c')||'';
+  loadCfg();          // hash wins, but fall back to stored creds (iOS standalone may drop the hash)
+  saveCfg();}         // persist whenever we have a full pair
 function buildHash(){const h=new URLSearchParams();if(cfg.url)h.set('e',cfg.url);if(cfg.tok)h.set('t',cfg.tok);
   if(route.v!=='home')h.set('v',route.v);if(route.c)h.set('c',route.c);return '#'+h.toString()}
 function go(v,c=''){route.v=v;route.c=c;history.pushState(null,'',buildHash());paint();window.scrollTo({top:0})}
@@ -739,7 +744,7 @@ function ticker(){const m=M;const tk=[
 
 /* ═══════════ BOOT ═══════════ */
 $('connect').onclick=()=>{cfg.url=$('inUrl').value.trim();cfg.tok=$('inTok').value.trim();
-  if(!cfg.url||!cfg.tok)return;history.replaceState(null,'',buildHash());load();
+  if(!cfg.url||!cfg.tok)return;saveCfg();history.replaceState(null,'',buildHash());load();
   clearInterval(timer);timer=setInterval(load,REFRESH_MS)};
 $('refresh').onclick=load;
 $('back').onclick=()=>go(route.v==='channel'?'channels':'home');

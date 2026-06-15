@@ -1,6 +1,6 @@
 /* CLT Command Deck — service worker.
    Shell: cache-first. Live data (Apps Script endpoint): network-only, never cached. */
-const CACHE = 'clt-deck-v1';
+const CACHE = 'clt-deck-v2';
 const SHELL = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
