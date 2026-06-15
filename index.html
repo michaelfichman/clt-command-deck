@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Command Deck" />
+<meta name="theme-color" content="#050B16" />
+<title>CLT Buyers — Command Deck</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ── CLT BUYERS BRAND × FUTURIST TERMINAL ──
+   brand blue #0070B0 (from logo) → live spectrum #1B9DE2 → #3FD0FF on deep blue-black */
+:root{
+  --ink:#050B16; --surface:#0A1626; --raised:#0F1D33; --card:#0C192C;
+  --line:rgba(122,176,230,.13); --line2:rgba(122,176,230,.26);
+  --txt:#EAF3FC; --txt2:#9FB6CE; --txt3:#5E7791;
+  --brand:#1B9DE2; --brand-deep:#0070B0; --glow:#3FD0FF;
+  --brand-dim:rgba(27,157,226,.16); --glow-dim:rgba(63,208,255,.12);
+  --sky:#8FCBEF; --green:#3FDE9C; --red:#F0617E; --amber:#F2B65A;
+  --r:16px; --nav-h:62px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{background:var(--ink);color:var(--txt);font-family:Inter,system-ui,sans-serif;font-size:14px;line-height:1.5;
+  background-image:
+    radial-gradient(900px 420px at 80% -8%, rgba(0,112,176,.22), transparent 60%),
+    radial-gradient(700px 380px at -10% 108%, rgba(27,157,226,.10), transparent 60%),
+    linear-gradient(rgba(122,176,230,.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(122,176,230,.028) 1px, transparent 1px);
+  background-size:auto,auto,44px 44px,44px 44px;
+  padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 14px)}
+.mono{font-family:'IBM Plex Mono',monospace}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+
+/* header */
+header{position:sticky;top:0;z-index:60;background:rgba(5,11,22,.88);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top)}
+.hd{max-width:1180px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
+.back{display:none;background:var(--raised);border:1px solid var(--line2);color:var(--glow);border-radius:10px;
+  width:36px;height:36px;font-size:17px;cursor:pointer;align-items:center;justify-content:center;flex:none}
+.back.show{display:flex}
+.brand{display:flex;flex-direction:column;line-height:1.15;min-width:0}
+.brand .nm{font-family:Sora;font-weight:800;letter-spacing:.05em;font-size:15px;white-space:nowrap}
+.brand .sub{font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.3em;color:var(--glow);text-transform:uppercase}
+.hd .sp{flex:1}
+.live{display:flex;align-items:center;gap:7px;font-family:'IBM Plex Mono';font-size:10px;color:var(--txt2);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);animation:pulse 2.2s infinite;flex:none}
+.dot.stale{background:var(--amber);box-shadow:0 0 10px var(--amber)}
+.dot.err{background:var(--red);box-shadow:0 0 10px var(--red);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.icobtn{background:var(--raised);border:1px solid var(--line2);color:var(--txt2);border-radius:10px;width:36px;height:36px;
+  cursor:pointer;font-size:15px;flex:none}
+.icobtn:hover{color:var(--glow);border-color:var(--brand)}
+
+/* ticker */
+.tape{border-bottom:1px solid var(--line);overflow:hidden;background:rgba(7,16,30,.85)}
+.tape-inner{display:flex;gap:40px;white-space:nowrap;padding:7px 0;width:max-content;animation:tape 50s linear infinite}
+@keyframes tape{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.tk{font-family:'IBM Plex Mono';font-size:11px;color:var(--txt3);display:flex;gap:7px;align-items:baseline}
+.tk b{color:var(--txt2);font-weight:600}
+.tk .up{color:var(--green)}.tk .dn{color:var(--red)}.tk .br{color:var(--glow)}
+@media (prefers-reduced-motion:reduce){.tape-inner{animation:none;flex-wrap:wrap;width:auto;padding:7px 16px}}
+
+/* views */
+#view{padding-top:18px;animation:vin .28s ease}
+@keyframes vin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.eyebrow{font-family:'IBM Plex Mono';font-size:9.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--glow)}
+h1{font-family:Sora;font-weight:800;font-size:clamp(22px,5.4vw,32px);letter-spacing:-.01em;margin:6px 0 4px}
+.lede{color:var(--txt2);font-size:13px;max-width:680px}
+
+/* capital bar */
+.capbar{margin:22px 0 6px}
+.capbar .bar{height:34px;border-radius:11px;background:var(--surface);border:1px solid var(--line);overflow:hidden;display:flex;position:relative}
+.seg{height:100%;transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.seg.closed{background:linear-gradient(180deg,#3FD0FF,#0070B0);box-shadow:0 0 18px rgba(63,208,255,.35)}
+.seg.pipe{background:repeating-linear-gradient(135deg,rgba(63,208,255,.30) 0 7px,rgba(63,208,255,.10) 7px 14px);border-left:1px solid rgba(63,208,255,.45)}
+.tick{position:absolute;top:-8px;bottom:-8px;width:2px;background:#EAF3FC;box-shadow:0 0 9px rgba(234,243,252,.8)}
+.tick::after{content:'PACE';position:absolute;top:-15px;left:50%;transform:translateX(-50%);font-family:'IBM Plex Mono';font-size:8.5px;letter-spacing:.18em;color:var(--txt2)}
+.caplbl{display:flex;justify-content:space-between;margin-top:9px;font-family:'IBM Plex Mono';font-size:10.5px;color:var(--txt3)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:11.5px;color:var(--txt2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.legend .l1 i{background:linear-gradient(180deg,#3FD0FF,#0070B0)}
+.legend .l2 i{background:repeating-linear-gradient(135deg,rgba(63,208,255,.5) 0 4px,rgba(63,208,255,.15) 4px 8px)}
+.legend .l3 i{background:var(--surface);border:1px solid var(--line2)}
+.legend b{font-family:'IBM Plex Mono'}
+
+/* tiles */
+.grid{display:grid;gap:12px}
+.tiles{grid-template-columns:repeat(auto-fill,minmax(158px,1fr));margin-top:24px}
+.tile{background:linear-gradient(180deg,var(--raised),var(--card));border:1px solid var(--line);border-radius:var(--r);
+  padding:14px 14px 12px;cursor:pointer;position:relative;overflow:hidden;transition:transform .15s ease,border-color .15s ease;text-align:left;color:var(--txt)}
+.tile:active{transform:scale(.97)}
+.tile:hover{border-color:var(--brand)}
+.tile::after{content:'›';position:absolute;top:10px;right:12px;color:var(--txt3);font-size:15px}
+.tile.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(300px 90px at 25% 0%,var(--glow-dim),transparent);pointer-events:none}
+.t-lbl{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--txt3);font-weight:600}
+.t-val{font-family:'IBM Plex Mono';font-weight:600;font-size:clamp(19px,4.6vw,24px);margin-top:5px}
+.t-val.br{color:var(--glow)}.t-val.gr{color:var(--green)}.t-val.rd{color:var(--red)}
+.why{font-family:'IBM Plex Mono';font-size:9.5px;color:var(--txt3);margin-top:6px;border-top:1px dashed var(--line);padding-top:6px;line-height:1.5}
+.why b{color:var(--txt2);font-weight:500}
+
+/* section cards / detail */
+section{margin-top:34px}
+.sec-h{display:flex;align-items:baseline;gap:10px;margin-bottom:13px;flex-wrap:wrap}
+.sec-h h2{font-family:Sora;font-weight:700;font-size:17px}
+.sec-h .tag{font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--glow)}
+.card{background:linear-gradient(180deg,var(--raised),var(--card));border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.cols2{grid-template-columns:repeat(auto-fit,minmax(310px,1fr))}
+.chart-card h3{font-size:12.5px;font-weight:600;color:var(--txt2)}
+.chart-card .sub{font-family:'IBM Plex Mono';font-size:9.5px;color:var(--txt3);margin:2px 0 10px}
+.chart-wrap{position:relative;min-height:210px}
+
+/* headline metric (detail views) */
+.head-metric{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;margin:14px 0 4px}
+.hm-big{font-family:'IBM Plex Mono';font-weight:600;font-size:clamp(30px,9vw,44px);color:var(--glow);text-shadow:0 0 26px rgba(63,208,255,.3)}
+.hm-side{font-family:'IBM Plex Mono';font-size:12px;color:var(--txt2);padding-bottom:8px}
+
+/* diagnosis */
+.diag{margin-top:14px}
+.diag .d-h{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.diag .d-h h3{font-family:Sora;font-size:13.5px;letter-spacing:.02em}
+.d-scan{width:18px;height:18px;border-radius:5px;background:var(--brand-dim);position:relative;overflow:hidden;flex:none}
+.d-scan::after{content:'';position:absolute;left:0;right:0;height:2px;background:var(--glow);animation:scan 2.4s ease-in-out infinite}
+@keyframes scan{0%,100%{top:2px}50%{top:14px}}
+.ins{display:flex;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:12.5px;color:var(--txt2);line-height:1.55}
+.ins:last-child{border:0}
+.ins .ic{flex:none;font-family:'IBM Plex Mono';font-size:11px;width:18px;text-align:center;padding-top:1px}
+.ins.good .ic{color:var(--green)}.ins.bad .ic{color:var(--red)}.ins.warn .ic{color:var(--amber)}.ins.info .ic{color:var(--glow)}
+.ins b{color:var(--txt);font-weight:600}.ins .m{font-family:'IBM Plex Mono'}
+
+/* funnel + bullets + gaps */
+.funnel-row{display:grid;grid-template-columns:104px 1fr 76px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line)}
+.funnel-row:last-child{border:0}
+.f-lbl{font-size:11.5px;color:var(--txt2)}.f-lbl b{color:var(--txt);display:block;font-family:'IBM Plex Mono';font-size:14px}
+.f-bar{height:20px;border-radius:6px;background:var(--surface);border:1px solid var(--line);overflow:hidden}
+.f-fill{height:100%;background:linear-gradient(90deg,#0070B0,#3FD0FF);border-radius:5px;transition:width .9s ease}
+.f-conv{font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3);text-align:right}
+.f-conv b{display:block;font-size:12.5px;color:var(--glow)}
+.bullet{margin:12px 0}
+.bullet .top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--txt2);margin-bottom:5px}
+.bullet .top .v{font-family:'IBM Plex Mono';color:var(--txt)}
+.b-track{height:9px;border-radius:6px;background:var(--surface);border:1px solid var(--line);position:relative}
+.b-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,#1E8F70,#3FDE9C)}
+.b-fill.miss{background:linear-gradient(90deg,#8F3A4C,#F0617E)}
+.b-tgt{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--glow)}
+.gap-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px dashed var(--line)}
+.gap-row:last-child{border:0}
+.gap-row .nm{font-size:12.5px;color:var(--txt)}
+.gap-row .meta{font-family:'IBM Plex Mono';font-size:9.5px;color:var(--txt3)}
+.gap-amt{font-family:'IBM Plex Mono';font-size:15px;color:var(--red);text-align:right}
+.gap-amt small{display:block;font-size:9px;color:var(--txt3)}
+.gap-rank{display:inline-flex;width:18px;height:18px;border-radius:6px;background:var(--brand-dim);color:var(--glow);
+  font-family:'IBM Plex Mono';font-size:10px;align-items:center;justify-content:center;margin-right:8px}
+
+/* tables */
+.tbl{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--txt3);
+  text-align:left;padding:7px 9px;border-bottom:1px solid var(--line2);white-space:nowrap}
+td{padding:8px 9px;border-bottom:1px dashed var(--line);color:var(--txt2);white-space:nowrap}
+td.num,th.num{font-family:'IBM Plex Mono';text-align:right}
+td.num{color:var(--txt)}
+tr.rowlink{cursor:pointer} tr.rowlink:hover td{background:rgba(63,208,255,.05)}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-family:'IBM Plex Mono';font-size:9.5px}
+.pill.g{background:rgba(63,222,156,.12);color:var(--green)}.pill.r{background:rgba(240,97,126,.12);color:var(--red)}
+.pill.a{background:rgba(242,182,90,.12);color:var(--amber)}.pill.c{background:var(--glow-dim);color:var(--glow)}
+
+/* bottom nav */
+nav{position:fixed;left:0;right:0;bottom:0;z-index:70;background:rgba(7,14,26,.92);backdrop-filter:blur(14px);
+  border-top:1px solid var(--line2);padding-bottom:env(safe-area-inset-bottom)}
+.nv{max-width:560px;margin:0 auto;display:flex;height:var(--nav-h)}
+.nv button{flex:1;background:none;border:0;color:var(--txt3);font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.08em;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer}
+.nv button .g{font-size:17px;line-height:1}
+.nv button.on{color:var(--glow)}
+.nv button.on .g{text-shadow:0 0 12px rgba(63,208,255,.6)}
+
+/* setup */
+.setup{max-width:520px;margin:60px auto;text-align:left}
+.setup input{width:100%;background:var(--surface);border:1px solid var(--line2);color:var(--txt);border-radius:10px;
+  padding:12px 13px;font-family:'IBM Plex Mono';font-size:12px;margin:6px 0 14px}
+.setup label{font-size:12px;color:var(--txt2)}
+.setup .go{background:linear-gradient(180deg,#3FD0FF,#0070B0);color:#04111C;border:0;font-weight:700;width:100%;
+  padding:13px;font-size:13px;border-radius:11px;cursor:pointer;font-family:Sora;letter-spacing:.04em}
+.err-banner{background:rgba(240,97,126,.1);border:1px solid rgba(240,97,126,.3);color:var(--red);border-radius:11px;
+  padding:11px 14px;font-family:'IBM Plex Mono';font-size:11px;margin:14px 0;display:none}
+footer{margin-top:46px;border-top:1px solid var(--line);padding-top:16px;font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3);
+  display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+:focus-visible{outline:2px solid var(--glow);outline-offset:2px;border-radius:6px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hd">
+    <button class="back" id="back" aria-label="Back">‹</button>
+    <div class="brand"><span class="nm">CLT BUYERS</span><span class="sub">Command Deck</span></div>
+    <div class="sp"></div>
+    <div class="live"><span class="dot" id="dot"></span><span id="fresh">connecting…</span></div>
+    <button class="icobtn" id="refresh" aria-label="Refresh">⟳</button>
+  </div>
+  <div class="tape" id="tape" hidden><div class="tape-inner" id="tapeInner"></div></div>
+</header>
+
+<div class="wrap">
+  <div id="setup" class="setup" hidden>
+    <p class="eyebrow">One-time setup</p>
+    <h1 style="font-size:24px;margin-bottom:10px">Wire the deck</h1>
+    <p class="lede" style="margin-bottom:20px">Deploy <span class="mono">Code.gs</span> in the workbook (Extensions → Apps Script → Deploy → Web app → access: Anyone), then paste the endpoint and token. They live in this page's URL — after connecting, Add to Home Screen and the app keeps them.</p>
+    <label>Apps Script Web App URL (ends in /exec)</label>
+    <input id="inUrl" placeholder="https://script.google.com/macros/s/…/exec" />
+    <label>Access token</label>
+    <input id="inTok" placeholder="the TOKEN set in Code.gs" />
+    <button class="go" id="connect">CONNECT LIVE</button>
+  </div>
+  <div class="err-banner" id="errBanner"></div>
+  <main id="view" hidden></main>
+</div>
+
+<nav id="nav" hidden><div class="nv">
+  <button data-v="home"><span class="g">◆</span>DECK</button>
+  <button data-v="revenue"><span class="g">$</span>REVENUE</button>
+  <button data-v="funnel"><span class="g">▼</span>FUNNEL</button>
+  <button data-v="channels"><span class="g">⇄</span>CAPITAL</button>
+  <button data-v="pipeline"><span class="g">▣</span>PIPELINE</button>
+</div></nav>
+
+<script>
+/* ═══════════ CONFIG ═══════════ */
+const REFRESH_MS = 60000;
+const CHANNEL_MAP = {'Google Ads':'Google Ads','PPL':'PPL','JV':'Events','Referral':'Events','Events':'Events',
+  'MLS':'MLS','Website':'Website/SEO','Office Phone':'Website/SEO','D4D':'D4D','SMS':'SMS'};
+const SOURCE_OVERRIDES = {'usb48ZOFE6CbB1EUAbHe':'Google Ads','pzC0nOf7qvbz4VG0JEVT':'JV','yKl1dbkQpNT5x0VkVoRz':'PPL',
+  'nA1qtki8h3HRHyzrsfh2':'Google Ads','ROahOIKJ9CfFhgqUKj7L':'Referral','z8LdrKqyp3sgmfZzYIra':'JV'};
+const SCALABLE = {'Google Ads':'linear','PPL':'provider-capped','MLS':'volume-limited','Events':'not purchasable','Website/SEO':'organic','D4D':'when active','SMS':'when active'};
+
+/* ═══════════ UTIL ═══════════ */
+const $=id=>document.getElementById(id);
+const fmt$=(n,d=0)=>n==null||isNaN(n)?'—':'$'+Number(n).toLocaleString('en-US',{maximumFractionDigits:d});
+const fmtK=n=>n==null||isNaN(n)?'—':(Math.abs(n)>=1000?'$'+(n/1000).toFixed(Math.abs(n)>=100000?0:1)+'K':fmt$(n));
+const pct=(n,d=1)=>n==null||isNaN(n)||!isFinite(n)?'—':(n*100).toFixed(d)+'%';
+const P=v=>{if(v==null||v==='')return 0;if(typeof v==='number')return v;const n=parseFloat(String(v).replace(/[$,%\s,]/g,''));return isNaN(n)?0:n};
+const D=v=>{if(v==null||v==='')return null;if(v instanceof Date)return v;const d=new Date(v);return isNaN(d)?null:d};
+const idx=(h,n)=>h.findIndex(x=>String(x).toLowerCase().trim().startsWith(n.toLowerCase()));
+const rows=t=>{if(!t||t.length<2)return{hdr:[],data:[]};return{hdr:t[0].map(String),data:t.slice(1).filter(r=>r.some(c=>c!==''&&c!=null))}};
+const weekEnd=d=>{const x=new Date(d);x.setDate(x.getDate()+(7-((x.getDay()+1)%7||7))%7);x.setHours(0,0,0,0);return x};
+const wkKey=d=>{const w=weekEnd(d);return (w.getMonth()+1)+'/'+w.getDate()};
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ═══════════ STATE / ROUTING ═══════════ */
+let cfg={url:'',tok:''}, route={v:'home',c:''}, M=null, charts={}, timer=null;
+function readHash(){const h=new URLSearchParams(location.hash.slice(1));
+  cfg.url=h.get('e')||cfg.url;cfg.tok=h.get('t')||cfg.tok;
+  route.v=h.get('v')||'home';route.c=h.get('c')||''}
+function buildHash(){const h=new URLSearchParams();if(cfg.url)h.set('e',cfg.url);if(cfg.tok)h.set('t',cfg.tok);
+  if(route.v!=='home')h.set('v',route.v);if(route.c)h.set('c',route.c);return '#'+h.toString()}
+function go(v,c=''){route.v=v;route.c=c;history.pushState(null,'',buildHash());paint();window.scrollTo({top:0})}
+window.go=go;
+window.addEventListener('popstate',()=>{readHash();paint()});
+function setDot(s,msg){const d=$('dot');d.className='dot'+(s==='ok'?'':s==='stale'?' stale':' err');$('fresh').textContent=msg}
+
+async function load(){
+  if(!cfg.url||!cfg.tok){$('setup').hidden=false;$('view').hidden=true;$('nav').hidden=true;setDot('err','not connected');return}
+  setDot('stale','syncing…');
+  try{
+    const r=await fetch(cfg.url+(cfg.url.includes('?')?'&':'?')+'token='+encodeURIComponent(cfg.tok));
+    const j=await r.json();
+    if(!j.ok)throw new Error(j.error||'endpoint error');
+    M=model(j.tabs);
+    $('setup').hidden=true;$('view').hidden=false;$('nav').hidden=false;$('errBanner').style.display='none';
+    paint();ticker();
+    setDot('ok','LIVE '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+  }catch(e){
+    setDot('err','offline');
+    const b=$('errBanner');b.style.display='block';
+    b.textContent='Endpoint unreachable: '+e.message+' — check URL/token and that the Web App is deployed (access: Anyone).';
+    if(!M){$('setup').hidden=false}
+  }
+}
+
+/* ═══════════ MODEL — first principles ═══════════ */
+function model(T){
+  const now=new Date(),yr=now.getFullYear();
+  const m={now,monthsElapsed:(now-new Date(yr,0,1))/(864e5*30.44),weeksElapsed:(now-new Date(yr,0,1))/(864e5*7)};
+  const G=rows(T['Goals & Assumptions']);
+  const gF=l=>{const r=G.data.find(r=>String(r[0]).toLowerCase().includes(l));return r?P(r[1]):null};
+  m.goal=gF('annual revenue goal')||500000;m.goalMo=gF('monthly revenue goal')||m.goal/12;
+  m.targets={leadAppt:gF('lead → appointment')||.15,apptCon:gF('appointment → contract')||.50,
+             offCon:gF('offer → contract')||.25,conClose:gF('contract → close')||.70};
+  Object.keys(m.targets).forEach(k=>{if(m.targets[k]>1)m.targets[k]/=100});
+
+  const L=rows(T['Leads']);const li={d:idx(L.hdr,'Created'),s:idx(L.hdr,'Lead Source'),id:idx(L.hdr,'Contact ID')};
+  m.leads=L.data.map(r=>({d:D(r[li.d]),src:String(r[li.s]||''),id:String(r[li.id]||'')})).filter(x=>x.id);
+  m.leadSrcById={};m.leads.forEach(x=>m.leadSrcById[x.id]=x.src);
+  m.leadsByWk={};m.leadsByMo=Array(12).fill(0);m.chLeads={};m.chLeadsMo={};
+  m.leads.forEach(x=>{const ch=CHANNEL_MAP[x.src]||x.src;m.chLeads[ch]=(m.chLeads[ch]||0)+1;
+    if(x.d){m.leadsByWk[wkKey(x.d)]=(m.leadsByWk[wkKey(x.d)]||0)+1;m.leadsByMo[x.d.getMonth()]++;
+      (m.chLeadsMo[ch]=m.chLeadsMo[ch]||Array(12).fill(0))[x.d.getMonth()]++}});
+
+  const A=rows(T['Appointments']);const ai={c:idx(A.hdr,'Confirmed'),o:idx(A.hdr,'Outcome'),id:idx(A.hdr,'Contact ID')};
+  m.booked=A.data.filter(r=>r[ai.c]).length;
+  const sh=A.data.filter(r=>String(r[ai.o]).trim()==='Showed');
+  m.showed=sh.length;m.showedIds=new Set(sh.map(r=>String(r[ai.id])));
+
+  const O=rows(T['Offers']);m.offersMade=O.data.filter(r=>String(r[idx(O.hdr,'Outcome')]).trim()==='Made').length;
+
+  const C=rows(T['Contracts']);const ci={o:idx(C.hdr,'Outcome'),id:idx(C.hdr,'Contact ID')};
+  const byO=o=>C.data.filter(r=>String(r[ci.o]).trim()===o);
+  m.signed=byO('Signed').length;m.signedIds=new Set(byO('Signed').map(r=>String(r[ci.id])));
+  m.cancelled=byO('Cancelled').length;
+  m.signedViaAppt=[...m.signedIds].filter(id=>m.showedIds.has(id)).length;
+
+  const X=rows(T['Closings']);const xi={d:idx(X.hdr,'Closed'),v:idx(X.hdr,'Revenue'),id:idx(X.hdr,'Contact ID'),n:idx(X.hdr,'Contact Name')};
+  m.closings=X.data.map(r=>({d:D(r[xi.d]),rev:P(r[xi.v]),id:String(r[xi.id]||''),nm:String(r[xi.n]||'')}));
+  m.revYTD=m.closings.reduce((s,x)=>s+x.rev,0);m.nClosed=m.closings.length;
+  m.avgGross=m.nClosed?m.revYTD/m.nClosed:0;
+  m.revByMo=Array(12).fill(0);m.closings.forEach(x=>{if(x.d)m.revByMo[x.d.getMonth()]+=x.rev});
+
+  m.conv={leadAppt:m.booked/(m.leads.length||1),show:m.showed/(m.booked||1),
+    apptCon:m.signedViaAppt/(m.showed||1),offCon:m.signed/(m.offersMade||1),conClose:m.nClosed/(m.signed||1)};
+
+  const S=rows(T['Marketing Spend']);const si={d:idx(S.hdr,'Month'),c:idx(S.hdr,'Channel'),v:idx(S.hdr,'Spend')};
+  m.spendByCh={};m.spendByChMo={};m.spendByMo=Array(12).fill(0);m.spendYTD=0;
+  S.data.forEach(r=>{const d=D(r[si.d]);if(!d||d>now)return;const v=P(r[si.v]);
+    let ch=String(r[si.c]).trim();if(ch==='Google Ads - Agency Fee')ch='Google Ads';
+    m.spendByCh[ch]=(m.spendByCh[ch]||0)+v;m.spendByMo[d.getMonth()]+=v;m.spendYTD+=v;
+    (m.spendByChMo[ch]=m.spendByChMo[ch]||Array(12).fill(0))[d.getMonth()]+=v});
+
+  m.chRev={};m.chDeals={};
+  m.closings.forEach(x=>{const src=m.leadSrcById[x.id]||SOURCE_OVERRIDES[x.id]||'(unmapped)';
+    const ch=CHANNEL_MAP[src]||src;m.chRev[ch]=(m.chRev[ch]||0)+x.rev;m.chDeals[ch]=(m.chDeals[ch]||0)+1});
+
+  const E=rows(T['OpEx']);const ei={d:idx(E.hdr,'Month'),t:idx(E.hdr,'Type'),v:idx(E.hdr,'Monthly Cost')};
+  m.opexCashMo=Array(12).fill(0);m.opexImpMo=Array(12).fill(0);
+  E.data.forEach(r=>{const d=D(r[ei.d]),t=String(r[ei.t]).trim();if(!d||!t)return;const v=P(r[ei.v]);
+    if(t==='Cash')m.opexCashMo[d.getMonth()]+=v;else if(t==='Imputed')m.opexImpMo[d.getMonth()]+=v});
+  const elM=now.getMonth()+1;
+  m.opexCashYTD=m.opexCashMo.slice(0,elM).reduce((a,b)=>a+b,0);
+  m.opexImpYTD=m.opexImpMo.slice(0,elM).reduce((a,b)=>a+b,0);
+  m.cashProfit=m.revYTD-m.spendYTD-m.opexCashYTD;
+  m.trueProfit=m.cashProfit-m.opexImpYTD;
+  m.margin=m.revYTD?m.trueProfit/m.revYTD:null;
+  m.fixedMo=(m.spendYTD+m.opexCashYTD+m.opexImpYTD)/Math.max(1,elM);
+
+  const Pp=rows(T['Pipeline']);const pi={n:idx(Pp.hdr,'Contact Name'),a:idx(Pp.hdr,'Property'),s:idx(Pp.hdr,'Signed'),f:idx(Pp.hdr,'Expected Fee'),dy:idx(Pp.hdr,'Days')};
+  m.pipe=Pp.data.filter(r=>r[pi.n]).map(r=>({nm:String(r[pi.n]),ad:String(r[pi.a]||''),sd:D(r[pi.s]),fee:P(r[pi.f]),days:P(r[pi.dy])}));
+  m.pipeConf=m.pipe.reduce((s,x)=>s+x.fee,0);
+  m.pipeZero=m.pipe.filter(x=>!x.fee).length;
+  m.pipeExpected=m.pipeConf*m.conv.conClose;
+
+  const K=rows(T['Calls']);const ki={d:idx(K.hdr,'Date'),u:idx(K.hdr,'User'),t:idx(K.hdr,'Total Calls')};
+  m.callsWk={};m.callUsers=new Set();
+  K.data.forEach(r=>{const d=D(r[ki.d]);if(!d)return;const u=String(r[ki.u]);if(!u||u==='Unassigned')return;
+    const k=wkKey(d);m.callUsers.add(u);(m.callsWk[k]=m.callsWk[k]||{})[u]=((m.callsWk[k]||{})[u]||0)+P(r[ki.t])});
+
+  const Sp=rows(T['Speed to Lead']);const spi={d:idx(Sp.hdr,'Lead Created'),m:idx(Sp.hdr,'Speed'),s:idx(Sp.hdr,'Lead Source')};
+  m.speed=Sp.data.map(r=>{const src=spi.s>=0?String(r[spi.s]||'').trim():'';
+    return {d:D(r[spi.d]),min:P(r[spi.m]),ch:src?(CHANNEL_MAP[src]||src):'(untagged)'}}).filter(x=>x.d);
+  m.speedAvg=m.speed.length?m.speed.reduce((s,x)=>s+x.min,0)/m.speed.length:null;
+  m.speedByCh={};m.speed.forEach(x=>{(m.speedByCh[x.ch]=m.speedByCh[x.ch]||{sum:0,n:0});
+    m.speedByCh[x.ch].sum+=x.min;m.speedByCh[x.ch].n++});
+
+  const yrEnd=new Date(yr,11,31);
+  m.remaining=Math.max(0,m.goal-m.revYTD);
+  m.monthsLeft=Math.max(.1,(yrEnd-now)/(864e5*30.44));
+  m.reqMo=m.remaining/m.monthsLeft;
+  m.runRate=m.revYTD/Math.max(.1,m.monthsElapsed);
+  m.closingsNeededMo=m.avgGross?m.reqMo/m.avgGross:null;
+  m.contractsNeededMo=m.closingsNeededMo&&m.conv.conClose?m.closingsNeededMo/m.conv.conClose:null;
+  m.leadsPerContract=m.signed?m.leads.length/m.signed:null;
+  m.leadsNeededWk=m.contractsNeededMo&&m.leadsPerContract?m.contractsNeededMo*m.leadsPerContract/4.33:null;
+  m.leadsWkNow=m.leads.length/Math.max(.1,m.weeksElapsed);
+  m.projEOY=m.revYTD+m.runRate*m.monthsLeft;
+
+  const dvAppt=m.conv.apptCon*m.conv.conClose*m.avgGross;
+  m.gaps=[
+    {nm:'Contract → Close',a:m.conv.conClose,t:m.targets.conClose,
+     ytd:Math.max(0,m.targets.conClose-m.conv.conClose)*m.signed*m.avgGross,
+     fwd:Math.max(0,m.targets.conClose-m.conv.conClose)*m.pipeConf,
+     meta:`${m.nClosed} closed ÷ ${m.signed} signed`},
+    {nm:'Appt → Contract',a:m.conv.apptCon,t:m.targets.apptCon,
+     ytd:Math.max(0,m.targets.apptCon-m.conv.apptCon)*m.showed*m.conv.conClose*m.avgGross,fwd:0,
+     meta:`${m.signedViaAppt} via appt ÷ ${m.showed} showed`},
+    {nm:'Lead → Appt',a:m.conv.leadAppt,t:m.targets.leadAppt,
+     ytd:Math.max(0,m.targets.leadAppt-m.conv.leadAppt)*m.leads.length*dvAppt,fwd:0,
+     meta:`${m.booked} booked ÷ ${m.leads.length} leads`}
+  ].sort((a,b)=>(b.ytd+b.fwd)-(a.ytd+a.fwd));
+
+  m.chTable=Object.keys({...m.spendByCh,...m.chRev}).filter(c=>c!=='(unmapped)')
+    .map(c=>({c,cost:m.spendByCh[c]||0,rev:m.chRev[c]||0,leads:m.chLeads[c]||0,deals:m.chDeals[c]||0}))
+    .map(x=>({...x,roas:x.cost?x.rev/x.cost:null,cpl:x.leads?x.cost/x.leads:null,
+      lv:x.leads&&x.deals?x.deals/x.leads*m.avgGross:null}))
+    .sort((a,b)=>b.rev-a.rev||b.cost-a.cost);
+  return m;
+}
+
+/* ═══════════ INSIGHT ENGINES (the diagnosis layer) ═══════════ */
+const IC={good:'▲',bad:'▼',warn:'◆',info:'●'};
+function diag(list){return `<div class="card diag"><div class="d-h"><span class="d-scan"></span><h3>DIAGNOSIS — auto-derived from the data</h3></div>`+
+  list.map(i=>`<div class="ins ${i.s}"><span class="ic">${IC[i.s]}</span><span>${i.t}</span></div>`).join('')+`</div>`}
+
+function insightsHome(m){const g=m.gaps[0];return [
+  {s:m.runRate>=m.reqMo?'good':'bad',t:`Pace: run rate <b class="m">${fmtK(m.runRate)}/mo</b> vs required <b class="m">${fmtK(m.reqMo)}/mo</b> — ${m.runRate>=m.reqMo?'on pace':'<b>'+fmtK(m.reqMo-m.runRate)+'/mo behind</b>; at current rate the year lands ≈ <b class="m">'+fmtK(m.projEOY)+'</b>'}.`},
+  {s:'warn',t:`Biggest leak: <b>${g.nm}</b> at ${pct(g.a)} vs ${pct(g.t,0)} target — worth ≈ <b class="m">${fmtK(g.ytd+g.fwd)}</b> (YTD + forward). Tap Funnel for the ranked list.`},
+  {s:'info',t:`Pipeline carries <b class="m">${fmt$(m.pipeConf)}</b> confirmed (${m.pipe.length} deals); at the real close rate that's <b class="m">${fmtK(m.pipeExpected)}</b> expected${m.pipeZero?` — <b>${m.pipeZero} deal${m.pipeZero>1?'s':''} still unvalued</b>`:''}.`}]}
+
+function insightsRevenue(m){const out=[];const nowMo=m.now.getMonth();
+  const hitMo=m.revByMo.slice(0,nowMo+1).filter(v=>v>=m.goalMo).length;
+  out.push({s:hitMo>=Math.ceil((nowMo+1)/2)?'good':'bad',t:`<b class="m">${hitMo} of ${nowMo+1}</b> months have cleared the ${fmtK(m.goalMo)} line. Goal attainment <b class="m">${pct(m.revYTD/m.goal)}</b> of $${m.goal/1000}K.`});
+  const top=[...m.closings].sort((a,b)=>b.rev-a.rev)[0];
+  if(top)out.push({s:top.rev/m.revYTD>.3?'warn':'info',t:`Concentration: <b>${esc(top.nm)}</b> is <b class="m">${pct(top.rev/m.revYTD)}</b> of all YTD revenue (${fmt$(top.rev)}). ${top.rev/m.revYTD>.3?'One deal carries the year — volume is the cure.':''}`});
+  out.push({s:m.projEOY>=m.goal?'good':'bad',t:`Straight-line projection: <b class="m">${fmtK(m.projEOY)}</b> by Dec 31 at the current run rate — ${m.projEOY>=m.goal?'clears':'misses'} the goal by <b class="m">${fmtK(Math.abs(m.projEOY-m.goal))}</b>. Pipeline credit of ${fmtK(m.pipeExpected)} is not in that line.`});
+  out.push({s:'info',t:`Average gross <b class="m">${fmtK(m.avgGross)}</b>/deal — the goal therefore demands ≈ <b class="m">${m.closingsNeededMo?.toFixed(1)}</b> closings/mo from here. Tap Pace from the Deck for the full backward walk.`});
+  return out}
+
+function insightsFunnel(m){const out=[];
+  m.gaps.forEach((g,i)=>{if(g.ytd+g.fwd>0)out.push({s:i===0?'bad':'warn',
+    t:`<b>#${i+1} ${g.nm}</b>: ${pct(g.a)} vs ${pct(g.t,0)} target (${g.meta}) — leak ≈ <b class="m">${fmtK(g.ytd)}</b> YTD${g.fwd?` + <b class="m">${fmtK(g.fwd)}</b> on the live pipeline`:''}.`})});
+  out.push({s:m.conv.show>=.75?'good':'warn',t:`Show rate <b class="m">${pct(m.conv.show)}</b> (${m.showed} ÷ ${m.booked}). ${m.conv.show>=.75?'Healthy — bookings are qualified.':'Soft — confirmations/qualification need attention.'}`});
+  out.push({s:'info',t:`Offers run <b>parallel</b> to the appointment path: ${m.offersMade} made, offer→contract ${pct(m.conv.offCon)} — most contracts (${m.signed-m.signedViaAppt} of ${m.signed}) arrive without a sit. The appointment lane converts at ${pct(m.conv.apptCon)}.`});
+  return out}
+
+function insightsChannels(m){const out=[];const t=m.chTable;
+  const scal=t.filter(x=>['Google Ads','PPL'].includes(x.c)&&x.lv!=null).sort((a,b)=>b.lv-a.lv);
+  if(scal[0])out.push({s:'info',t:`Marginal dollar: <b>${scal[0].c}</b> leads carry the highest expected value among scalable channels — <b class="m">${fmtK(scal[0].lv)}</b>/lead at its own yield (${scal[0].deals} deal${scal[0].deals>1?'s':''} ÷ ${scal[0].leads} leads). ${scal[0].deals<3?'<b>Small sample — treat as a hypothesis, buy information cheaply before reallocating.</b>':''}`});
+  const ev=t.find(x=>x.c==='Events');
+  if(ev&&ev.roas)out.push({s:'good',t:`<b>Events</b> returns <b class="m">${ev.roas.toFixed(1)}×</b> (${fmtK(ev.rev)} on ${fmtK(ev.cost)}) — best return on the board, but relationship-driven: <b>protect it, you can't buy more of it</b>.`});
+  t.filter(x=>x.cost>0&&!x.rev).forEach(x=>out.push({s:'warn',t:`<b>${x.c}</b> has ${fmtK(x.cost)} spend, ${x.leads} leads, <b>$0 revenue</b> so far${x.c==='MLS'?' (June start — too early to judge)':''}. CPL ${x.cpl!=null?fmt$(x.cpl):'—'}.`}));
+  if(m.leadsNeededWk&&scal[0]&&scal[0].cpl)out.push({s:'info',t:`Closing the lead gap (${Math.max(0,m.leadsNeededWk-m.leadsWkNow).toFixed(1)}/wk) via ${scal[0].c} at ${fmt$(scal[0].cpl)} CPL ≈ <b class="m">${fmt$(Math.max(0,m.leadsNeededWk-m.leadsWkNow)*scal[0].cpl)}/wk</b> added spend — assumes linear scaling at current conversion.`});
+  return out}
+
+function insightsChannel(m,name){const x=m.chTable.find(z=>z.c===name);if(!x)return[];const out=[];
+  out.push({s:x.roas>=3?'good':x.roas>=1?'info':x.roas==null?'info':'bad',
+    t:`<b>${name}</b>: ${fmtK(x.rev)} attributed revenue on ${fmtK(x.cost)} all-in spend → ROAS <b class="m">${x.roas!=null?x.roas.toFixed(2)+'×':'—'}</b>. ${x.leads} leads, ${x.deals} deal${x.deals===1?'':'s'}.`});
+  if(x.cpl!=null)out.push({s:'info',t:`Cost per lead <b class="m">${fmt$(x.cpl)}</b>; value per lead at this channel's own yield <b class="m">${x.lv!=null?fmtK(x.lv):'$0'}</b> ${x.lv&&x.cpl?`→ every lead is worth ≈ <b class="m">${(x.lv/x.cpl).toFixed(1)}×</b> what it costs.`:''}`});
+  out.push({s:'info',t:`Scalability: <b>${SCALABLE[name]||'—'}</b>.`});
+  if(x.deals<3&&x.deals>0)out.push({s:'warn',t:`Yield rests on <b>${x.deals} deal${x.deals>1?'s':''}</b> — one deal either way swings this channel's math materially. Hypothesis, not verdict.`});
+  return out}
+
+function insightsPipeline(m){const out=[];const top=[...m.pipe].sort((a,b)=>b.fee-a.fee)[0];
+  if(top&&m.pipeConf)out.push({s:top.fee/m.pipeConf>.4?'warn':'info',t:`Concentration: <b>${esc(top.nm)}</b> is <b class="m">${pct(top.fee/m.pipeConf)}</b> of confirmed pipeline (${fmt$(top.fee)}). ${top.fee/m.pipeConf>.4?'One deal carries the forward book — give it dispo priority.':''}`});
+  if(m.pipeZero)out.push({s:'warn',t:`<b class="m">${m.pipeZero}</b> signed deal${m.pipeZero>1?'s':''} still at $0 — dispo values not set. These are invisible to the forward number until priced.`});
+  const aged=m.pipe.filter(x=>x.days>45);
+  if(aged.length)out.push({s:'bad',t:`Aging: <b>${aged.map(x=>esc(x.nm)).join(', ')}</b> ${aged.length>1?'have':'has'} been under contract <b class="m">45+ days</b> vs the 30-day target — close-rate risk.`});
+  out.push({s:m.pipeExpected>=m.reqMo?'good':'info',t:`Expected value <b class="m">${fmtK(m.pipeExpected)}</b> (${fmtK(m.pipeConf)} × ${pct(m.conv.conClose)} close rate) ${m.pipeExpected>=m.reqMo?'covers':'covers '+pct(m.pipeExpected/m.reqMo,0)+' of'} one required month (${fmtK(m.reqMo)}). Lift the close rate to ${pct(m.targets.conClose,0)} and it becomes ${fmtK(m.pipeConf*m.targets.conClose)}.`});
+  return out}
+
+function insightsProfit(m){const nowMo=m.now.getMonth();const out=[];
+  out.push({s:m.margin>.5?'good':'info',t:`True margin <b class="m">${pct(m.margin)}</b> — of every revenue dollar, ${Math.round((m.margin||0)*100)}¢ survives all costs including imputed infrastructure.`});
+  out.push({s:'info',t:`Cost floor ≈ <b class="m">${fmtK(m.fixedMo)}/mo</b> (marketing + OpEx avg) → breakeven needs ≈ <b class="m">${(m.fixedMo/m.avgGross).toFixed(1)}</b> closings/mo at ${fmtK(m.avgGross)} avg gross.`});
+  const below=m.revByMo.slice(0,nowMo+1).filter((v,i)=>v-m.spendByMo[i]-m.opexCashMo[i]-m.opexImpMo[i]<0).length;
+  out.push({s:below>2?'warn':'info',t:`<b class="m">${below}</b> of ${nowMo+1} months ran true-negative — fixed costs land hard on no-close months; smoothing closings across months matters as much as volume.`});
+  out.push({s:'info',t:`Imputed share: <b class="m">${fmtK(m.opexImpYTD)}</b> of comped infrastructure counted at market — cash profit ${fmtK(m.cashProfit)} vs true ${fmtK(m.trueProfit)}.`});
+  return out}
+
+function insightsActivity(m){const out=[];
+  const wks=Object.keys(m.callsWk).sort((a,b)=>{const[p,q]=[a,b].map(s=>s.split('/').map(Number));return p[0]-q[0]||p[1]-q[1]});
+  const j='Jordan Mathis';const jw=wks.map(w=>(m.callsWk[w]||{})[j]||0).filter((v,i)=>wks.length-i<=8);
+  if(jw.length>=8){const recent=jw.slice(-4).reduce((a,b)=>a+b,0)/4,prior=jw.slice(0,4).reduce((a,b)=>a+b,0)/4;
+    const ch=prior?(recent-prior)/prior:null;
+    out.push({s:ch>=0?'good':'warn',t:`Jordan's dials: last-4-week avg <b class="m">${Math.round(recent)}/wk</b> vs prior <b class="m">${Math.round(prior)}/wk</b> — ${ch!=null?(ch>=0?'▲ up ':'▼ down ')+pct(Math.abs(ch),0):''}.`})}
+  if(m.speedAvg!=null)out.push({s:m.speedAvg<=5?'good':'warn',t:`Speed to lead averages <b class="m">${Math.round(m.speedAvg)} min</b> across ${m.speed.length} tracked leads${m.speedAvg>5?' — industry contact-rate cliff sits near 5 minutes; the slow ones are conversions leaking':''}.`});
+  const chAvg=Object.entries(m.speedByCh||{}).map(([c,v])=>({c,avg:v.sum/v.n,n:v.n})).filter(x=>x.c!=='(untagged)');
+  if(chAvg.length){const ga=chAvg.find(x=>x.c==='Google Ads');const rest=chAvg.filter(x=>x.c!=='Google Ads');
+    out.push({s:'info',t:`By source: ${chAvg.sort((a,b)=>a.avg-b.avg).map(x=>`<b>${x.c}</b> <span class="m">${Math.round(x.avg)}m</span> (${x.n})`).join(' · ')}.`});
+    if(ga&&rest.length){const slower=rest.filter(x=>x.avg<ga.avg);
+      if(slower.length)out.push({s:'bad',t:`Priority inversion: <b>Google Ads</b> leads (paid, ~${fmt$(327)} CPL) are being reached <b>slower</b> than ${slower.map(x=>x.c).join(', ')} — paid clicks decay in minutes; they should be the fastest dots on the board.`});
+      else out.push({s:'good',t:`Triage holds: <b>Google Ads</b> leads are the fastest-touched source — correct priority for paid traffic.`})}}
+  out.push({s:m.leadsWkNow>=(m.leadsNeededWk||0)?'good':'bad',t:`Lead intake <b class="m">${m.leadsWkNow.toFixed(1)}/wk</b> vs <b class="m">${m.leadsNeededWk?.toFixed(1)??'—'}/wk</b> the goal demands at current conversions.`});
+  return out}
+
+/* ═══════════ VIEWS ═══════════ */
+function tile(lbl,val,cls,why,v,c){return `<button class="tile ${cls&&cls.includes('br')?'hero':''}" onclick="go('${v}'${c?`,'${c}'`:''})">
+  <div class="t-lbl">${lbl}</div><div class="t-val ${cls||''}">${val}</div><div class="why">= ${why}</div></button>`}
+
+const VIEWS={
+home(m){return {html:`
+  <p class="eyebrow">Annual objective · live ledger</p>
+  <h1>Path to <span style="color:var(--glow)">${fmt$(m.goal)}</span></h1>
+  <p class="lede">Tap any figure to open its full analysis. Every number is derived from raw event rows and prints its math.</p>
+  <div class="capbar">
+    <div class="bar"><div class="seg closed" style="width:${Math.min(100,m.revYTD/m.goal*100)}%"></div>
+      <div class="seg pipe" style="width:${Math.min(100-m.revYTD/m.goal*100,m.pipeExpected/m.goal*100)}%"></div>
+      <div class="tick" style="left:${Math.min(100,m.monthsElapsed/12*100)}%"></div></div>
+    <div class="caplbl"><span>$0</span><span>${fmtK(m.goal/2)}</span><span>${fmt$(m.goal)}</span></div>
+    <div class="legend"><span class="l1"><i></i>Closed <b>${fmt$(m.revYTD)}</b></span>
+      <span class="l2"><i></i>Pipeline expected <b>+${fmtK(m.pipeExpected)}</b></span>
+      <span class="l3"><i></i>Unbuilt <b>${fmtK(Math.max(0,m.goal-m.revYTD-m.pipeExpected))}</b></span></div>
+  </div>
+  <div class="grid tiles">
+    ${tile('Revenue YTD',fmt$(m.revYTD),'br',`${m.nClosed} closings summed`,'revenue')}
+    ${tile('Run rate /mo',fmtK(m.runRate),m.runRate>=m.reqMo?'gr':'rd',`${fmtK(m.revYTD)} ÷ ${m.monthsElapsed.toFixed(1)} mo`,'pace')}
+    ${tile('Required /mo',fmtK(m.reqMo),'',`${fmtK(m.remaining)} ÷ ${m.monthsLeft.toFixed(1)} mo`,'pace')}
+    ${tile('Pipeline',fmt$(m.pipeConf),'br',`Σ dispo values · ${m.pipe.length} deals`,'pipeline')}
+    ${tile('Expected',fmtK(m.pipeExpected),'br',`× ${pct(m.conv.conClose)} close rate`,'pipeline')}
+    ${tile('True profit',fmt$(m.trueProfit),m.trueProfit>=0?'gr':'rd',`rev − mktg − all OpEx`,'profit')}
+    ${tile('True margin',pct(m.margin),'',`${fmtK(m.trueProfit)} ÷ ${fmtK(m.revYTD)}`,'profit')}
+    ${tile('Blended ROAS',(m.spendYTD?(m.revYTD/m.spendYTD).toFixed(2)+'×':'—'),'br',`÷ ${fmtK(m.spendYTD)} spend`,'channels')}
+    ${tile('Close rate',pct(m.conv.conClose),m.conv.conClose>=m.targets.conClose?'gr':'rd',`${m.nClosed} ÷ ${m.signed} signed`,'funnel')}
+    ${tile('Closings need /mo',m.closingsNeededMo?m.closingsNeededMo.toFixed(1):'—','',`÷ ${fmtK(m.avgGross)} avg gross`,'pace')}
+    ${tile('Speed to lead',m.speedAvg!=null?Math.round(m.speedAvg)+'m':'—','br',`avg of ${m.speed.length} first dials`,'activity')}
+    ${tile('Awaiting value',String(m.pipeZero),m.pipeZero?'rd':'gr',`signed deals at $0`,'pipeline')}
+  </div>
+  ${diag(insightsHome(m))}
+  <footer><span>CLT BUYERS · COMMAND DECK</span><span id="ftFresh">${new Date().toLocaleString()}</span></footer>`,mount(){}}},
+
+revenue(m){const nowMo=m.now.getMonth();return {html:`
+  <p class="eyebrow">Detail · 03 revenue</p><h1>Revenue vs the line</h1>
+  <div class="head-metric"><span class="hm-big">${fmt$(m.revYTD)}</span>
+    <span class="hm-side">= Σ ${m.nClosed} closing rows<br>${pct(m.revYTD/m.goal)} of ${fmtK(m.goal)}</span></div>
+  <div class="grid cols2" style="margin-top:16px">
+    <div class="card chart-card"><h3>Monthly vs goal</h3><p class="sub">bars = booked closings · line = ${fmtK(m.goalMo)} requirement</p>
+      <div class="chart-wrap"><canvas id="c1"></canvas></div></div>
+    <div class="card chart-card"><h3>Cumulative race</h3><p class="sub">brand = banked · white dash = required slope</p>
+      <div class="chart-wrap"><canvas id="c2"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top:12px"><div class="tbl"><table>
+    <tr><th>Deal</th><th>Closed</th><th class="num">Revenue</th><th class="num">% of YTD</th></tr>
+    ${[...m.closings].sort((a,b)=>b.rev-a.rev).map(x=>`<tr><td style="color:var(--txt)">${esc(x.nm)}</td>
+      <td>${x.d?x.d.toLocaleDateString():'—'}</td><td class="num">${fmt$(x.rev)}</td><td class="num">${pct(x.rev/m.revYTD)}</td></tr>`).join('')}
+  </table></div></div>
+  ${diag(insightsRevenue(m))}`,
+  mount(){const glow=css('--glow'),deep=css('--brand-deep');
+    mk('c1',{type:'bar',data:{labels:MONTHS,datasets:[
+      {type:'bar',label:'Revenue',data:m.revByMo,borderRadius:7,
+       backgroundColor:m.revByMo.map((v,i)=>i>nowMo?'#13233A':v>=m.goalMo?css('--green')+'CC':glow+'B3')},
+      {type:'line',label:'Goal',data:Array(12).fill(m.goalMo),borderColor:'#EAF3FC',borderDash:[5,5],pointRadius:0,borderWidth:1.4}]},
+      options:{plugins:{legend:{position:'bottom'}},scales:{y:{ticks:{callback:fmtK}}}}});
+    let c=0;const cum=m.revByMo.map((v,i)=>i<=nowMo?(c+=v):null);
+    mk('c2',{type:'line',data:{labels:MONTHS,datasets:[
+      {label:'Banked',data:cum,borderColor:glow,backgroundColor:glow+'22',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:glow},
+      {label:'Required',data:MONTHS.map((_,i)=>m.goal/12*(i+1)),borderColor:'#EAF3FC',borderDash:[5,5],pointRadius:0,borderWidth:1.4}]},
+      options:{plugins:{legend:{position:'bottom'}},scales:{y:{ticks:{callback:fmtK}}}}});}}},
+
+funnel(m){const fmax=m.leads.length||1;
+  const stages=[['Leads',m.leads.length,null],['Booked',m.booked,m.conv.leadAppt],['Showed',m.showed,m.conv.show],
+    ['Signed',m.signed,m.conv.apptCon],['Closed',m.nClosed,m.conv.conClose]];
+  const bl=[['Lead → Appt',m.conv.leadAppt,m.targets.leadAppt,`${m.booked} ÷ ${m.leads.length}`],
+    ['Show rate',m.conv.show,null,`${m.showed} ÷ ${m.booked}`],
+    ['Appt → Contract',m.conv.apptCon,m.targets.apptCon,`${m.signedViaAppt} ÷ ${m.showed}`],
+    ['Offer → Contract',m.conv.offCon,m.targets.offCon,`${m.signed} ÷ ${m.offersMade}`],
+    ['Contract → Close',m.conv.conClose,m.targets.conClose,`${m.nClosed} ÷ ${m.signed}`]];
+  return {html:`
+  <p class="eyebrow">Detail · 01 the machine</p><h1>Funnel &amp; leaks</h1>
+  <div class="grid cols2" style="margin-top:16px">
+    <div class="card"><h3 style="font-size:12.5px;color:var(--txt2);margin-bottom:10px">Volume cascade (raw rows)</h3>
+      ${stages.map(([l,v,c])=>`<div class="funnel-row"><div class="f-lbl">${l}<b>${v}</b></div>
+        <div class="f-bar"><div class="f-fill" style="width:${Math.max(2,v/fmax*100)}%"></div></div>
+        <div class="f-conv">${c==null?'<b>100%</b>base':'<b>'+pct(c)+'</b>step'}</div></div>`).join('')}
+      <p class="why" style="margin-top:8px">offers parallel: <b>${m.offersMade} made</b> · most contracts arrive without a sit</p></div>
+    <div class="card"><h3 style="font-size:12.5px;color:var(--txt2)">Conversion vs target</h3>
+      <p class="sub mono" style="font-size:9.5px;color:var(--txt3)">bright tick = Goals target</p>
+      ${bl.map(([l,a,t,w])=>{const max=Math.max(a,t||0)*1.25||1,fw=Math.min(100,a/max*100),tp=t?Math.min(100,t/max*100):null,miss=t!=null&&a<t;
+        return `<div class="bullet"><div class="top"><span>${l}</span><span class="v">${pct(a)}${t?` <span style="color:var(--txt3)">/ ${pct(t,0)}</span>`:''}</span></div>
+        <div class="b-track"><div class="b-fill ${miss?'miss':''}" style="width:${fw}%"></div>${tp!=null?`<div class="b-tgt" style="left:${tp}%"></div>`:''}</div>
+        <p class="why" style="border:0;padding-top:3px;margin-top:3px">= ${w}</p></div>`}).join('')}</div>
+  </div>
+  <div class="grid cols2" style="margin-top:12px">
+    <div class="card"><h3 style="font-size:12.5px;color:var(--txt2);margin-bottom:8px">Ranked repair list — dollars leaked</h3>
+      ${m.gaps.map((g,i)=>`<div class="gap-row"><div><span class="gap-rank">${i+1}</span><span class="nm">${g.nm}</span>
+        <div class="meta" style="margin-left:26px">${pct(g.a)} vs ${pct(g.t,0)} · ${g.meta}</div></div>
+        <div class="gap-amt">${g.ytd>0?'−'+fmtK(g.ytd):'$0'}<small>${g.fwd>0?'+ '+fmtK(g.fwd)+' fwd':'YTD'}</small></div></div>`).join('')}</div>
+    <div class="card chart-card"><h3>Leak magnitude</h3><p class="sub">YTD + forward impact per gap</p>
+      <div class="chart-wrap"><canvas id="c1"></canvas></div></div>
+  </div>
+  ${diag(insightsFunnel(m))}`,
+  mount(){mk('c1',{type:'bar',data:{labels:m.gaps.map(g=>g.nm),datasets:[
+    {label:'Forward',data:m.gaps.map(g=>g.fwd),backgroundColor:css('--glow')+'CC',borderRadius:6},
+    {label:'YTD',data:m.gaps.map(g=>g.ytd),backgroundColor:css('--red')+'99',borderRadius:6}]},
+    options:{indexAxis:'y',plugins:{legend:{position:'bottom'}},scales:{x:{ticks:{callback:fmtK}}}}})}}},
+
+channels(m){const t=m.chTable,wc=t.filter(x=>x.cost>0);return {html:`
+  <p class="eyebrow">Detail · 04 capital allocation</p><h1>Channel returns</h1>
+  <div class="head-metric"><span class="hm-big">${(m.revYTD/(m.spendYTD||1)).toFixed(2)}×</span>
+    <span class="hm-side">blended ROAS<br>= ${fmtK(m.revYTD)} ÷ ${fmtK(m.spendYTD)}</span></div>
+  <div class="card chart-card" style="margin-top:14px"><h3>ROAS by channel</h3><p class="sub">revenue ÷ all-in spend · tap a table row to drill in</p>
+    <div class="chart-wrap"><canvas id="c1"></canvas></div></div>
+  <div class="card" style="margin-top:12px"><div class="tbl"><table>
+    <tr><th>Channel</th><th class="num">Spend</th><th class="num">Rev</th><th class="num">ROAS</th><th class="num">Leads</th><th class="num">CPL</th><th class="num">Deals</th><th>Scale</th></tr>
+    ${t.map(x=>`<tr class="rowlink" onclick="go('channel','${x.c.replace(/'/g,"\\'")}')">
+      <td style="color:var(--txt)">${x.c} ›</td><td class="num">${fmt$(x.cost)}</td><td class="num">${fmt$(x.rev)}</td>
+      <td class="num" style="color:${x.roas>=3?css('--green'):x.roas>=1?css('--glow'):x.roas==null?css('--txt3'):css('--red')}">${x.roas!=null?x.roas.toFixed(2)+'×':'—'}</td>
+      <td class="num">${x.leads}</td><td class="num">${x.cpl!=null?fmt$(x.cpl):'—'}</td><td class="num">${x.deals}</td>
+      <td><span class="pill ${SCALABLE[x.c]==='linear'?'g':SCALABLE[x.c]==='not purchasable'?'a':'c'}">${SCALABLE[x.c]||'—'}</span></td></tr>`).join('')}
+  </table></div></div>
+  ${diag(insightsChannels(m))}`,
+  mount(){mk('c1',{type:'bar',data:{labels:wc.map(x=>x.c),datasets:[{data:wc.map(x=>x.roas),borderRadius:7,
+    backgroundColor:wc.map(x=>x.roas>=3?css('--green')+'CC':x.roas>=1?css('--glow')+'B3':css('--red')+'99')}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.raw?.toFixed(2)}× · ${fmtK(wc[c.dataIndex].rev)} on ${fmtK(wc[c.dataIndex].cost)}`}}},
+    scales:{x:{ticks:{callback:v=>v+'×'}}}}})}}},
+
+channel(m){const name=route.c;const x=m.chTable.find(z=>z.c===name)||{c:name,cost:0,rev:0,leads:0,deals:0};
+  const sp=m.spendByChMo[name]||Array(12).fill(0),ld=m.chLeadsMo[name]||Array(12).fill(0);
+  return {html:`
+  <p class="eyebrow">Channel drill-down</p><h1>${esc(name)}</h1>
+  <div class="head-metric"><span class="hm-big">${x.roas!=null?x.roas.toFixed(2)+'×':'—'}</span>
+    <span class="hm-side">= ${fmtK(x.rev)} rev ÷ ${fmtK(x.cost)} spend<br>${x.leads} leads · ${x.deals} deal${x.deals===1?'':'s'} · CPL ${x.cpl!=null?fmt$(x.cpl):'—'}</span></div>
+  <div class="card chart-card" style="margin-top:14px"><h3>Monthly spend &amp; lead yield</h3><p class="sub">bars = spend · line = leads generated</p>
+    <div class="chart-wrap"><canvas id="c1"></canvas></div></div>
+  ${diag(insightsChannel(m,name))}
+  <button class="tile" style="margin-top:12px;width:100%" onclick="go('channels')"><div class="t-lbl">‹ all channels</div></button>`,
+  mount(){mk('c1',{type:'bar',data:{labels:MONTHS,datasets:[
+    {type:'bar',label:'Spend',data:sp,backgroundColor:css('--brand-deep')+'CC',borderRadius:6,yAxisID:'y'},
+    {type:'line',label:'Leads',data:ld,borderColor:css('--glow'),tension:.3,pointRadius:3,yAxisID:'y1'}]},
+    options:{plugins:{legend:{position:'bottom'}},scales:{y:{ticks:{callback:fmtK}},y1:{position:'right',grid:{display:false},beginAtZero:true}}}})}}},
+
+pipeline(m){return {html:`
+  <p class="eyebrow">Detail · 05 forward book</p><h1>Active pipeline</h1>
+  <div class="head-metric"><span class="hm-big">${fmt$(m.pipeConf)}</span>
+    <span class="hm-side">confirmed · ${m.pipe.length} deals<br>expected <b>${fmtK(m.pipeExpected)}</b> at ${pct(m.conv.conClose)} close</span></div>
+  <div class="card" style="margin-top:14px"><div class="tbl"><table>
+    <tr><th>Deal</th><th>Signed</th><th class="num">Days</th><th class="num">Expected fee</th><th class="num">% of book</th></tr>
+    ${[...m.pipe].sort((a,b)=>b.fee-a.fee).map(x=>`<tr><td style="color:var(--txt)">${esc(x.nm)}<div style="font-size:9.5px;color:var(--txt3);white-space:normal">${esc(x.ad)}</div></td>
+      <td>${x.sd?x.sd.toLocaleDateString():'—'}</td><td class="num" style="color:${x.days>45?css('--red'):'inherit'}">${x.days||'—'}</td>
+      <td class="num">${x.fee?`<span style="color:var(--glow)">${fmt$(x.fee)}</span>`:'<span class="pill r">unvalued</span>'}</td>
+      <td class="num">${x.fee&&m.pipeConf?pct(x.fee/m.pipeConf):'—'}</td></tr>`).join('')}
+  </table></div></div>
+  <div class="card chart-card" style="margin-top:12px"><h3>Book composition</h3><p class="sub">each slice = one deal's share of confirmed value</p>
+    <div class="chart-wrap" style="max-height:250px"><canvas id="c1"></canvas></div></div>
+  ${diag(insightsPipeline(m))}`,
+  mount(){const valued=m.pipe.filter(x=>x.fee).sort((a,b)=>b.fee-a.fee);
+    const blues=['#3FD0FF','#1B9DE2','#0E84C4','#0070B0','#0A5E92','#0A4C77','#123E5E'];
+    mk('c1',{type:'doughnut',data:{labels:valued.map(x=>x.nm),datasets:[{data:valued.map(x=>x.fee),
+      backgroundColor:valued.map((_,i)=>blues[i%blues.length]),borderColor:'#050B16',borderWidth:2}]},
+      options:{plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:9}}},
+      tooltip:{callbacks:{label:c=>` ${fmt$(c.raw)} · ${pct(c.raw/m.pipeConf)}`}}},cutout:'58%'}})}}},
+
+profit(m){const nowMo=m.now.getMonth();
+  const cash=m.revByMo.map((v,i)=>v-m.spendByMo[i]-m.opexCashMo[i]);
+  const tru=cash.map((v,i)=>v-m.opexImpMo[i]);
+  const wf=[['Revenue',m.revYTD,css('--glow')],['Marketing',-m.spendYTD,css('--red')],['OpEx cash',-m.opexCashYTD,css('--red')],
+    ['Cash profit',m.cashProfit,css('--green')],['Imputed',-m.opexImpYTD,css('--amber')],['True profit',m.trueProfit,css('--green')]];
+  return {html:`
+  <p class="eyebrow">Detail · 06 what's kept</p><h1>Profitability</h1>
+  <div class="head-metric"><span class="hm-big">${fmt$(m.trueProfit)}</span>
+    <span class="hm-side">true profit YTD · margin ${pct(m.margin)}<br>cash ${fmtK(m.cashProfit)} − ${fmtK(m.opexImpYTD)} imputed</span></div>
+  <div class="grid cols2" style="margin-top:14px">
+    <div class="card chart-card"><h3>Monthly cash vs true</h3><p class="sub">fixed costs land hard on no-close months</p>
+      <div class="chart-wrap"><canvas id="c1"></canvas></div></div>
+    <div class="card chart-card"><h3>YTD waterfall</h3><p class="sub">how $ in becomes $ kept</p>
+      <div class="chart-wrap"><canvas id="c2"></canvas></div></div>
+  </div>
+  ${diag(insightsProfit(m))}`,
+  mount(){mk('c1',{type:'bar',data:{labels:MONTHS,datasets:[
+    {label:'Cash',data:cash.map((v,i)=>i<=nowMo?v:null),backgroundColor:cash.map(v=>v>=0?css('--green')+'B3':css('--red')+'99'),borderRadius:6},
+    {label:'True',data:tru.map((v,i)=>i<=nowMo?v:null),backgroundColor:tru.map(v=>v>=0?css('--glow')+'A6':css('--red')+'66'),borderRadius:6}]},
+    options:{plugins:{legend:{position:'bottom'}},scales:{y:{ticks:{callback:fmtK}}}}});
+   mk('c2',{type:'bar',data:{labels:wf.map(x=>x[0]),datasets:[{data:wf.map(x=>Math.abs(x[1])),
+    backgroundColor:wf.map(x=>x[2]+'B3'),borderRadius:7}]},
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${wf[c.dataIndex][1]<0?'−':''}${fmtK(Math.abs(wf[c.dataIndex][1]))}`}}},
+    scales:{y:{ticks:{callback:fmtK}}}}})}}},
+
+activity(m){const wks=Object.keys({...m.callsWk,...m.leadsByWk})
+    .sort((a,b)=>{const[p,q]=[a,b].map(s=>s.split('/').map(Number));return p[0]-q[0]||p[1]-q[1]});
+  const users=[...m.callUsers];const pal={'Jordan Mathis':css('--glow'),'Michael Fichman':'#8FCBEF','ALEX':'#5E7791'};
+  return {html:`
+  <p class="eyebrow">Detail · 07 the engine</p><h1>Effort &amp; speed</h1>
+  <div class="head-metric"><span class="hm-big">${m.speedAvg!=null?Math.round(m.speedAvg)+'<span style="font-size:.45em"> min</span>':'—'}</span>
+    <span class="hm-side">avg speed to lead · ${m.speed.length} tracked<br>intake ${m.leadsWkNow.toFixed(1)} leads/wk</span></div>
+  <div class="grid cols2" style="margin-top:14px">
+    <div class="card chart-card"><h3>Weekly dials by caller</h3><p class="sub">raw call events, week-ending Sunday</p>
+      <div class="chart-wrap"><canvas id="c1"></canvas></div></div>
+    <div class="card chart-card"><h3>Weekly lead intake</h3><p class="sub">vs the ${m.leadsNeededWk?m.leadsNeededWk.toFixed(1):'—'}/wk the goal demands (line)</p>
+      <div class="chart-wrap"><canvas id="c2"></canvas></div></div>
+  </div>
+  <div class="card chart-card" style="margin-top:12px"><h3>Speed to lead — per lead, by source</h3><p class="sub">minutes to first dial · colored by channel — paid clicks should be the fastest dots</p>
+    <div class="chart-wrap"><canvas id="c3"></canvas></div></div>
+  ${diag(insightsActivity(m))}`,
+  mount(){mk('c1',{type:'line',data:{labels:wks,datasets:users.map(u=>({label:u,
+      data:wks.map(w=>(m.callsWk[w]||{})[u]||0),borderColor:pal[u]||css('--amber'),tension:.3,pointRadius:2}))},
+      options:{plugins:{legend:{position:'bottom'}}}});
+    mk('c2',{type:'bar',data:{labels:wks,datasets:[
+      {type:'bar',label:'Leads',data:wks.map(w=>m.leadsByWk[w]||0),backgroundColor:css('--glow')+'99',borderRadius:5},
+      {type:'line',label:'Needed',data:wks.map(()=>m.leadsNeededWk),borderColor:'#EAF3FC',borderDash:[5,5],pointRadius:0,borderWidth:1.3}]},
+      options:{plugins:{legend:{position:'bottom'}}}});
+    const chPal={'Google Ads':css('--glow'),'PPL':'#8FCBEF','Events':css('--green'),'MLS':css('--amber'),
+      'Website/SEO':css('--brand-deep'),'D4D':'#9B8CF0','SMS':'#F08FB8','(untagged)':css('--txt3')};
+    const chans=[...new Set(m.speed.map(x=>x.ch))];
+    mk('c3',{type:'scatter',data:{datasets:chans.map(ch=>({label:ch,
+      data:m.speed.filter(x=>x.ch===ch).map(x=>({x:x.d.getTime(),y:x.min})),
+      backgroundColor:chPal[ch]||css('--amber'),pointRadius:5.5}))},
+      options:{plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9}}},
+      tooltip:{callbacks:{label:c=>` ${c.dataset.label} · ${Math.round(c.raw.y)} min`}}},
+      scales:{x:{type:'linear',ticks:{callback:v=>new Date(v).toLocaleDateString('en-US',{month:'numeric',day:'numeric'})}},
+              y:{beginAtZero:true,title:{display:true,text:'min'}}}}})}}},
+
+pace(m){return {html:`
+  <p class="eyebrow">Detail · the requirement</p><h1>Goal pace — walked backward</h1>
+  <div class="head-metric"><span class="hm-big" style="color:${m.runRate>=m.reqMo?css('--green'):css('--red')}">${fmtK(m.reqMo)}<span style="font-size:.4em">/mo</span></span>
+    <span class="hm-side">required · run rate ${fmtK(m.runRate)}/mo<br>${m.runRate>=m.reqMo?'on pace':'gap '+fmtK(m.reqMo-m.runRate)+'/mo'}</span></div>
+  <div class="card" style="margin-top:14px">
+    <div class="gap-row"><div class="nm">Remaining to goal</div><div class="gap-amt" style="color:var(--txt)">${fmtK(m.remaining)}<small>${fmtK(m.goal)} − ${fmtK(m.revYTD)}</small></div></div>
+    <div class="gap-row"><div class="nm">Net of pipeline credit</div><div class="gap-amt" style="color:var(--glow)">${fmtK(Math.max(0,m.remaining-m.pipeExpected))}<small>− ${fmtK(m.pipeExpected)} expected</small></div></div>
+    <div class="gap-row"><div class="nm">Closings / month</div><div class="gap-amt" style="color:var(--txt)">${m.closingsNeededMo?.toFixed(1)??'—'}<small>÷ ${fmtK(m.avgGross)} avg gross</small></div></div>
+    <div class="gap-row"><div class="nm">Contracts / month</div><div class="gap-amt" style="color:var(--txt)">${m.contractsNeededMo?.toFixed(1)??'—'}<small>÷ ${pct(m.conv.conClose)} close rate</small></div></div>
+    <div class="gap-row"><div class="nm">Leads / week</div><div class="gap-amt" style="color:${(m.leadsNeededWk||0)>m.leadsWkNow?css('--red'):css('--green')}">${m.leadsNeededWk?.toFixed(1)??'—'}<small>now ${m.leadsWkNow.toFixed(1)}/wk</small></div></div>
+    <p class="why" style="margin-top:10px">computed at <b>current</b> conversions — every funnel gap fixed lowers this requirement automatically.</p>
+  </div>
+  ${diag([
+    {s:m.runRate>=m.reqMo?'good':'bad',t:`At the current run rate the year lands ≈ <b class="m">${fmtK(m.projEOY)}</b> — ${m.projEOY>=m.goal?'over':'short of'} goal by <b class="m">${fmtK(Math.abs(m.projEOY-m.goal))}</b> before pipeline credit.`},
+    {s:'info',t:`Two levers move the requirement: <b>close rate</b> (raises yield per contract — see Funnel #1) and <b>lead volume</b> (raises contract count — see Capital for the cheapest scalable lead).`},
+    {s:'info',t:`Closing the close-rate gap alone (${pct(m.conv.conClose)} → ${pct(m.targets.conClose,0)}) is worth ≈ <b class="m">${fmtK(m.gaps[0].fwd)}</b> on the live pipeline at zero marketing cost.`}])}
+  `,mount(){}}},
+};
+
+/* ═══════════ PAINT ═══════════ */
+function mk(id,conf){if(charts[id])charts[id].destroy();const el=$(id);if(el)charts[id]=new Chart(el,conf)}
+function paint(){
+  if(!M)return;
+  Object.values(charts).forEach(c=>c.destroy());charts={};
+  Chart.defaults.color=css('--txt2');Chart.defaults.borderColor='rgba(122,176,230,.10)';
+  Chart.defaults.font.family="'IBM Plex Mono',monospace";Chart.defaults.font.size=10;
+  const v=VIEWS[route.v]?route.v:'home';
+  const out=VIEWS[v](M);
+  $('view').innerHTML=out.html;out.mount();
+  $('back').classList.toggle('show',v!=='home');
+  document.querySelectorAll('.nv button').forEach(b=>b.classList.toggle('on',
+    b.dataset.v===v||(v==='channel'&&b.dataset.v==='channels')||
+    (['pace','profit','activity'].includes(v)&&b.dataset.v==='home'&&false)));
+}
+function ticker(){const m=M;const tk=[
+  ['REV',fmt$(m.revYTD),'br'],['GOAL',pct(m.revYTD/m.goal),''],['PIPE',fmtK(m.pipeConf),'br'],
+  ['ROAS',(m.revYTD/(m.spendYTD||1)).toFixed(2)+'×',''],['TRUE P&L',fmtK(m.trueProfit),m.trueProfit>=0?'up':'dn'],
+  ['CLOSE',pct(m.conv.conClose),m.conv.conClose>=m.targets.conClose?'up':'dn'],
+  ['LEADS',String(m.leads.length),''],['S2L',m.speedAvg!=null?Math.round(m.speedAvg)+'m':'—',''],
+  ['REQ',fmtK(m.reqMo)+'/mo','dn'],['RUN',fmtK(m.runRate)+'/mo','up']];
+  const s=tk.map(([l,v,c])=>`<span class="tk">${l} <b class="${c}">${v}</b></span>`).join('');
+  $('tapeInner').innerHTML=s+s;$('tape').hidden=false}
+
+/* ═══════════ BOOT ═══════════ */
+$('connect').onclick=()=>{cfg.url=$('inUrl').value.trim();cfg.tok=$('inTok').value.trim();
+  if(!cfg.url||!cfg.tok)return;history.replaceState(null,'',buildHash());load();
+  clearInterval(timer);timer=setInterval(load,REFRESH_MS)};
+$('refresh').onclick=load;
+$('back').onclick=()=>go(route.v==='channel'?'channels':'home');
+document.querySelectorAll('.nv button').forEach(b=>b.onclick=()=>go(b.dataset.v));
+readHash();
+if(cfg.url&&cfg.tok){load();timer=setInterval(load,REFRESH_MS)}else{$('setup').hidden=false;setDot('err','not connected')}
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  navigator.serviceWorker.register('sw.js').catch(()=>{})}
+</script>
+</body>
+</html>
