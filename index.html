@@ -245,6 +245,20 @@ select.lm-person{cursor:pointer}
 .lm-diag{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
 .lm-d-h{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.2em;color:var(--glow);margin-bottom:8px}
 .lm-diag p{margin:6px 0;font-size:13px;color:var(--txt2)} .lm-diag b{color:var(--txt)}
+.lm-coach{margin-top:14px;background:radial-gradient(360px 100px at 12% 0%,var(--glow-dim),transparent),var(--card);border:1px solid var(--line2);border-radius:14px;padding:14px}
+.lm-coach p{margin:6px 0 0;font-size:13.5px;color:var(--txt);line-height:1.55}
+.lm-reclist{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.lm-rec-h{font-family:'IBM Plex Mono';font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--glow);margin-bottom:8px}
+.lm-rec{display:grid;grid-template-columns:54px 1fr auto;gap:8px;align-items:baseline;padding:6px 0;border-top:1px dashed var(--line);font-size:12.5px}
+.lm-rec.none{color:var(--txt3);border:0;font-family:'IBM Plex Mono';font-size:11px}
+.lm-rec.more{color:var(--txt3);border-top:1px dashed var(--line);font-family:'IBM Plex Mono';font-size:10px;justify-content:center;display:block;text-align:center;padding-top:8px}
+.lm-rd{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--txt3)} .lm-rd.br{color:var(--glow);font-weight:600;text-align:right}
+.lm-rn{color:var(--txt);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lm-rp{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--txt3);text-align:right;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lm-funnel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 14px;margin-bottom:6px}
+.lm-frow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px dashed var(--line)}
+.lm-frow:first-child{border-top:0} .lm-fl{font-size:13px;color:var(--txt2)} .lm-fv{font-family:'IBM Plex Mono';font-weight:600;font-size:17px;color:var(--glow)}
+.lm-deals-btn{width:100%;margin-top:14px;background:linear-gradient(180deg,#10243c,#0c192c);border:1px solid var(--line2);color:var(--glow);border-radius:13px;padding:13px;font-family:'IBM Plex Mono';font-size:12.5px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -842,17 +856,82 @@ function lmPaceDay(M){const t=M.lenses.today.calls,d=t.anchorDate,bar=t.bar,when
 function lmPicker(person,team){if(team.length<2)return '<span class="lm-person">'+person+'</span>';return '<select class="lm-person" onchange="lmGo(this.value,\'week\',\'\')">'+team.map(p=>'<option'+(p===person?' selected':'')+'>'+p+'</option>').join('')+'</select>';}
 function lmBars(lm){const g=lm.game;let o='<div class="lm-bars"><div class="lm-bar"><span class="lm-bl">Trailing avg</span><span class="lm-bv">'+(lm.bar==null?'—':Math.round(lm.bar*10)/10)+'</span></div>';o+=(g&&g.bars&&g.bars.target!=null)?'<div class="lm-bar"><span class="lm-bl">Target</span><span class="lm-bv">'+g.bars.target+'</span></div>':'<div class="lm-bar dim"><span class="lm-bl">Target</span><span class="lm-bv">not set</span></div>';return o+'</div>';}
 function lmDiag(lm,t,lens){const b=[];if(lm.comparePct!=null){const up=lm.comparePct>=0,good=t.low?!up:up;b.push(t.label+' is <b>'+Math.abs(lm.comparePct*100).toFixed(0)+'% '+(up?'up':'down')+'</b> vs '+LM_PRIOR[lens]+' — '+(good?'right way.':'slipping.'));}if(lm.bar!=null)b.push(lm.paceState==='ahead'?'Above your trailing pace.':lm.paceState==='on'?'On your trailing pace.':'Below your trailing pace.');if(lm.game&&lm.game.pr&&lm.game.pr.toTie)b.push('<b>'+LM_FMT[t.fmt](lm.game.pr.toTie)+'</b> from your record ('+lm.game.pr.best.label+').');if(lm.lagged)b.push('<i>Latest complete day; today is live in GHL.</i>');return b;}
-function lmHome(M,person,lens,team){return '<div class="lm-head"><div><p class="eyebrow">LM Scoreboard</p><h1>'+person+'</h1></div>'+lmPicker(person,team)+'</div>'+lmLensBar(person,lens)+lmComp(M)+'<section class="lm-hero">'+lmStreakHL(M,lens)+lmPaceDay(M)+'</section><div class="sec-h"><h2>Scoreboard</h2><span class="tag">'+LM_LBL[lens]+' · tap a tile</span></div><section class="lm-tiles">'+LM_TILES.map(t=>lmTile(M,person,lens,t)).join('')+'</section><div class="lm-lb">Solo · self-competition. Head-to-head ranking activates when a 2nd LM joins.</div>';}
-function lmDetail(M,person,lens,key){const t=lmTileDef(key),lm=M.lenses[lens][key],g=lm.game;let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-head"><div><p class="eyebrow">'+LM_LBL[lens]+(lens==='today'&&lm.anchorDate?' · '+lmDateLbl(lm.anchorDate):'')+'</p><h1>'+t.label+'</h1></div>'+lmLensBar(person,lens,key)+'</div><div class="lm-big '+lmPaceCls(lm.paceState)+'">'+LM_FMT[t.fmt](lm.current)+'</div><div class="lm-cmp">'+lmDelta(lm.comparePct,t.low)+' vs '+LM_PRIOR[lens]+' ('+LM_FMT[t.fmt](lm.comparison)+')</div>'+lmBars(lm);if(g){h+='<div class="lm-gcards">';if(g.streak)h+='<div class="lm-gc"><div class="lm-gl">Streak</div><div class="lm-gv">'+g.streak.current+'</div><div class="lm-gs">best '+g.streak.best+' '+LM_UNIT[lens]+'s</div></div>';if(g.pr&&g.pr.best)h+='<div class="lm-gc"><div class="lm-gl">Personal record</div><div class="lm-gv">'+LM_FMT[t.fmt](g.pr.best.value)+'</div><div class="lm-gs">'+g.pr.best.label+(g.pr.toTie?' · '+LM_FMT[t.fmt](g.pr.toTie)+' to tie':(g.pr.isRecord?' · NEW 🎉':''))+'</div></div>';if(g.paceToBeat&&g.paceToBeat.remaining!=null&&g.paceToBeat.daysLeft>0)h+='<div class="lm-gc"><div class="lm-gl">Pace to beat '+g.paceToBeat.basis+'</div><div class="lm-gv">'+(Math.round(g.paceToBeat.perDayNeeded*10)/10)+'/day</div><div class="lm-gs">'+LM_FMT[t.fmt](g.paceToBeat.remaining)+' over '+g.paceToBeat.daysLeft+'d</div></div>';h+='</div>';}h+='<div class="card chart-card"><h3>'+t.label+' · '+LM_LBL[lens]+'</h3><p class="sub">solid = you · dashed = your avg'+(g&&g.bars&&g.bars.target!=null?' · dotted = target':'')+'</p><div class="chart-wrap"><canvas id="lmchart"></canvas></div></div><div class="lm-diag"><div class="lm-d-h">READOUT</div>'+lmDiag(lm,t,lens).map(x=>'<p>'+x+'</p>').join('')+'</div>';return h;}
+function lmHome(M,person,lens,team){return '<div class="lm-head"><div><p class="eyebrow">LM Scoreboard</p><h1>'+person+'</h1></div>'+lmPicker(person,team)+'</div>'+lmLensBar(person,lens)+lmComp(M)+'<section class="lm-hero">'+lmStreakHL(M,lens)+lmPaceDay(M)+'</section><div class="sec-h"><h2>Scoreboard</h2><span class="tag">'+LM_LBL[lens]+' · tap a tile</span></div><section class="lm-tiles">'+LM_TILES.map(t=>lmTile(M,person,lens,t)).join('')+'</section><button class="lm-deals-btn" onclick="lmGo(\''+person+'\',\''+lens+'\',\'deals\')">⊞ Deals &amp; Pipeline — '+lmMoney(M.comp.totalOpportunity)+' in play →</button><div class="lm-lb">Solo · self-competition. Head-to-head ranking activates when a 2nd LM joins.</div>';}
+function lmDetail(M,person,lens,key){const t=lmTileDef(key),lm=M.lenses[lens][key],g=lm.game;let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-head"><div><p class="eyebrow">'+LM_LBL[lens]+(lens==='today'&&lm.anchorDate?' · '+lmDateLbl(lm.anchorDate):'')+'</p><h1>'+t.label+'</h1></div>'+lmLensBar(person,lens,key)+'</div><div class="lm-big '+lmPaceCls(lm.paceState)+'">'+LM_FMT[t.fmt](lm.current)+'</div><div class="lm-cmp">'+lmDelta(lm.comparePct,t.low)+' vs '+LM_PRIOR[lens]+' ('+LM_FMT[t.fmt](lm.comparison)+')</div>'+lmBars(lm);if(g){h+='<div class="lm-gcards">';if(g.streak)h+='<div class="lm-gc"><div class="lm-gl">Streak</div><div class="lm-gv">'+g.streak.current+'</div><div class="lm-gs">best '+g.streak.best+' '+LM_UNIT[lens]+'s</div></div>';if(g.pr&&g.pr.best)h+='<div class="lm-gc"><div class="lm-gl">Personal record</div><div class="lm-gv">'+LM_FMT[t.fmt](g.pr.best.value)+'</div><div class="lm-gs">'+g.pr.best.label+(g.pr.toTie?' · '+LM_FMT[t.fmt](g.pr.toTie)+' to tie':(g.pr.isRecord?' · NEW 🎉':''))+'</div></div>';if(g.paceToBeat&&g.paceToBeat.remaining!=null&&g.paceToBeat.daysLeft>0)h+='<div class="lm-gc"><div class="lm-gl">Pace to beat '+g.paceToBeat.basis+'</div><div class="lm-gv">'+(Math.round(g.paceToBeat.perDayNeeded*10)/10)+'/day</div><div class="lm-gs">'+LM_FMT[t.fmt](g.paceToBeat.remaining)+' over '+g.paceToBeat.daysLeft+'d</div></div>';h+='</div>';}h+='<div class="card chart-card"><h3>'+t.label+' · '+LM_LBL[lens]+'</h3><p class="sub">'+(RATIO2[key]?'two lines = the counts behind the % (e.g. showed vs booked)':'solid = you · dashed = your avg'+(g&&g.bars&&g.bars.target!=null?' · dotted = target':''))+'</p><div class="chart-wrap"><canvas id="lmchart"></canvas></div></div><div class="lm-diag"><div class="lm-d-h">READOUT</div>'+lmDiag(lm,t,lens).map(x=>'<p>'+x+'</p>').join('')+'</div>';h+=lmCoachBlock(M,key)+lmRecList(M,key,lens);return h;}
+/* ── records, dual-line ratios, coaching, deals view ── */
+function inWin(d,w){return !!(d&&d.getTime()>=w.start.getTime()&&d.getTime()<=w.end.getTime());}
+function lmWin(M,key,lens){const lm=M.lenses[lens][key],a=(lens==='today'&&lm&&lm.anchorDate)?E.eod(lm.anchorDate):M.asOf;return E.lensWindow(a,lens);}
+const RECF={
+  leads:{r:'leads',d:r=>r.date,det:r=>r.source||''},
+  apptsBooked:{r:'appts',f:r=>/confirmed/i.test(r.outcome),d:r=>r.conf,det:r=>r.property||''},
+  apptsShowed:{r:'appts',f:r=>/showed/i.test(r.outcome),d:r=>r.dispo,det:r=>r.property||''},
+  showRate:{r:'appts',f:r=>/showed|no show/i.test(r.outcome),d:r=>r.dispo,det:r=>r.outcome},
+  leadToAppt:{r:'appts',f:r=>/confirmed/i.test(r.outcome),d:r=>r.conf,det:r=>r.property||''},
+  apptToContract:{r:'contracts',f:r=>/signed/i.test(r.outcome),d:r=>r.signed,det:r=>r.property||''},
+  contractsSigned:{r:'contracts',f:r=>/signed/i.test(r.outcome),d:r=>r.signed,det:r=>r.property||''},
+  offersMade:{r:'offers',f:r=>/made/i.test(r.outcome)&&r.made,d:r=>r.made,det:r=>r.property||''},
+  speed:{r:'speed',d:r=>r.date,det:r=>Math.round(r.speed)+' min · '+(r.source||'')}
+};
+const RATIO2={showRate:['apptsShowed','apptsBooked',['Showed','Booked']],leadToAppt:['apptsBooked','leads',['Appts','Leads']],apptToContract:['contractsSigned','apptsShowed',['Contracts','Showed']]};
+function lmRecList(M,key,lens){
+  const sp=RECF[key];if(!sp||!M.records)return '';
+  const w=lmWin(M,key,lens),recs=M.records[sp.r]||[];
+  let rows=recs.filter(r=>(!sp.f||sp.f(r))).map(r=>({d:sp.d(r),name:r.name||'—',det:sp.det(r)})).filter(x=>inWin(x.d,w));
+  rows.sort((a,b)=>b.d-a.d);
+  const head='<div class="lm-rec-h">RECORDS · '+LM_LBL[lens]+' ('+rows.length+')</div>';
+  if(!rows.length)return '<div class="lm-reclist">'+head+'<div class="lm-rec none">No records in this window.</div></div>';
+  const cap=rows.slice(0,15);
+  return '<div class="lm-reclist">'+head+cap.map(x=>'<div class="lm-rec"><span class="lm-rd">'+lmDateLbl(x.d)+'</span><span class="lm-rn">'+x.name+'</span><span class="lm-rp">'+x.det+'</span></div>').join('')+(rows.length>15?'<div class="lm-rec more">+'+(rows.length-15)+' more</div>':'')+'</div>';
+}
+function lmCoach(M,key){
+  const c=M.comp,y=M.lenses.ytd,a2c=y.apptToContract.current||0,l2a=y.leadToAppt.current||0,sr=y.showRate.current||0,perK=(c.avgFee||0)*(c.split||0.1),perShow=a2c*perK,perAppt=sr*perShow,P=v=>lmPctF(v);
+  const L={
+    calls:'Dials feed the funnel. At your '+P(l2a)+' Lead→Appt rate, ~'+(l2a?Math.round(1/l2a):'—')+' leads worked ≈ 1 appt — volume here is what creates everything downstream.',
+    outbound:'Outbound is your controllable input. More dials → more conversations → more appts at your '+P(l2a)+' booking rate.',
+    talkTime:'Talk time = conversation quality. Deeper conversations lift your booking rate (now '+P(l2a)+').',
+    leads:'Each lead worked is worth ~'+lmMoney(l2a*perShow)+' to you (book '+P(l2a)+' → show '+P(sr)+' → contract '+P(a2c)+' × $'+Math.round(perK)+'/contract).',
+    apptsBooked:'Every booked appt ≈ '+lmMoney(perAppt)+' to you (show '+P(sr)+' × contract '+P(a2c)+' × $'+Math.round(perK)+'). Book more, earn more.',
+    apptsShowed:'A show is ~'+lmMoney(perShow)+' to you at your '+P(a2c)+' contract rate. Getting them to show is the unlock — speed-to-lead drives it.',
+    showRate:'Show rate is a money lever: each appt that actually shows ≈ '+lmMoney(perShow)+'. The #1 driver of shows is fast first-touch — see Speed.',
+    speed:'Faster first-touch lifts shows. Your YTD avg is '+Math.round(y.speed.current||0)+' min; sub-5-min is the target. Every extra show ≈ '+lmMoney(perShow)+' to you.',
+    leadToAppt:'Booking rate sets appt volume. At '+P(a2c)+' Appt→Contract and $'+Math.round(perK)+'/contract, each appt you book ≈ '+lmMoney(perAppt)+'.',
+    apptToContract:'Your highest-$ lever: each contract ≈ $'+Math.round(perK)+' to you. Lifting Appt→Contract from '+P(a2c)+' compounds across every show you get.',
+    offersMade:'Offers out become money once they go Under Contract — each ≈ $'+Math.round(perK)+' to you at the avg fee.'
+  };
+  return L[key]||'';
+}
+function lmCoachBlock(M,key){const x=lmCoach(M,key);return x?'<div class="lm-coach"><div class="lm-d-h">COACH — what moves the number</div><p>'+x+'</p></div>':'';}
+function lmDealList(title,deals){if(!deals||!deals.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+deals.length+')</div>'+deals.map(d=>'<div class="lm-rec"><span class="lm-rn">'+d.name+'</span><span class="lm-rp">'+(d.stage||'')+'</span><span class="lm-rd br">'+lmMoney(d.cut)+'</span></div>').join('')+'</div>';}
+function lmOfferList(title,offers){if(!offers||!offers.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+offers.length+')</div>'+offers.map(o=>'<div class="lm-rec"><span class="lm-rn">'+o.name+'</span><span class="lm-rp">'+(o.property||'')+'</span><span class="lm-rd">~'+lmMoney(o.est)+'</span></div>').join('')+'</div>';}
+function lmDealsView(M,person,lens){
+  const c=M.comp,L=M.lenses[lens];
+  const funnel=[['Leads',L.leads.current],['Appts Booked',L.apptsBooked.current],['Showed',L.apptsShowed.current],['Offers Made',L.offersMade.current],['Contracts',L.contractsSigned.current]];
+  let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button>';
+  h+='<div class="lm-head"><div><p class="eyebrow">Deals &amp; Pipeline</p><h1>Funnel &amp; Money</h1></div>'+lmLensBar(person,lens,'deals')+'</div>';
+  h+=lmComp(M);
+  h+='<div class="sec-h"><h2>Funnel</h2><span class="tag">'+LM_LBL[lens]+'</span></div><div class="lm-funnel">'+funnel.map(f=>'<div class="lm-frow"><span class="lm-fl">'+f[0]+'</span><span class="lm-fv">'+lmNum(f[1])+'</span></div>').join('')+'</div>';
+  h+=lmDealList('Under contract — earmarked',c.earmarkedDeals)+lmDealList('Projected — pre-contract',c.projectedDeals)+lmOfferList('Offers out — potential',c.openOffers);
+  if(c.earnedDeals.length)h+=lmDealList('Closed — earned',c.earnedDeals);
+  return h;
+}
 VIEWS.lm=function(){
   if(!RAW||!window.LMEngine)return {html:'<p class="lede">LM engine not loaded.</p>',mount(){}};
   const team=lmTeam();let st=lmState(),person=st.person||team[0]||'',lens=st.lens,metric=st.metric;
   if(!person)return {html:'<p class="lede">No LM found in the Team tab.</p>',mount(){}};
   let M2;try{M2=lmBuild(person);}catch(e){return {html:'<p class="lede">LM build error: '+e.message+'</p>',mount(){}};}
-  const html=metric?lmDetail(M2,person,lens,metric):lmHome(M2,person,lens,team);
+  const html=metric==='deals'?lmDealsView(M2,person,lens):(metric?lmDetail(M2,person,lens,metric):lmHome(M2,person,lens,team));
   return {html:html,mount(){
-    if(!metric)return;
-    const lm=M2.lenses[lens][metric],t=lmTileDef(metric),g=lm.game,sc=t.fmt==='pct'?100:1,r1=v=>(v==null||isNaN(v))?null:Math.round(v*sc*10)/10,labels=lm.trend.map(x=>x.label),data=lm.trend.map(x=>r1(x.value)),gl=css('--glow'),amb=css('--amber'),grn=css('--green'),unit=t.fmt==='pct'?'%':(t.fmt==='min'||t.fmt==='spd')?'min':'count';
+    if(!metric||metric==='deals')return;
+    const lm=M2.lenses[lens][metric],t=lmTileDef(metric),g=lm.game,gl=css('--glow'),amb=css('--amber'),grn=css('--green'),labels=lm.trend.map(x=>x.label);
+    if(RATIO2[metric]){
+      const cc=RATIO2[metric],nd=M2.lenses[lens][cc[0]].trend.map(x=>x.value),dd=M2.lenses[lens][cc[1]].trend.map(x=>x.value);
+      mk('lmchart',{type:'line',data:{labels:labels,datasets:[
+        {label:cc[2][1],data:dd,borderColor:amb,backgroundColor:'transparent',tension:.3,pointRadius:3,borderWidth:1.6,fill:false,spanGaps:true},
+        {label:cc[2][0],data:nd,borderColor:gl,backgroundColor:'rgba(63,208,255,.12)',tension:.3,pointRadius:3,borderWidth:2,fill:true,spanGaps:true}
+      ]},options:{plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,font:{size:9}}}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,title:{display:true,text:'count',font:{size:9}}}},maintainAspectRatio:false}});
+      return;
+    }
+    const sc=t.fmt==='pct'?100:1,r1=v=>(v==null||isNaN(v))?null:Math.round(v*sc*10)/10,data=lm.trend.map(x=>r1(x.value)),unit=t.fmt==='pct'?'%':(t.fmt==='min'||t.fmt==='spd')?'min':'count';
     const ds=[{label:t.label,data:data,borderColor:gl,backgroundColor:'rgba(63,208,255,.12)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:gl,borderWidth:2,spanGaps:true}];
     if(lm.bar!=null)ds.push({label:'Your avg',data:labels.map(()=>r1(lm.bar)),borderColor:amb,borderDash:[5,4],pointRadius:0,borderWidth:1.4,fill:false});
     const tg=(g&&g.bars&&g.bars.target!=null)?(t.fmt==='pct'&&g.bars.target<=1?g.bars.target*100:g.bars.target):null;

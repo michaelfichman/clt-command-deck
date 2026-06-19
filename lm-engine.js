@@ -177,24 +177,24 @@
 
     // Leads
     var l = tab('Leads'), li = colIndexer(l[0]);
-    var leads = rowsOf(l).map(function (r) { return { date: parseDate(r[li('Created Date')]), source: r[li('Lead Source')] }; }).filter(function (x) { return x.date; });
+    var leads = rowsOf(l).map(function (r) { return { date: parseDate(r[li('Created Date')]), source: r[li('Lead Source')], name: r[li('Contact Name')], property: r[li('Property Address')] }; }).filter(function (x) { return x.date; });
 
     // Appointments
     var a = tab('Appointments'), ai = colIndexer(a[0]);
     var appts = rowsOf(a).map(function (r) {
-      return { conf: parseDate(r[ai('Confirmed Date')]), dispo: parseDate(r[ai('Disposition Date')]), outcome: String(r[ai('Outcome')] || '').trim(), contactId: r[ai('Contact ID')] };
+      return { conf: parseDate(r[ai('Confirmed Date')]), dispo: parseDate(r[ai('Disposition Date')]), outcome: String(r[ai('Outcome')] || '').trim(), contactId: r[ai('Contact ID')], name: r[ai('Contact Name')], property: r[ai('Property Address')] };
     });
 
     // Offers
     var o = tab('Offers'), oi = colIndexer(o[0]);
     var offers = rowsOf(o).map(function (r) {
-      return { made: parseDate(r[oi('Offer Made Date')]), dispo: parseDate(r[oi('Disposition Date')]), outcome: String(r[oi('Outcome')] || '').trim(), contactId: r[oi('Contact ID')], name: r[oi('Contact Name')] };
+      return { made: parseDate(r[oi('Offer Made Date')]), dispo: parseDate(r[oi('Disposition Date')]), outcome: String(r[oi('Outcome')] || '').trim(), contactId: r[oi('Contact ID')], name: r[oi('Contact Name')], property: r[oi('Property Address')] };
     });
 
     // Contracts
     var k = tab('Contracts'), ki = colIndexer(k[0]);
     var contracts = rowsOf(k).map(function (r) {
-      return { signed: parseDate(r[ki('Signed Date')]), dispo: parseDate(r[ki('Disposition Date')]), outcome: String(r[ki('Outcome')] || '').trim(), contactId: r[ki('Contact ID')], name: r[ki('Contact Name')] };
+      return { signed: parseDate(r[ki('Signed Date')]), dispo: parseDate(r[ki('Disposition Date')]), outcome: String(r[ki('Outcome')] || '').trim(), contactId: r[ki('Contact ID')], name: r[ki('Contact Name')], property: r[ki('Property Address')] };
     });
 
     return { calls: calls, leads: leads, appts: appts, offers: offers, contracts: contracts,
@@ -243,7 +243,7 @@
     var resO = resolveByContact(ds.offers, ['dispo', 'made']);
     var openOffers = [];
     Object.keys(resO).forEach(function (id) {
-      if ((resO[id].row.outcome || '').toLowerCase() === 'made' && !contractIds[id]) openOffers.push({ name: resO[id].row.name, contactId: id });
+      if ((resO[id].row.outcome || '').toLowerCase() === 'made' && !contractIds[id]) openOffers.push({ name: resO[id].row.name, property: resO[id].row.property, contactId: id, est: avgFee * split });
     });
     var potential = openOffers.length * avgFee * split;
     return {
@@ -281,6 +281,7 @@
         apptsBooked: metricLens(P.booked, asOf, lens, 'sum'),
         apptsShowed: metricLens(P.showed, asOf, lens, 'sum'),
         offersMade: metricLens(P.offersMade, asOf, lens, 'sum'),
+        contractsSigned: metricLens(P.signed, asOf, lens, 'sum'),
         speed: metricLens(P.speed, asOf, lens, 'avg'),
         showRate: ratioLens(P.showed, P.booked, asOf, lens),     // showed ÷ booked
         leadToAppt: ratioLens(P.booked, P.leads, asOf, lens),    // booked ÷ leads
@@ -288,8 +289,11 @@
       };
     });
 
+    var speedRecs = (function () { var s = (payload.tabs['Speed to Lead'] || [['']]); var si = colIndexer(s[0]); return rowsOf(s).map(function (r) { return { date: parseDate(r[si('Lead Created At')]), name: r[si('Contact Name')], source: r[si('Lead Source')], speed: +String(r[si('Speed (Min)')]).replace(/,/g, '') || 0 }; }).filter(function (x) { return x.date; }); })();
+
     return { person: ds.person, asOf: asOf, lenses: lenses, comp: comp(ds),
       series: P,                          // raw per-metric point series (Part 3 reads these)
+      records: { leads: ds.leads, appts: ds.appts, offers: ds.offers, contracts: ds.contracts, speed: speedRecs },
       lmTargets: payload.lmTargets || [] };
   }
 
