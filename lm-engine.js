@@ -198,7 +198,7 @@
     });
 
     return { calls: calls, leads: leads, appts: appts, offers: offers, contracts: contracts,
-      fees: payload.fees || {}, goals: payload.goals || {}, splitRate: payload.splitRate || 0.10, person: payload.person };
+      fees: payload.fees || {}, stages: payload.stages || {}, goals: payload.goals || {}, splitRate: payload.splitRate || 0.10, person: payload.person };
   }
 
   /* ---------------- opportunity resolution (latest status wins) ---------------- */
@@ -222,14 +222,20 @@
   }
 
   /* ---------------- comp buckets (stocks, as-of now) ---------------- */
+  // A deal's fee is only "earmarked" (binding) once its DISPO opp reaches the
+  // "Under Contract" stage — a buyer is locked. Before that it's projected.
+  function underContract(s) { return !!(s && /under\s*contract/i.test(String(s))); }
   function comp(ds) {
-    var split = ds.splitRate, avgFee = +ds.goals.avgWholesaleFee || 0;
+    var split = ds.splitRate, avgFee = +ds.goals.avgWholesaleFee || 0, stages = ds.stages || {};
     var resC = resolveByContact(ds.contracts, ['dispo', 'signed']);
-    var earned = 0, earmarked = 0, earnedDeals = [], earmarkedDeals = [];
+    var earned = 0, earmarked = 0, projected = 0, earnedDeals = [], earmarkedDeals = [], projectedDeals = [];
     Object.keys(resC).forEach(function (id) {
-      var st = (resC[id].row.outcome || '').toLowerCase(), fee = +ds.fees[id] || 0, cut = fee * split, nm = resC[id].row.name;
-      if (st === 'closed') { earned += cut; earnedDeals.push({ name: nm, fee: fee, cut: cut }); }
-      else if (st === 'signed') { earmarked += cut; earmarkedDeals.push({ name: nm, fee: fee, cut: cut }); }
+      var st = (resC[id].row.outcome || '').toLowerCase(), fee = +ds.fees[id] || 0, cut = fee * split, nm = resC[id].row.name, stg = stages[id] || '';
+      if (st === 'closed') { earned += cut; earnedDeals.push({ name: nm, fee: fee, cut: cut, stage: stg }); }
+      else if (st === 'signed') {
+        if (underContract(stg)) { earmarked += cut; earmarkedDeals.push({ name: nm, fee: fee, cut: cut, stage: stg }); }
+        else { projected += cut; projectedDeals.push({ name: nm, fee: fee, cut: cut, stage: stg || 'pre-contract' }); }
+      }
       // cancelled → 0
     });
     // Open offers: latest offer status is "Made", and the contact is not already a contract.
@@ -242,9 +248,9 @@
     var potential = openOffers.length * avgFee * split;
     return {
       split: split, avgFee: avgFee,
-      earned: earned, earmarked: earmarked, potential: potential,
-      totalOpportunity: earmarked + potential,
-      earnedDeals: earnedDeals, earmarkedDeals: earmarkedDeals, openOffers: openOffers
+      earned: earned, earmarked: earmarked, projected: projected, potential: potential,
+      totalOpportunity: earmarked + projected + potential,
+      earnedDeals: earnedDeals, earmarkedDeals: earmarkedDeals, projectedDeals: projectedDeals, openOffers: openOffers
     };
   }
 

@@ -565,16 +565,16 @@ function scopeToLM(RAW, person){
     'Team':(()=>{const t=RAW['Team'];if(!t||!t.length)return null;const ri=ix(t[0],'Role'),o=[t[0].slice()];for(let i=1;i<t.length;i++)if(String(t[i][ri]||'').toUpperCase().includes('LM'))o.push(t[i].slice());return o;})()
   };
   // fees: Pipeline Y:Z stash, ONLY this LM's own Contract contacts
-  const fees={},mine={},c=tabs['Contracts'];
+  const fees={},stages={},mine={},c=tabs['Contracts'];
   if(c&&c.length>1){const ci=ix(c[0],'Contact ID');for(let i=1;i<c.length;i++){const x=c[i][ci];if(x)mine[x]=1;}}
   const P=RAW['Pipeline'];
-  if(P&&P.length>1)for(let i=1;i<P.length;i++){const cid=P[i][24],fee=P[i][25];if(cid&&mine[cid])fees[cid]=(typeof fee==='number'?fee:Number(fee)||0);} // Y=idx24, Z=idx25
+  if(P&&P.length>1)for(let i=1;i<P.length;i++){const cid=P[i][24],fee=P[i][25];if(cid&&mine[cid]){fees[cid]=(typeof fee==='number'?fee:Number(fee)||0);stages[cid]=P[i][23]||'';}} // X=idx23 dispo stage, Y=idx24 contactId, Z=idx25 fee
   // curated goals (allow-list; never revenue/profit/cost)
   const GA={'averagewholesaleprofitperdeal$':'avgWholesaleFee','leadappointment%':'leadToAppt','appointmentcontract%':'apptToContract','offercontract%':'offerToContract','contractclose%':'contractToClose','overallleadclose%':'leadToClose','leadappointment':'velLeadToAppt','appointmentoffer':'velApptToOffer','offercontract':'velOfferToContract','contractclose':'velContractToClose','totalcycletime':'velTotalCycle'};
   const goals={},g=RAW['Goals & Assumptions']||[];for(let i=0;i<g.length;i++){const k=GA[nl(g[i][0])];if(k)goals[k]=g[i][1];}
   // optional fixed targets
   let lmTargets=[];const lt=RAW['LM Targets'];if(lt&&lt.length>1){const hd=lt[0];for(let i=1;i<lt.length;i++){const o={};for(let j=0;j<hd.length;j++)o[String(hd[j])]=lt[i][j];lmTargets.push(o);}}
-  return {ok:true,role:'lm',person,splitRate:0.10,tabs,fees,goals,lmTargets};
+  return {ok:true,role:'lm',person,splitRate:0.10,tabs,fees,stages,goals,lmTargets};
 }
 
 /* ═══════════ VIEWS ═══════════ */
@@ -835,7 +835,7 @@ function lmState(){const p=(route.c||'').split('~');return {person:p[0]||'',lens
 function lmGo(person,lens,metric){go('lm',[person,lens,metric||''].join('~'));}
 const lmBuild=person=>LMGamify.gamify(LMEngine.buildModel(scopeToLM(RAW,person)));
 function lmLensBar(person,lens,metric){metric=metric||'';return '<div class="lm-seg">'+LM_LENSES.map(l=>'<button class="'+(lens===l[0]?'on':'')+'" onclick="lmGo(\''+person+'\',\''+l[0]+'\',\''+metric+'\')">'+l[1]+'</button>').join('')+'</div>';}
-function lmComp(M){const c=M.comp,s=(l,v,cls,sub)=>'<div class="lm-cstat '+(cls||'')+'"><div class="lm-cl">'+l+'</div><div class="lm-cv">'+v+'</div><div class="lm-cs">'+(sub||'')+'</div></div>';return '<section class="lm-comp">'+s('Earned',lmMoney(c.earned),'gr',c.earnedDeals.length+' closed')+s('Earmarked',lmMoney(c.earmarked),'br',c.earmarkedDeals.length+' signed')+s('Potential',lmMoney(c.potential),'',c.openOffers.length+' offers out')+s('Total Out There',lmMoney(c.totalOpportunity),'tot','your 10% on your deals')+'</section>';}
+function lmComp(M){const c=M.comp,s=(l,v,cls,sub)=>'<div class="lm-cstat '+(cls||'')+'"><div class="lm-cl">'+l+'</div><div class="lm-cv">'+v+'</div><div class="lm-cs">'+(sub||'')+'</div></div>';return '<section class="lm-comp">'+s('Earned',lmMoney(c.earned),'gr',c.earnedDeals.length+' closed')+s('Earmarked',lmMoney(c.earmarked),'br',c.earmarkedDeals.length+' under contract')+s('Projected',lmMoney(c.projected),'',c.projectedDeals.length+' pre-contract')+s('Potential',lmMoney(c.potential),'',c.openOffers.length+' offers out')+'</section>';}
 function lmTile(M,person,lens,t){const lm=M.lenses[lens][t.k];if(!lm)return '';const g=lm.game;let badge='';if(g&&g.streak&&g.streak.current>=2)badge='<span class="lm-badge fire">🔥'+g.streak.current+'</span>';if(g&&g.pr&&g.pr.isRecord)badge='<span class="lm-badge pr">PR</span>';const pc=lmPaceCls(lm.paceState);return '<button class="lm-tile '+pc+'" onclick="lmGo(\''+person+'\',\''+lens+'\',\''+t.k+'\')"><div class="lm-t-top"><span class="lm-t-lbl">'+t.label+'</span>'+badge+'</div><div class="lm-t-val">'+LM_FMT[t.fmt](lm.current)+'</div><div class="lm-t-spark '+pc+'">'+lmSpark(lm.trend)+'</div><div class="lm-t-foot">'+lmDelta(lm.comparePct,t.low)+' <span>vs '+LM_PRIOR[lens]+'</span></div></button>';}
 function lmStreakHL(M,lens){let best=null;['calls','leads','apptsBooked','apptsShowed','talkTime','speed'].forEach(k=>{const lm=M.lenses[lens][k];if(!lm||!lm.game)return;const s=lm.game.streak;if(s&&s.current>=1&&(!best||s.current>best.cur))best={k:k,cur:s.current};});if(!best)return '<div class="lm-hl-streak none">No active streak '+LM_LBL[lens]+' — start one.</div>';return '<div class="lm-hl-streak"><span class="fire">🔥</span><b>'+best.cur+' '+LM_UNIT[lens]+(best.cur>1?'s':'')+'</b> above your '+lmTileDef(best.k).label.toLowerCase()+' pace</div>';}
 function lmPaceDay(M){const t=M.lenses.today.calls,d=t.anchorDate,bar=t.bar,when=d?lmDateLbl(d):'today';let tail='';if(bar!=null)tail=t.current>=bar?' · <span class="lm-up">+'+Math.round(t.current-bar)+' vs avg</span>':' · <span class="lm-dn">'+Math.round(bar-t.current)+' under avg</span>';const note=t.lagged?'latest closed day · today posts tomorrow AM':'today so far';return '<div class="lm-hl-pace"><div class="lm-pl">PACE THE DAY · '+when+'</div><div class="lm-pv">'+lmNum(t.current)+' calls</div><div class="lm-ps">'+note+' · avg '+(bar==null?'—':lmNum(bar))+tail+'</div></div>';}
