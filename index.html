@@ -891,6 +891,11 @@ $('back').onclick=()=>go(route.v==='channel'?'channels':'home');
 document.querySelectorAll('.nv button').forEach(b=>b.onclick=()=>go(b.dataset.v));
 readHash();
 if(cfg.url&&cfg.tok){load();timer=setInterval(load,REFRESH_MS)}else{$('setup').hidden=false;setDot('err','not connected')}
+/* Re-fetch whenever the app returns to the foreground — mobile PWAs pause the
+   60s timer when backgrounded, which left the dashboard computing on a stale
+   "today" (post-cutoff shows like Cheryl 6/17 / Barbara 6/19 fell out of range). */
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&cfg.url&&cfg.tok)load()});
+window.addEventListener('focus',()=>{if(cfg.url&&cfg.tok)load()});
 if('serviceWorker' in navigator && location.protocol.startsWith('http')){
   navigator.serviceWorker.register('sw.js').catch(()=>{})}
 </script>
