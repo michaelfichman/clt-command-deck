@@ -195,6 +195,56 @@ nav{position:fixed;left:0;right:0;bottom:0;z-index:70;background:rgba(7,14,26,.9
 footer{margin-top:46px;border-top:1px solid var(--line);padding-top:16px;font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3);
   display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 :focus-visible{outline:2px solid var(--glow);outline-offset:2px;border-radius:6px}
+/* ═══════════ LM SCOREBOARD ═══════════ */
+.lm-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin:6px 0 12px}
+.lm-person{font-family:'IBM Plex Mono';font-size:12px;color:var(--txt);background:var(--raised);border:1px solid var(--line2);padding:7px 11px;border-radius:9px}
+select.lm-person{cursor:pointer}
+.lm-seg{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:14px}
+.lm-seg button{flex:1;background:transparent;border:0;color:var(--txt2);font-family:'IBM Plex Mono';font-size:12px;padding:8px 4px;border-radius:9px;cursor:pointer}
+.lm-seg button.on{background:linear-gradient(180deg,var(--brand),var(--brand-deep));color:#fff;box-shadow:0 0 16px rgba(63,208,255,.25)}
+.lm-comp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.lm-cstat{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 10px}
+.lm-cl{font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt3)}
+.lm-cv{font-family:'IBM Plex Mono';font-weight:600;font-size:clamp(15px,4.4vw,20px);margin-top:3px}
+.lm-cs{font-family:'IBM Plex Mono';font-size:8.5px;color:var(--txt3);margin-top:3px}
+.lm-cstat.gr .lm-cv{color:var(--green)} .lm-cstat.br .lm-cv{color:var(--glow)}
+.lm-cstat.tot{background:linear-gradient(180deg,#10243c,#0c192c);border-color:var(--line2)} .lm-cstat.tot .lm-cv{color:#fff}
+@media(max-width:560px){.lm-comp{grid-template-columns:repeat(2,1fr)}}
+.lm-hero{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:radial-gradient(420px 120px at 18% 0%,var(--glow-dim),transparent),var(--card);border:1px solid var(--line2);border-radius:15px;padding:14px 16px;margin-bottom:16px}
+.lm-hl-streak{font-size:14px;color:var(--txt)} .lm-hl-streak b{font-family:'IBM Plex Mono';color:var(--glow);font-size:17px} .lm-hl-streak .fire{margin-right:6px} .lm-hl-streak.none{color:var(--txt3)}
+.lm-hl-pace{text-align:right;border-left:1px solid var(--line);padding-left:14px}
+.lm-pl{font-family:'IBM Plex Mono';font-size:8px;letter-spacing:.22em;color:var(--txt3)}
+.lm-pv{font-family:'IBM Plex Mono';font-weight:600;font-size:18px;color:#fff} .lm-pv span{color:var(--txt3);font-size:11px}
+.lm-ps{font-family:'IBM Plex Mono';font-size:9.5px;color:var(--txt2)}
+.lm-tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.lm-tile{position:relative;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--line2);border-radius:14px;padding:12px 13px;color:var(--txt);cursor:pointer;overflow:hidden}
+.lm-tile.lm-ahead{border-left-color:var(--green)} .lm-tile.lm-on{border-left-color:var(--amber)} .lm-tile.lm-behind{border-left-color:var(--red)}
+.lm-t-top{display:flex;justify-content:space-between;align-items:center}
+.lm-t-lbl{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--txt2)}
+.lm-t-val{font-family:'IBM Plex Mono';font-weight:600;font-size:clamp(22px,6vw,28px);margin:5px 0 2px}
+.lm-t-spark{height:28px;margin:4px 0;color:var(--glow)} .lm-t-spark.lm-ahead{color:var(--green)} .lm-t-spark.lm-on{color:var(--amber)} .lm-t-spark.lm-behind{color:var(--red)} .lm-t-spark.lm-none{color:var(--txt3)}
+.lm-spark{width:100%;height:28px;display:block}
+.lm-t-foot{font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3);border-top:1px dashed var(--line);padding-top:6px;margin-top:4px;display:flex;gap:6px;align-items:center}
+.lm-badge{font-family:'IBM Plex Mono';font-size:9px;font-weight:600;padding:2px 6px;border-radius:7px}
+.lm-badge.fire{background:rgba(242,182,90,.16);color:var(--amber)} .lm-badge.pr{background:rgba(63,208,255,.16);color:var(--glow)}
+.lm-up{color:var(--green)} .lm-dn{color:var(--red)} .lm-flat{color:var(--txt3)}
+.lm-lb{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--txt3);text-align:center;margin-top:16px;padding:11px;border:1px dashed var(--line);border-radius:11px}
+.lm-back{background:var(--raised);border:1px solid var(--line2);color:var(--glow);border-radius:9px;padding:7px 12px;font-family:'IBM Plex Mono';font-size:11px;cursor:pointer;margin-bottom:8px}
+.lm-big{font-family:'IBM Plex Mono';font-weight:600;font-size:clamp(40px,12vw,60px);line-height:1;color:#fff;margin-top:6px}
+.lm-big.lm-ahead{color:var(--green)} .lm-big.lm-on{color:var(--amber)} .lm-big.lm-behind{color:var(--red)}
+.lm-cmp{font-family:'IBM Plex Mono';font-size:12px;color:var(--txt2);margin-top:6px}
+.lm-bars{display:flex;gap:10px;margin:14px 0}
+.lm-bar{flex:1;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 11px;display:flex;justify-content:space-between;align-items:center}
+.lm-bar.dim{opacity:.55} .lm-bl{font-family:'IBM Plex Mono';font-size:9.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em} .lm-bv{font-family:'IBM Plex Mono';font-weight:600}
+.lm-gcards{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:14px}
+.lm-gc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px}
+.lm-gl{font-family:'IBM Plex Mono';font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt3)}
+.lm-gv{font-family:'IBM Plex Mono';font-weight:600;font-size:18px;margin-top:4px}
+.lm-gs{font-family:'IBM Plex Mono';font-size:9px;color:var(--txt3);margin-top:3px}
+@media(max-width:560px){.lm-gcards{grid-template-columns:1fr}}
+.lm-diag{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.lm-d-h{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.2em;color:var(--glow);margin-bottom:8px}
+.lm-diag p{margin:6px 0;font-size:13px;color:var(--txt2)} .lm-diag b{color:var(--txt)}
 </style>
 </head>
 <body>
@@ -231,7 +281,12 @@ footer{margin-top:46px;border-top:1px solid var(--line);padding-top:16px;font-fa
   <button data-v="funnel"><span class="g">▼</span>FUNNEL</button>
   <button data-v="channels"><span class="g">⇄</span>CAPITAL</button>
   <button data-v="pipeline"><span class="g">▣</span>PIPELINE</button>
+  <button data-v="lm"><span class="g">⊞</span>LM</button>
 </div></nav>
+
+<!-- LM Scoreboard engine (framework-free; validated by lm-engine.test/lm-gamify.test) -->
+<script src="lm-engine.js"></script>
+<script src="lm-gamify.js"></script>
 
 <script>
 /* ═══════════ CONFIG ═══════════ */
@@ -258,7 +313,7 @@ const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* ═══════════ STATE / ROUTING ═══════════ */
-let cfg={url:'',tok:''}, route={v:'home',c:''}, M=null, charts={}, timer=null;
+let cfg={url:'',tok:''}, route={v:'home',c:''}, M=null, RAW=null, charts={}, timer=null;
 var LS_KEY='cltDeckCfg';
 function saveCfg(){try{if(cfg.url&&cfg.tok)localStorage.setItem(LS_KEY,JSON.stringify({url:cfg.url,tok:cfg.tok}))}catch(e){}}
 function loadCfg(){try{const s=localStorage.getItem(LS_KEY);if(s){const o=JSON.parse(s);cfg.url=cfg.url||o.url||'';cfg.tok=cfg.tok||o.tok||''}}catch(e){}}
@@ -281,7 +336,7 @@ async function load(){
     const r=await fetch(cfg.url+(cfg.url.includes('?')?'&':'?')+'token='+encodeURIComponent(cfg.tok));
     const j=await r.json();
     if(!j.ok)throw new Error(j.error||'endpoint error');
-    M=model(j.tabs);
+    RAW=j.tabs; M=model(j.tabs);
     $('setup').hidden=true;$('view').hidden=false;$('nav').hidden=false;$('errBanner').style.display='none';
     paint();ticker();
     setDot('ok','LIVE '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
@@ -483,6 +538,42 @@ function insightsActivity(m){const out=[];
       else out.push({s:'good',t:`Triage holds: <b>Google Ads</b> leads are the fastest-touched source — correct priority for paid traffic.`})}}
   out.push({s:m.leadsWkNow>=(m.leadsNeededWk||0)?'good':'bad',t:`Lead intake <b class="m">${m.leadsWkNow.toFixed(1)}/wk</b> vs <b class="m">${m.leadsNeededWk?.toFixed(1)??'—'}/wk</b> the goal demands at current conversions.`});
   return out}
+
+/* ═══════════ LM SCOPER — browser twin of Code-LM.gs ═══════════
+   Turns the raw owner tabs (RAW) into the exact LM-payload shape lm-engine
+   consumes, scoped to one person. Mirrors Code-LM.gs line-for-line so the
+   in-deck numbers match Jordan's phone exactly. (In the owner app dollars are
+   allowed, but we still emit only the LM's own scoped data + their fees.) */
+function scopeToLM(RAW, person){
+  const norm=x=>String(x==null?'':x).trim().toLowerCase();
+  const ix=(h,n)=>h.findIndex(c=>String(c).trim().toLowerCase()===n.toLowerCase());
+  const nl=s=>String(s==null?'':s).toLowerCase().replace(/[^a-z0-9%$]/g,'');
+  const want=norm(person);
+  // single-attribution tab: header + rows where attr col == person (optionally cap width)
+  const single=(name,attr,cols)=>{const t=RAW[name];if(!t||!t.length)return null;const ai=ix(t[0],attr),w=cols||t[0].length;const o=[t[0].slice(0,w)];for(let i=1;i<t.length;i++)if(ai>-1&&norm(t[i][ai])===want)o.push(t[i].slice(0,w));return o;};
+  // deal tab: opportunity membership — all rows for any Contact ID this LM is attributed to
+  const member=(name,attr)=>{const t=RAW[name];if(!t||!t.length)return null;const ai=ix(t[0],attr),ci=ix(t[0],'Contact ID'),ids={};for(let i=1;i<t.length;i++)if(ai>-1&&norm(t[i][ai])===want){const k=t[i][ci];if(k)ids[k]=1;}const o=[t[0].slice()];for(let i=1;i<t.length;i++){const k=t[i][ci];if(k&&ids[k])o.push(t[i].slice());}return o;};
+  const tabs={
+    'Leads':single('Leads','Assigned User'),
+    'Appointments':member('Appointments','Booker (LM)'),
+    'Offers':member('Offers','Booker (LM)'),
+    'Contracts':member('Contracts','Booker (LM)'),
+    'Calls':single('Calls','User'),
+    'Speed to Lead':single('Speed to Lead','Assigned User',8),
+    'Team':(()=>{const t=RAW['Team'];if(!t||!t.length)return null;const ri=ix(t[0],'Role'),o=[t[0].slice()];for(let i=1;i<t.length;i++)if(String(t[i][ri]||'').toUpperCase().includes('LM'))o.push(t[i].slice());return o;})()
+  };
+  // fees: Pipeline Y:Z stash, ONLY this LM's own Contract contacts
+  const fees={},mine={},c=tabs['Contracts'];
+  if(c&&c.length>1){const ci=ix(c[0],'Contact ID');for(let i=1;i<c.length;i++){const x=c[i][ci];if(x)mine[x]=1;}}
+  const P=RAW['Pipeline'];
+  if(P&&P.length>1)for(let i=1;i<P.length;i++){const cid=P[i][24],fee=P[i][25];if(cid&&mine[cid])fees[cid]=(typeof fee==='number'?fee:Number(fee)||0);} // Y=idx24, Z=idx25
+  // curated goals (allow-list; never revenue/profit/cost)
+  const GA={'averagewholesaleprofitperdeal$':'avgWholesaleFee','leadappointment%':'leadToAppt','appointmentcontract%':'apptToContract','offercontract%':'offerToContract','contractclose%':'contractToClose','overallleadclose%':'leadToClose','leadappointment':'velLeadToAppt','appointmentoffer':'velApptToOffer','offercontract':'velOfferToContract','contractclose':'velContractToClose','totalcycletime':'velTotalCycle'};
+  const goals={},g=RAW['Goals & Assumptions']||[];for(let i=0;i<g.length;i++){const k=GA[nl(g[i][0])];if(k)goals[k]=g[i][1];}
+  // optional fixed targets
+  let lmTargets=[];const lt=RAW['LM Targets'];if(lt&&lt.length>1){const hd=lt[0];for(let i=1;i<lt.length;i++){const o={};for(let j=0;j<hd.length;j++)o[String(hd[j])]=lt[i][j];lmTargets.push(o);}}
+  return {ok:true,role:'lm',person,splitRate:0.10,tabs,fees,goals,lmTargets};
+}
 
 /* ═══════════ VIEWS ═══════════ */
 function tile(lbl,val,cls,why,v,c){return `<button class="tile ${cls&&cls.includes('br')?'hero':''}" onclick="go('${v}'${c?`,'${c}'`:''})">
@@ -719,6 +810,49 @@ pace(m){return {html:`
 };
 
 /* ═══════════ PAINT ═══════════ */
+/* ═══════════ LM SCOREBOARD VIEW ═══════════ */
+const lmNum=v=>(v==null||isNaN(v))?'—':Math.round(v).toLocaleString();
+const lmMin=v=>(v==null||isNaN(v))?'—':(Math.round(v*10)/10).toLocaleString()+'m';
+const lmSpd=v=>(v==null||isNaN(v))?'—':Math.round(v).toLocaleString()+' min';
+const lmPctF=v=>(v==null||isNaN(v))?'—':(v*100).toFixed(0)+'%';
+const lmMoney=v=>'$'+Math.round(v||0).toLocaleString();
+const LM_FMT={num:lmNum,min:lmMin,spd:lmSpd,pct:lmPctF};
+const LM_TILES=[{k:'calls',label:'Calls',fmt:'num'},{k:'talkTime',label:'Talk Time',fmt:'min'},{k:'speed',label:'Speed-to-Lead',fmt:'spd',low:true},{k:'leads',label:'Leads Worked',fmt:'num'},{k:'apptsBooked',label:'Appts Booked',fmt:'num'},{k:'showRate',label:'Show Rate',fmt:'pct'},{k:'leadToAppt',label:'Lead→Appt',fmt:'pct'},{k:'apptToContract',label:'Appt→Contract',fmt:'pct'}];
+const LM_LENSES=[['today','Today'],['week','Week'],['month','Month'],['quarter','Quarter']];
+const LM_PRIOR={today:'prior day',week:'last week',month:'last month',quarter:'last quarter',ytd:'last yr'};
+const LM_LBL={today:'Today',week:'this week',month:'this month',quarter:'this quarter',ytd:'YTD'};
+const LM_UNIT={today:'day',week:'week',month:'month',quarter:'quarter',ytd:'yr'};
+const lmTileDef=k=>LM_TILES.find(t=>t.k===k)||{k:k,label:k,fmt:'num'};
+const lmPaceCls=s=>s==='ahead'?'lm-ahead':s==='on'?'lm-on':s==='behind'?'lm-behind':'lm-none';
+function lmDelta(p,low){if(p==null||!isFinite(p))return '<span class="lm-flat">— no prior</span>';const up=p>=0,good=low?!up:up;return '<span class="'+(good?'lm-up':'lm-dn')+'">'+(up?'▲':'▼')+' '+Math.abs(p*100).toFixed(0)+'%</span>';}
+function lmSpark(trend){const vs=trend.map(t=>(t.value==null||isNaN(t.value))?null:t.value),nums=vs.filter(v=>v!=null);if(nums.length<2)return '<svg class="lm-spark" viewBox="0 0 100 28"></svg>';const mn=Math.min(...nums),mx=Math.max(...nums),rg=(mx-mn)||1,n=vs.length,pts=[];for(let i=0;i<n;i++){if(vs[i]==null)continue;pts.push(((i/(n-1))*100).toFixed(1)+','+(26-((vs[i]-mn)/rg)*24).toFixed(1));}const last=vs[n-1];return '<svg class="lm-spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline points="'+pts.join(' ')+'" fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke"/><circle cx="100" cy="'+(26-((last-mn)/rg)*24).toFixed(1)+'" r="2" fill="currentColor"/></svg>';}
+function lmTeam(){const t=RAW&&RAW['Team'];if(!t)return [];const ri=t[0].findIndex(c=>String(c).toLowerCase().trim()==='role'),ni=t[0].findIndex(c=>String(c).toLowerCase().trim()==='name');const out=[];for(let i=1;i<t.length;i++)if(String(t[i][ri]||'').toUpperCase().includes('LM'))out.push(t[i][ni]);return out;}
+function lmState(){const p=(route.c||'').split('~');return {person:p[0]||'',lens:p[1]||'week',metric:p[2]||''};}
+function lmGo(person,lens,metric){go('lm',[person,lens,metric||''].join('~'));}
+const lmBuild=person=>LMGamify.gamify(LMEngine.buildModel(scopeToLM(RAW,person)));
+function lmLensBar(person,lens){return '<div class="lm-seg">'+LM_LENSES.map(l=>'<button class="'+(lens===l[0]?'on':'')+'" onclick="lmGo(\''+person+'\',\''+l[0]+'\',\'\')">'+l[1]+'</button>').join('')+'</div>';}
+function lmComp(M){const c=M.comp,s=(l,v,cls,sub)=>'<div class="lm-cstat '+(cls||'')+'"><div class="lm-cl">'+l+'</div><div class="lm-cv">'+v+'</div><div class="lm-cs">'+(sub||'')+'</div></div>';return '<section class="lm-comp">'+s('Earned',lmMoney(c.earned),'gr',c.earnedDeals.length+' closed')+s('Earmarked',lmMoney(c.earmarked),'br',c.earmarkedDeals.length+' signed')+s('Potential',lmMoney(c.potential),'',c.openOffers.length+' offers out')+s('Total Out There',lmMoney(c.totalOpportunity),'tot','your 10% on your deals')+'</section>';}
+function lmTile(M,person,lens,t){const lm=M.lenses[lens][t.k];if(!lm)return '';const g=lm.game;let badge='';if(g&&g.streak&&g.streak.current>=2)badge='<span class="lm-badge fire">🔥'+g.streak.current+'</span>';if(g&&g.pr&&g.pr.isRecord)badge='<span class="lm-badge pr">PR</span>';const pc=lmPaceCls(lm.paceState);return '<button class="lm-tile '+pc+'" onclick="lmGo(\''+person+'\',\''+lens+'\',\''+t.k+'\')"><div class="lm-t-top"><span class="lm-t-lbl">'+t.label+'</span>'+badge+'</div><div class="lm-t-val">'+LM_FMT[t.fmt](lm.current)+'</div><div class="lm-t-spark '+pc+'">'+lmSpark(lm.trend)+'</div><div class="lm-t-foot">'+lmDelta(lm.comparePct,t.low)+' <span>vs '+LM_PRIOR[lens]+'</span></div></button>';}
+function lmStreakHL(M,lens){let best=null;['calls','leads','apptsBooked','apptsShowed','talkTime','speed'].forEach(k=>{const lm=M.lenses[lens][k];if(!lm||!lm.game)return;const s=lm.game.streak;if(s&&s.current>=1&&(!best||s.current>best.cur))best={k:k,cur:s.current};});if(!best)return '<div class="lm-hl-streak none">No active streak '+LM_LBL[lens]+' — start one.</div>';return '<div class="lm-hl-streak"><span class="fire">🔥</span><b>'+best.cur+' '+LM_UNIT[lens]+(best.cur>1?'s':'')+'</b> above your '+lmTileDef(best.k).label.toLowerCase()+' pace</div>';}
+function lmPaceDay(M){const t=M.lenses.today.calls,d=t.anchorDate,bar=t.bar,when=d?((d.getMonth()+1)+'/'+d.getDate()):'today',lag=t.lagged?' · live in GHL':'';let tail='';if(bar!=null)tail=t.current>=bar?' · <span class="lm-up">+'+Math.round(t.current-bar)+' vs avg</span>':' · <span class="lm-dn">'+Math.round(bar-t.current)+' under avg</span>';return '<div class="lm-hl-pace"><div class="lm-pl">PACE THE DAY</div><div class="lm-pv">'+lmNum(t.current)+' calls <span>('+when+')</span></div><div class="lm-ps">daily avg '+(bar==null?'—':lmNum(bar))+tail+lag+'</div></div>';}
+function lmPicker(person,team){if(team.length<2)return '<span class="lm-person">'+person+'</span>';return '<select class="lm-person" onchange="lmGo(this.value,\'week\',\'\')">'+team.map(p=>'<option'+(p===person?' selected':'')+'>'+p+'</option>').join('')+'</select>';}
+function lmBars(lm){const g=lm.game;let o='<div class="lm-bars"><div class="lm-bar"><span class="lm-bl">Trailing avg</span><span class="lm-bv">'+(lm.bar==null?'—':Math.round(lm.bar*10)/10)+'</span></div>';o+=(g&&g.bars&&g.bars.target!=null)?'<div class="lm-bar"><span class="lm-bl">Target</span><span class="lm-bv">'+g.bars.target+'</span></div>':'<div class="lm-bar dim"><span class="lm-bl">Target</span><span class="lm-bv">not set</span></div>';return o+'</div>';}
+function lmDiag(lm,t,lens){const b=[];if(lm.comparePct!=null){const up=lm.comparePct>=0,good=t.low?!up:up;b.push(t.label+' is <b>'+Math.abs(lm.comparePct*100).toFixed(0)+'% '+(up?'up':'down')+'</b> vs '+LM_PRIOR[lens]+' — '+(good?'right way.':'slipping.'));}if(lm.bar!=null)b.push(lm.paceState==='ahead'?'Above your trailing pace.':lm.paceState==='on'?'On your trailing pace.':'Below your trailing pace.');if(lm.game&&lm.game.pr&&lm.game.pr.toTie)b.push('<b>'+LM_FMT[t.fmt](lm.game.pr.toTie)+'</b> from your record ('+lm.game.pr.best.label+').');if(lm.lagged)b.push('<i>Latest complete day; today is live in GHL.</i>');return b;}
+function lmHome(M,person,lens,team){return '<div class="lm-head"><div><p class="eyebrow">LM Scoreboard</p><h1>'+person+'</h1></div>'+lmPicker(person,team)+'</div>'+lmLensBar(person,lens)+lmComp(M)+'<section class="lm-hero">'+lmStreakHL(M,lens)+lmPaceDay(M)+'</section><div class="sec-h"><h2>Scoreboard</h2><span class="tag">'+LM_LBL[lens]+' · tap a tile</span></div><section class="lm-tiles">'+LM_TILES.map(t=>lmTile(M,person,lens,t)).join('')+'</section><div class="lm-lb">Solo · self-competition. Head-to-head ranking activates when a 2nd LM joins.</div>';}
+function lmDetail(M,person,lens,key){const t=lmTileDef(key),lm=M.lenses[lens][key],g=lm.game;let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-head"><div><p class="eyebrow">'+LM_LBL[lens]+'</p><h1>'+t.label+'</h1></div>'+lmLensBar(person,lens)+'</div><div class="lm-big '+lmPaceCls(lm.paceState)+'">'+LM_FMT[t.fmt](lm.current)+'</div><div class="lm-cmp">'+lmDelta(lm.comparePct,t.low)+' vs '+LM_PRIOR[lens]+' ('+LM_FMT[t.fmt](lm.comparison)+')</div>'+lmBars(lm);if(g){h+='<div class="lm-gcards">';if(g.streak)h+='<div class="lm-gc"><div class="lm-gl">Streak</div><div class="lm-gv">'+g.streak.current+'</div><div class="lm-gs">best '+g.streak.best+' '+LM_UNIT[lens]+'s</div></div>';if(g.pr&&g.pr.best)h+='<div class="lm-gc"><div class="lm-gl">Personal record</div><div class="lm-gv">'+LM_FMT[t.fmt](g.pr.best.value)+'</div><div class="lm-gs">'+g.pr.best.label+(g.pr.toTie?' · '+LM_FMT[t.fmt](g.pr.toTie)+' to tie':(g.pr.isRecord?' · NEW 🎉':''))+'</div></div>';if(g.paceToBeat&&g.paceToBeat.remaining!=null&&g.paceToBeat.daysLeft>0)h+='<div class="lm-gc"><div class="lm-gl">Pace to beat '+g.paceToBeat.basis+'</div><div class="lm-gv">'+(Math.round(g.paceToBeat.perDayNeeded*10)/10)+'/day</div><div class="lm-gs">'+LM_FMT[t.fmt](g.paceToBeat.remaining)+' over '+g.paceToBeat.daysLeft+'d</div></div>';h+='</div>';}h+='<div class="card chart-card"><h3>Trend · '+LM_LBL[lens]+'</h3><div class="chart-wrap"><canvas id="lmchart"></canvas></div></div><div class="lm-diag"><div class="lm-d-h">READOUT</div>'+lmDiag(lm,t,lens).map(x=>'<p>'+x+'</p>').join('')+'</div>';return h;}
+VIEWS.lm=function(){
+  if(!RAW||!window.LMEngine)return {html:'<p class="lede">LM engine not loaded.</p>',mount(){}};
+  const team=lmTeam();let st=lmState(),person=st.person||team[0]||'',lens=st.lens,metric=st.metric;
+  if(!person)return {html:'<p class="lede">No LM found in the Team tab.</p>',mount(){}};
+  let M2;try{M2=lmBuild(person);}catch(e){return {html:'<p class="lede">LM build error: '+e.message+'</p>',mount(){}};}
+  const html=metric?lmDetail(M2,person,lens,metric):lmHome(M2,person,lens,team);
+  return {html:html,mount(){
+    if(!metric)return;
+    const lm=M2.lenses[lens][metric],t=lmTileDef(metric),labels=lm.trend.map(x=>x.label),data=lm.trend.map(x=>(x.value==null||isNaN(x.value))?null:(t.fmt==='pct'?Math.round(x.value*1000)/10:Math.round(x.value*10)/10)),gl=css('--glow');
+    mk('lmchart',{type:'line',data:{labels:labels,datasets:[{data:data,borderColor:gl,backgroundColor:'rgba(63,208,255,.12)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:gl,borderWidth:2,spanGaps:true}]},options:{plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true}},maintainAspectRatio:false}});
+  }};
+};
+
 function mk(id,conf){if(charts[id])charts[id].destroy();const el=$(id);if(el)charts[id]=new Chart(el,conf)}
 function paint(){
   if(!M)return;

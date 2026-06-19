@@ -1,0 +1,7 @@
+# Keep the Apps Script endpoint source OUT of this public repo
+Code.gs
+Code-*.gs
+# Dev-only test harnesses / assets
+*.test.js
+logos.zip
+.DS_Store
