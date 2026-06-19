@@ -333,7 +333,9 @@ async function load(){
   if(!cfg.url||!cfg.tok){$('setup').hidden=false;$('view').hidden=true;$('nav').hidden=true;setDot('err','not connected');return}
   setDot('stale','syncing…');
   try{
-    const r=await fetch(cfg.url+(cfg.url.includes('?')?'&':'?')+'token='+encodeURIComponent(cfg.tok));
+    /* Apps Script /exec GETs are cacheable — without a unique URL + no-store the
+       browser hands back the SAME stale payload on every refresh. Bust it. */
+    const r=await fetch(cfg.url+(cfg.url.includes('?')?'&':'?')+'token='+encodeURIComponent(cfg.tok)+'&_cb='+Date.now(),{cache:'no-store'});
     const j=await r.json();
     if(!j.ok)throw new Error(j.error||'endpoint error');
     RAW=j.tabs; M=model(j.tabs);
