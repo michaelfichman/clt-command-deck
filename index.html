@@ -269,8 +269,14 @@ select.lm-person{cursor:pointer}
 .lm-pay span{font-size:12px;color:var(--txt2)} .lm-pay b{font-family:'IBM Plex Mono';font-size:16px;color:var(--green)}
 .lm-scen{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-top:1px dashed var(--line)} .lm-scen:first-of-type{border-top:0}
 .lm-scen-l{font-size:13.5px;color:var(--txt);font-weight:500;flex:1} .lm-scen-r{text-align:right;white-space:nowrap}
+.lm-scen-t{font-size:13.5px;font-weight:700;color:var(--txt);margin-bottom:4px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .lm-scen-now{font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.05em}
-.lm-scen-goal{font-size:13.5px;color:var(--txt);font-weight:600;margin-top:3px}
+.lm-scen-goal{font-size:13px;color:var(--txt2);font-weight:500;margin-top:3px}
+.lm-diff{font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.5px;padding:1px 6px;border-radius:6px;border:1px solid var(--line);font-weight:600}
+.lm-diff.d1{color:var(--green)} .lm-diff.d2{color:var(--amber)} .lm-diff.d3{color:#ff7a7a}
+.lm-est{font-size:9px;color:var(--txt3);font-style:italic}
+.lm-scen.pin{border-color:var(--amber);background:rgba(255,176,32,.06)}
+.lm-q-lbl{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.08em;color:var(--txt3);text-transform:uppercase;margin:14px 0 6px} .lm-q-lbl.amber{color:var(--amber);margin-top:6px}
 .lm-scen-v{font-family:'IBM Plex Mono';font-weight:600;font-size:19px;color:var(--green)} .lm-scen-v span{font-size:11px;color:var(--txt3);font-weight:400}
 .lm-scen-h{font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3);margin-top:2px}
 .lm-scen-when{font-family:'IBM Plex Mono';font-size:9.5px;color:var(--amber);margin-top:3px;opacity:.85}
@@ -968,11 +974,11 @@ function lmFocus(M){
   const cpb=(y.apptsBooked.current>0)?y.calls.current/y.apptsBooked.current:null,perDial=cpb?perBooked/cpb:null;
   const start=new Date(2026,3,22),wks=Math.max(1,(M.asOf-start)/6048e5);
   // his ACTUAL current pace — the baseline every sprint is measured against
-  const bookedYtd=y.apptsBooked.current||0,callsYtd=y.calls.current||0,showsYtd=y.apptsShowed.current||0;
-  const apptsWk=bookedYtd/wks,dialsDay=callsYtd/(wks*5),showsWk=showsYtd/wks;
+  const bookedYtd=y.apptsBooked.current||0,callsYtd=y.calls.current||0,showsYtd=y.apptsShowed.current||0,leadsYtd=(y.leads&&y.leads.current)||0;
+  const apptsWk=bookedYtd/wks,dialsDay=callsYtd/(wks*5),showsWk=showsYtd/wks,leadsWk=leadsYtd/wks;
   const dealsMo=(monthGoal&&avgDeal)?monthGoal/avgDeal:0;
   const needShows=a2c?dealsMo/a2c:0,needBooked=(a2c&&sr)?dealsMo/a2c/sr:0,needLeads=(a2c&&sr&&l2a)?dealsMo/a2c/sr/l2a:0,needDials=cpb?needBooked*cpb:null;
-  return {avgDeal:avgDeal,split:split,perDeal:perDeal,perShow:perShow,perBooked:perBooked,perLead:perLead,perDial:perDial,a2c:a2c,sr:sr,l2a:l2a,tA2C:tA2C,cpb:cpb,apptsWk:apptsWk,dialsDay:dialsDay,showsWk:showsWk,monthGoal:monthGoal,dealsMo:dealsMo,needShows:needShows,needBooked:needBooked,needLeads:needLeads,needDials:needDials,lmShareMo:dealsMo*perDeal};
+  return {avgDeal:avgDeal,split:split,perDeal:perDeal,perShow:perShow,perBooked:perBooked,perLead:perLead,perDial:perDial,a2c:a2c,sr:sr,l2a:l2a,tA2C:tA2C,cpb:cpb,apptsWk:apptsWk,dialsDay:dialsDay,showsWk:showsWk,leadsWk:leadsWk,tL2A:(+g.leadToAppt||0.15),monthGoal:monthGoal,dealsMo:dealsMo,needShows:needShows,needBooked:needBooked,needLeads:needLeads,needDials:needDials,lmShareMo:dealsMo*perDeal};
 }
 function lmBench(){
   if(typeof RAW==='undefined'||!RAW['Calls'])return null;
@@ -982,23 +988,56 @@ function lmBench(){
     if(u==='Jordan Mathis'){jt+=tt;jc+=tc;}else if(u==='Michael Fichman'&&d&&d<cut){mt+=tt;mc+=tc;}}
   return {j:jc?jt/jc:null,m:mc?mt/mc:null,jc:jc,mc:mc};
 }
+/* Living lever library — every item computed off f (his live rates).
+   Each returns {key,title,now,goal,diff(1=Easy/2=Med/3=Hard),dollars(ADDED $),when,est?}.
+   Levers with no gain (target already beaten) self-prune, so the queue tracks his real performance. */
+function lmLevers(f,M){
+  const CLOSE=45,wk=4.333,mo=21.7,D=864e5,asOf=M.asOf;
+  const cashBy=d=>{try{return new Date(asOf.getTime()+d*D).toLocaleDateString('en-US',{month:'short',day:'numeric'});}catch(e){return'';}};
+  const when=(d,pfx)=>(pfx||'banks ~by ')+cashBy(d+CLOSE)+' · '+CLOSE+'-day closes';
+  const bookedMo=f.apptsWk*wk,leadsMo=(f.leadsWk||0)*wk;
+  const showT=Math.max(f.sr+0.1,0.75),l2aT=Math.max(f.l2a+0.05,f.tL2A||0.15);
+  const aimWk=Math.max(Math.ceil(f.apptsWk)+1,Math.round(f.apptsWk*2||2)),aimD=Math.round(f.dialsDay*1.5);
+  const P=[
+    {key:'appts',title:'Book more appointments',now:'You average '+lmR(f.apptsWk,1)+' booked/wk',goal:'Book '+Math.round(aimWk*3)+' over 3 weeks ('+aimWk+'/wk)',diff:2,dollars:(aimWk-f.apptsWk)*3*f.perBooked,when:when(21)},
+    {key:'close',title:'Close more of your shows',now:'You close '+lmPctF(f.a2c)+' of shows',goal:'Take your next 4 shows to '+lmPctF(f.tA2C),diff:3,dollars:4*Math.max(0,f.tA2C-f.a2c)*f.perDeal,when:when(28)},
+    {key:'dials',title:'Turn up the dials',now:'You make '+lmR(f.dialsDay,0)+' dials/day',goal:'Hit '+aimD+'/day for a month (+'+lmR(aimD-f.dialsDay,0)+')',diff:1,dollars:Math.max(0,(aimD-f.dialsDay))*mo*f.perDial,when:when(30)},
+    {key:'showrate',title:'Cut your no-shows',now:lmPctF(f.sr)+' of booked actually show',goal:'Confirm harder → '+lmPctF(showT)+' show up',diff:2,dollars:bookedMo*Math.max(0,showT-f.sr)*f.perShow,when:when(30)},
+    {key:'l2a',title:'Book a bigger slice of leads',now:lmPctF(f.l2a)+' of leads become appts',goal:'Work them to '+lmPctF(l2aT),diff:3,dollars:leadsMo*Math.max(0,l2aT-f.l2a)*f.perBooked,when:when(35)},
+    {key:'sat',title:'Work your Saturdays',now:'You run a 5-day week',goal:'Add 4 Saturdays of your normal pace',diff:2,dollars:(f.apptsWk/5)*4*f.perBooked,when:when(30)},
+    {key:'dormant',title:'Re-work 10 dead leads',now:'Old "no" ≠ forever',goal:'Re-touch 10 dormant leads',diff:2,dollars:10*f.l2a*f.perBooked,when:when(35)},
+    {key:'dormant25',title:'Mine your whole old list',now:'Months of leads sitting cold',goal:'Re-touch 25 dormant leads',diff:2,dollars:25*f.l2a*f.perBooked,when:when(40)},
+    {key:'onedeal',title:'Steal one extra close',now:'One deal you’d have let slip',goal:'Push 1 more deal over the line this month',diff:3,dollars:f.perDeal,when:when(0)},
+    {key:'speed',title:'Call new leads in 5 min',now:'Speed-to-lead drives booking',goal:'Be first to every fresh lead',diff:1,dollars:leadsMo*0.05*f.perBooked,when:when(30),est:1},
+    {key:'talk',title:'Win the conversation',now:'Better calls book more',goal:'Earn ~1 extra appt/week on connect quality',diff:1,dollars:1*wk*f.perBooked,when:when(25),est:1},
+    {key:'nozero',title:'Kill your zero-call days',now:'Slow days bleed pipeline',goal:'Hit your dial average every working day',diff:1,dollars:f.dialsDay*2*f.perDial,when:when(30),est:1},
+    {key:'confirm',title:'Confirm every appointment',now:'A reminder text saves shows',goal:'Recover ~10% of would-be no-shows',diff:1,dollars:bookedMo*0.10*f.perShow,when:when(30),est:1},
+    {key:'sustain',title:'Lock in +1 appt/week',now:'Small bump, compounded',goal:'Hold +1 booked/wk for 3 months',diff:2,dollars:1*wk*3*f.perBooked,when:when(90,'fully banks ~by ')}
+  ];
+  return P.filter(function(l){return l.dollars && isFinite(l.dollars) && l.dollars>=1;}).map(function(l){l.dollars=Math.round(l.dollars);return l;});
+}
 function lmFocusView(M,person){
   const f=lmFocus(M),first=String(person||'').split(' ')[0]||'You';
   const pay=(l,v)=>'<div class="lm-pay"><span>'+l+'</span><b>'+lmMoney(v)+'</b></div>';
-  const CLOSE_DAYS=45,fmtD=d=>{try{return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});}catch(e){return'';}},cashBy=days=>fmtD(new Date(M.asOf.getTime()+days*864e5));
-  const sprint=(now,goal,dollars,sub,when)=>'<div class="lm-scen"><div class="lm-scen-l"><div class="lm-scen-now">'+now+'</div><div class="lm-scen-goal">→ '+goal+'</div></div><div class="lm-scen-r"><div class="lm-scen-v">'+lmMoney(dollars)+'</div><div class="lm-scen-h">'+sub+'</div><div class="lm-scen-when">'+when+'</div></div></div>';
+  const CLOSE_DAYS=45;
+  const diffName=['','Easy','Medium','Hard'],diffBadge=d=>'<span class="lm-diff d'+d+'">'+('●'.repeat(d)+'○'.repeat(3-d))+' '+diffName[d]+'</span>';
+  const card=(L,pin)=>'<div class="lm-scen'+(pin?' pin':'')+'"><div class="lm-scen-l"><div class="lm-scen-t">'+L.title+' '+diffBadge(L.diff)+(L.est?' <span class="lm-est">est.</span>':'')+'</div><div class="lm-scen-now">'+L.now+'</div><div class="lm-scen-goal">→ '+L.goal+'</div></div><div class="lm-scen-r"><div class="lm-scen-v">+'+lmMoney(L.dollars)+'</div><div class="lm-scen-when">'+L.when+'</div></div></div>';
   let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\'ytd\',\'\')">‹ Scoreboard</button>';
   h+='<div class="lm-head"><div><p class="eyebrow">Your money · how to make more of it</p><h1>'+first+'’s earning levers</h1></div></div>';
   h+='<div class="lm-foc"><div class="lm-foc-h">What each step pays YOU — '+lmPctF(f.split)+' of a '+lmMoney(f.avgDeal)+' deal = '+lmMoney(f.perDeal)+'/deal</div><div class="lm-pays">'+pay('Each deal',f.perDeal)+pay('Each show',f.perShow)+pay('Each booked appt',f.perBooked)+pay('Each lead worked',f.perLead)+(f.perDial?pay('Each dial',f.perDial):'')+'</div><p class="lm-foc-sub">Each action has a price tag — but you bank it at <b>close, ~'+CLOSE_DAYS+' days after a deal goes under contract</b>. Today’s work pays out in ~2–3 months.</p></div>';
-  h+='<div class="lm-foc lever"><div class="lm-foc-h">💰 Sprints — beat YOUR current pace, get paid</div>';
-  // appts: grounded in his actual appts/week, stretch over 3 weeks; cash ≈ 3wk sprint + 45-day close
-  const aimWk=Math.max(Math.ceil(f.apptsWk)+1,Math.round(f.apptsWk*2||2)),sAppts=Math.round(aimWk*3),usual3=f.apptsWk*3;
-  h+=sprint('You’re averaging '+lmR(f.apptsWk,1)+' booked appts/week','Book '+sAppts+' over the next 3 weeks ('+aimWk+'/wk)',sAppts*f.perBooked,'+'+lmMoney(Math.max(0,(sAppts-usual3)*f.perBooked))+' more than your usual '+lmR(usual3,0),'banks ~by '+cashBy(21+CLOSE_DAYS)+' · '+CLOSE_DAYS+'-day closes');
-  // close rate: grounded in his actual a2c, next 4 shows
-  if(f.a2c<f.tA2C){const ns=4,cw=Math.min(42,Math.round(ns/Math.max(f.showsWk,0.6)*7));h+=sprint('You’re closing '+lmPctF(f.a2c)+' of the shows you run','Close '+lmPctF(f.tA2C)+' of your next '+ns+' shows',ns*f.tA2C*f.perDeal,'+'+lmMoney(Math.max(0,ns*(f.tA2C-f.a2c)*f.perDeal))+' more than at '+lmPctF(f.a2c),'banks ~by '+cashBy(cw+CLOSE_DAYS)+' · '+CLOSE_DAYS+'-day closes');}
-  // dials: grounded in his actual dials/day, +50% for a month
-  if(f.perDial&&f.dialsDay>0){const aimD=Math.round(f.dialsDay*1.5),exD=(aimD-f.dialsDay)*21.7;h+=sprint('You’re making '+lmR(f.dialsDay,0)+' dials/day','Hit '+aimD+'/day for a month (+'+lmR(aimD-f.dialsDay,0)+'/day)',Math.max(0,exD*f.perDial),'+'+lmMoney(Math.max(0,exD*f.perDial))+' from the extra dials','first deals bank ~by '+cashBy(30+CLOSE_DAYS)+' · '+CLOSE_DAYS+'-day closes');}
-  h+='<p class="lm-foc-sub">Short, beatable jumps from where you are now. The green number is yours — it lands at close, so the sooner you sprint, the sooner you’re paid.</p></div>';
+  // LIVING QUEUE — full lever pool, biggest pinned, the rest rotate daily so the mix stays fresh
+  const all=lmLevers(f,M);
+  if(all.length){
+    let topI=0;for(let i=1;i<all.length;i++){if(all[i].dollars>all[topI].dollars)topI=i;}
+    const top=all[topI],rest=all.filter((_,i)=>i!==topI);
+    const doy=Math.floor((M.asOf-new Date(M.asOf.getFullYear(),0,0))/864e5),N=Math.min(4,rest.length),show=[];
+    for(let i=0;i<N;i++)show.push(rest[(doy+i)%rest.length]);
+    h+='<div class="lm-foc lever"><div class="lm-foc-h">💰 Your earning queue — '+(1+show.length)+' of '+all.length+' levers · refreshes daily</div>';
+    h+='<p class="lm-foc-sub">Ranked by dollars added and scored by effort — pick the trade you like. The mix rotates each day and re-prices off your live numbers.</p>';
+    h+='<div class="lm-q-lbl amber">⚡ Biggest lever right now</div>'+card(top,true);
+    h+='<div class="lm-q-lbl">More ways to earn — fresh picks today</div>'+show.map(L=>card(L,false)).join('');
+    h+='<p class="lm-foc-sub">Each $ is the <b>added</b> money on top of your current pace, banked at close (~'+CLOSE_DAYS+'-day). Come back tomorrow for a new set.</p></div>';
+  }
   if(f.monthGoal){h+='<div class="lm-foc"><div class="lm-foc-h">Carry the company goal → '+lmMoney(f.lmShareMo)+'/mo to you</div><p class="lm-foc-sub">'+lmR(f.dealsMo,1)+' deals/mo. The daily pace that gets you paid:</p><table class="lm-foc-t"><tr><th>do</th><th>/mo</th><th>5-day/day</th><th>+Sat/day</th></tr>';
     const row=(l,mo)=>'<tr><td>'+l+'</td><td>'+lmR(mo,1)+'</td><td>'+lmR(mo/21.7,1)+'</td><td>'+lmR(mo/26,1)+'</td></tr>';
     h+=row('Leads worked',f.needLeads)+row('Booked appts',f.needBooked)+row('Showed',f.needShows)+(f.needDials?row('Dials',f.needDials):'')+'</table></div>';}
