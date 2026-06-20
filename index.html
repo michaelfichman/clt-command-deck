@@ -273,6 +273,7 @@ select.lm-person{cursor:pointer}
 .lm-scen-goal{font-size:13.5px;color:var(--txt);font-weight:600;margin-top:3px}
 .lm-scen-v{font-family:'IBM Plex Mono';font-weight:600;font-size:19px;color:var(--green)} .lm-scen-v span{font-size:11px;color:var(--txt3);font-weight:400}
 .lm-scen-h{font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3);margin-top:2px}
+.lm-scen-when{font-family:'IBM Plex Mono';font-size:9.5px;color:var(--amber);margin-top:3px;opacity:.85}
 .lm-foc-t{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono';font-size:12.5px;margin-top:8px}
 .lm-foc-t th{text-align:right;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--txt3);font-weight:500;padding:4px 6px}
 .lm-foc-t th:first-child{text-align:left}
@@ -984,19 +985,20 @@ function lmBench(){
 function lmFocusView(M,person){
   const f=lmFocus(M),first=String(person||'').split(' ')[0]||'You';
   const pay=(l,v)=>'<div class="lm-pay"><span>'+l+'</span><b>'+lmMoney(v)+'</b></div>';
-  const sprint=(now,goal,dollars,sub)=>'<div class="lm-scen"><div class="lm-scen-l"><div class="lm-scen-now">'+now+'</div><div class="lm-scen-goal">→ '+goal+'</div></div><div class="lm-scen-r"><div class="lm-scen-v">'+lmMoney(dollars)+'</div><div class="lm-scen-h">'+sub+'</div></div></div>';
+  const CLOSE_DAYS=45,fmtD=d=>{try{return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});}catch(e){return'';}},cashBy=days=>fmtD(new Date(M.asOf.getTime()+days*864e5));
+  const sprint=(now,goal,dollars,sub,when)=>'<div class="lm-scen"><div class="lm-scen-l"><div class="lm-scen-now">'+now+'</div><div class="lm-scen-goal">→ '+goal+'</div></div><div class="lm-scen-r"><div class="lm-scen-v">'+lmMoney(dollars)+'</div><div class="lm-scen-h">'+sub+'</div><div class="lm-scen-when">'+when+'</div></div></div>';
   let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\'ytd\',\'\')">‹ Scoreboard</button>';
   h+='<div class="lm-head"><div><p class="eyebrow">Your money · how to make more of it</p><h1>'+first+'’s earning levers</h1></div></div>';
-  h+='<div class="lm-foc"><div class="lm-foc-h">What each step pays YOU — '+lmPctF(f.split)+' of a '+lmMoney(f.avgDeal)+' deal = '+lmMoney(f.perDeal)+'/deal</div><div class="lm-pays">'+pay('Each deal',f.perDeal)+pay('Each show',f.perShow)+pay('Each booked appt',f.perBooked)+pay('Each lead worked',f.perLead)+(f.perDial?pay('Each dial',f.perDial):'')+'</div><p class="lm-foc-sub">Every action has a price tag — real money in your pocket, at your current rates.</p></div>';
+  h+='<div class="lm-foc"><div class="lm-foc-h">What each step pays YOU — '+lmPctF(f.split)+' of a '+lmMoney(f.avgDeal)+' deal = '+lmMoney(f.perDeal)+'/deal</div><div class="lm-pays">'+pay('Each deal',f.perDeal)+pay('Each show',f.perShow)+pay('Each booked appt',f.perBooked)+pay('Each lead worked',f.perLead)+(f.perDial?pay('Each dial',f.perDial):'')+'</div><p class="lm-foc-sub">Each action has a price tag — but you bank it at <b>close, ~'+CLOSE_DAYS+' days after a deal goes under contract</b>. Today’s work pays out in ~2–3 months.</p></div>';
   h+='<div class="lm-foc lever"><div class="lm-foc-h">💰 Sprints — beat YOUR current pace, get paid</div>';
-  // appts: grounded in his actual appts/week, stretch over 3 weeks
+  // appts: grounded in his actual appts/week, stretch over 3 weeks; cash ≈ 3wk sprint + 45-day close
   const aimWk=Math.max(Math.ceil(f.apptsWk)+1,Math.round(f.apptsWk*2||2)),sAppts=Math.round(aimWk*3),usual3=f.apptsWk*3;
-  h+=sprint('You’re averaging '+lmR(f.apptsWk,1)+' booked appts/week','Book '+sAppts+' over the next 3 weeks ('+aimWk+'/wk)',sAppts*f.perBooked,'+'+lmMoney(Math.max(0,(sAppts-usual3)*f.perBooked))+' more than your usual '+lmR(usual3,0));
+  h+=sprint('You’re averaging '+lmR(f.apptsWk,1)+' booked appts/week','Book '+sAppts+' over the next 3 weeks ('+aimWk+'/wk)',sAppts*f.perBooked,'+'+lmMoney(Math.max(0,(sAppts-usual3)*f.perBooked))+' more than your usual '+lmR(usual3,0),'banks ~by '+cashBy(21+CLOSE_DAYS)+' · '+CLOSE_DAYS+'-day closes');
   // close rate: grounded in his actual a2c, next 4 shows
-  if(f.a2c<f.tA2C){const ns=4;h+=sprint('You’re closing '+lmPctF(f.a2c)+' of the shows you run','Close '+lmPctF(f.tA2C)+' of your next '+ns+' shows',ns*f.tA2C*f.perDeal,'+'+lmMoney(Math.max(0,ns*(f.tA2C-f.a2c)*f.perDeal))+' more than at '+lmPctF(f.a2c));}
+  if(f.a2c<f.tA2C){const ns=4,cw=Math.min(42,Math.round(ns/Math.max(f.showsWk,0.6)*7));h+=sprint('You’re closing '+lmPctF(f.a2c)+' of the shows you run','Close '+lmPctF(f.tA2C)+' of your next '+ns+' shows',ns*f.tA2C*f.perDeal,'+'+lmMoney(Math.max(0,ns*(f.tA2C-f.a2c)*f.perDeal))+' more than at '+lmPctF(f.a2c),'banks ~by '+cashBy(cw+CLOSE_DAYS)+' · '+CLOSE_DAYS+'-day closes');}
   // dials: grounded in his actual dials/day, +50% for a month
-  if(f.perDial&&f.dialsDay>0){const aimD=Math.round(f.dialsDay*1.5),exD=(aimD-f.dialsDay)*21.7;h+=sprint('You’re making '+lmR(f.dialsDay,0)+' dials/day','Hit '+aimD+'/day for a month (+'+lmR(aimD-f.dialsDay,0)+'/day)',Math.max(0,exD*f.perDial),'+'+lmMoney(Math.max(0,exD*f.perDial))+' from the extra dials');}
-  h+='<p class="lm-foc-sub">Each is a short, beatable jump from where you are right now — and the green number is yours.</p></div>';
+  if(f.perDial&&f.dialsDay>0){const aimD=Math.round(f.dialsDay*1.5),exD=(aimD-f.dialsDay)*21.7;h+=sprint('You’re making '+lmR(f.dialsDay,0)+' dials/day','Hit '+aimD+'/day for a month (+'+lmR(aimD-f.dialsDay,0)+'/day)',Math.max(0,exD*f.perDial),'+'+lmMoney(Math.max(0,exD*f.perDial))+' from the extra dials','first deals bank ~by '+cashBy(30+CLOSE_DAYS)+' · '+CLOSE_DAYS+'-day closes');}
+  h+='<p class="lm-foc-sub">Short, beatable jumps from where you are now. The green number is yours — it lands at close, so the sooner you sprint, the sooner you’re paid.</p></div>';
   if(f.monthGoal){h+='<div class="lm-foc"><div class="lm-foc-h">Carry the company goal → '+lmMoney(f.lmShareMo)+'/mo to you</div><p class="lm-foc-sub">'+lmR(f.dealsMo,1)+' deals/mo. The daily pace that gets you paid:</p><table class="lm-foc-t"><tr><th>do</th><th>/mo</th><th>5-day/day</th><th>+Sat/day</th></tr>';
     const row=(l,mo)=>'<tr><td>'+l+'</td><td>'+lmR(mo,1)+'</td><td>'+lmR(mo/21.7,1)+'</td><td>'+lmR(mo/26,1)+'</td></tr>';
     h+=row('Leads worked',f.needLeads)+row('Booked appts',f.needBooked)+row('Showed',f.needShows)+(f.needDials?row('Dials',f.needDials):'')+'</table></div>';}
