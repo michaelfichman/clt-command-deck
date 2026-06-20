@@ -919,8 +919,11 @@ VIEWS.lm=function(){
   const team=lmTeam();let st=lmState(),person=st.person||team[0]||'',lens=st.lens,metric=st.metric;
   if(!person)return {html:'<p class="lede">No LM found in the Team tab.</p>',mount(){}};
   let M2;try{M2=lmBuild(person);}catch(e){return {html:'<p class="lede">LM build error: '+e.message+'</p>',mount(){}};}
-  const html=metric==='deals'?lmDealsView(M2,person,lens):(metric?lmDetail(M2,person,lens,metric):lmHome(M2,person,lens,team));
+  let html;
+  try{html=metric==='deals'?lmDealsView(M2,person,lens):(metric?lmDetail(M2,person,lens,metric):lmHome(M2,person,lens,team));}
+  catch(err){html='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-coach"><div class="lm-d-h">RENDER ERROR (tap to go back)</div><p>'+String((err&&err.message)||err)+'</p></div>';}
   return {html:html,mount(){
+    try{
     if(!metric||metric==='deals')return;
     const lm=M2.lenses[lens][metric],t=lmTileDef(metric),g=lm.game,gl=css('--glow'),amb=css('--amber'),grn=css('--green'),labels=lm.trend.map(x=>x.label);
     if(RATIO2[metric]){
@@ -937,6 +940,7 @@ VIEWS.lm=function(){
     const tg=(g&&g.bars&&g.bars.target!=null)?(t.fmt==='pct'&&g.bars.target<=1?g.bars.target*100:g.bars.target):null;
     if(tg!=null)ds.push({label:'Target',data:labels.map(()=>tg),borderColor:grn,borderDash:[2,3],pointRadius:0,borderWidth:1.4,fill:false});
     mk('lmchart',{type:'line',data:{labels:labels,datasets:ds},options:{plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,font:{size:9}}}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,title:{display:true,text:unit,font:{size:9}}}},maintainAspectRatio:false}});
+    }catch(e){}
   }};
 };
 
