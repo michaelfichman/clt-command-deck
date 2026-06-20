@@ -250,12 +250,14 @@ select.lm-person{cursor:pointer}
 .lm-coach p{margin:6px 0 0;font-size:13.5px;color:var(--txt);line-height:1.55}
 .lm-reclist{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
 .lm-rec-h{font-family:'IBM Plex Mono';font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--glow);margin-bottom:8px}
-.lm-rec{display:grid;grid-template-columns:54px 1fr auto;gap:8px;align-items:baseline;padding:6px 0;border-top:1px dashed var(--line);font-size:12.5px}
+.lm-rec{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:7px 0;border-top:1px dashed var(--line);font-size:12.5px}
+.lm-rmain{flex:1;min-width:0}
+.lm-rsub{font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3);margin-top:2px;overflow-wrap:anywhere;word-break:break-word;line-height:1.35}
+.lm-rmetric{flex-shrink:0;white-space:nowrap;align-self:flex-start;padding-top:1px}
 .lm-rec.none{color:var(--txt3);border:0;font-family:'IBM Plex Mono';font-size:11px}
 .lm-rec.more{color:var(--txt3);border-top:1px dashed var(--line);font-family:'IBM Plex Mono';font-size:10px;justify-content:center;display:block;text-align:center;padding-top:8px}
 .lm-rd{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--txt3)} .lm-rd.br{color:var(--glow);font-weight:600;text-align:right}
-.lm-rn{color:var(--txt);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lm-rp{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--txt3);text-align:right;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lm-rn{color:var(--txt);font-weight:500;overflow-wrap:anywhere;word-break:break-word;line-height:1.35}
 .lm-funnel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 14px;margin-bottom:6px}
 .lm-frow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px dashed var(--line)}
 .lm-frow:first-child{border-top:0} .lm-fl{font-size:13px;color:var(--txt2)} .lm-fv{font-family:'IBM Plex Mono';font-weight:600;font-size:17px;color:var(--glow)}
@@ -929,7 +931,7 @@ function lmRecList(M,key,lens){
   const head='<div class="lm-rec-h">RECORDS · '+LM_LBL[lens]+' ('+rows.length+')</div>';
   if(!rows.length)return '<div class="lm-reclist">'+head+'<div class="lm-rec none">No records in this window.</div></div>';
   const cap=rows.slice(0,15);
-  return '<div class="lm-reclist">'+head+cap.map(x=>'<div class="lm-rec"><span class="lm-rd">'+lmDateLbl(x.d)+'</span><span class="lm-rn">'+x.name+'</span><span class="lm-rp">'+x.det+'</span></div>').join('')+(rows.length>15?'<div class="lm-rec more">+'+(rows.length-15)+' more</div>':'')+'</div>';
+  return '<div class="lm-reclist">'+head+cap.map(x=>'<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+x.name+'</div>'+(x.det?'<div class="lm-rsub">'+x.det+'</div>':'')+'</div><div class="lm-rmetric lm-rd">'+lmDateLbl(x.d)+'</div></div>').join('')+(rows.length>15?'<div class="lm-rec more">+'+(rows.length-15)+' more</div>':'')+'</div>';
 }
 function lmCoach(M,key){
   const c=M.comp,y=M.lenses.ytd,a2c=y.apptToContract.current||0,l2a=y.leadToAppt.current||0,sr=y.showRate.current||0,perK=(c.avgFee||0)*(c.split||0.1),perShow=a2c*perK,perAppt=sr*perShow,P=v=>lmPctF(v);
@@ -949,8 +951,8 @@ function lmCoach(M,key){
   return L[key]||'';
 }
 function lmCoachBlock(M,key){const x=lmCoach(M,key);return x?'<div class="lm-coach"><div class="lm-d-h">COACH — what moves the number</div><p>'+x+'</p></div>':'';}
-function lmDealList(title,deals){if(!deals||!deals.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+deals.length+')</div>'+deals.map(d=>'<div class="lm-rec"><span class="lm-rn">'+d.name+'</span><span class="lm-rp">'+(d.stage||'')+'</span><span class="lm-rd br">'+lmMoney(d.cut)+'</span></div>').join('')+'</div>';}
-function lmOfferList(title,offers){if(!offers||!offers.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+offers.length+')</div>'+offers.map(o=>'<div class="lm-rec"><span class="lm-rn">'+o.name+'</span><span class="lm-rp">'+(o.property||'')+'</span><span class="lm-rd">~'+lmMoney(o.est)+'</span></div>').join('')+'</div>';}
+function lmDealList(title,deals){if(!deals||!deals.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+deals.length+')</div>'+deals.map(d=>'<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+d.name+'</div>'+(d.stage?'<div class="lm-rsub">'+d.stage+'</div>':'')+'</div><div class="lm-rmetric lm-rd br">'+lmMoney(d.cut)+'</div></div>').join('')+'</div>';}
+function lmOfferList(title,offers){if(!offers||!offers.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+offers.length+')</div>'+offers.map(o=>'<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+o.name+'</div>'+(o.property?'<div class="lm-rsub">'+o.property+'</div>':'')+'</div><div class="lm-rmetric lm-rd">~'+lmMoney(o.est)+'</div></div>').join('')+'</div>';}
 function lmDealsView(M,person,lens){
   const c=M.comp,L=M.lenses[lens];
   const funnel=[['Leads',L.leads.current],['Appts Booked',L.apptsBooked.current],['Showed',L.apptsShowed.current],['Offers Made',L.offersMade.current],['Contracts',L.contractsSigned.current]];
@@ -1014,7 +1016,9 @@ function lmLevers(f,M){
     {key:'confirm',title:'Confirm every appointment',now:'A reminder text saves shows',goal:'Recover ~10% of would-be no-shows',diff:1,dollars:bookedMo*0.10*f.perShow,when:when(30),est:1},
     {key:'sustain',title:'Lock in +1 appt/week',now:'Small bump, compounded',goal:'Hold +1 booked/wk for 3 months',diff:2,dollars:1*wk*3*f.perBooked,when:when(90,'fully banks ~by ')}
   ];
-  return P.filter(function(l){return l.dollars && isFinite(l.dollars) && l.dollars>=1;}).map(function(l){l.dollars=Math.round(l.dollars);return l;});
+  // effort weeks per lever → drives $/week-of-effort so the pin is the most EFFICIENT lever, not just the biggest total
+  const EW={appts:3,close:4,dials:4.33,showrate:4.33,l2a:4.33,sat:4.33,dormant:1.5,dormant25:3,onedeal:4.33,speed:4.33,talk:4.33,nozero:4.33,confirm:4.33,sustain:13};
+  return P.filter(function(l){return l.dollars && isFinite(l.dollars) && l.dollars>=1;}).map(function(l){l.dollars=Math.round(l.dollars);l.ew=EW[l.key]||4.33;l.rate=l.dollars/l.ew;return l;});
 }
 function lmFocusView(M,person){
   const f=lmFocus(M),first=String(person||'').split(' ')[0]||'You';
@@ -1028,13 +1032,13 @@ function lmFocusView(M,person){
   // LIVING QUEUE — full lever pool, biggest pinned, the rest rotate daily so the mix stays fresh
   const all=lmLevers(f,M);
   if(all.length){
-    let topI=0;for(let i=1;i<all.length;i++){if(all[i].dollars>all[topI].dollars)topI=i;}
+    let topI=0;for(let i=1;i<all.length;i++){if(all[i].rate>all[topI].rate)topI=i;}
     const top=all[topI],rest=all.filter((_,i)=>i!==topI);
     const doy=Math.floor((M.asOf-new Date(M.asOf.getFullYear(),0,0))/864e5),N=Math.min(4,rest.length),show=[];
     for(let i=0;i<N;i++)show.push(rest[(doy+i)%rest.length]);
     h+='<div class="lm-foc lever"><div class="lm-foc-h">💰 Your earning queue — '+(1+show.length)+' of '+all.length+' levers · refreshes daily</div>';
-    h+='<p class="lm-foc-sub">Ranked by dollars added and scored by effort — pick the trade you like. The mix rotates each day and re-prices off your live numbers.</p>';
-    h+='<div class="lm-q-lbl amber">⚡ Biggest lever right now</div>'+card(top,true);
+    h+='<p class="lm-foc-sub">Scored by effort, ranked by dollars added — pick the trade you like. The mix rotates each day and re-prices off your live numbers.</p>';
+    h+='<div class="lm-q-lbl amber">⚡ Best bang for your effort — '+lmMoney(top.rate)+'/week of work</div>'+card(top,true);
     h+='<div class="lm-q-lbl">More ways to earn — fresh picks today</div>'+show.map(L=>card(L,false)).join('');
     h+='<p class="lm-foc-sub">Each $ is the <b>added</b> money on top of your current pace, banked at close (~'+CLOSE_DAYS+'-day). Come back tomorrow for a new set.</p></div>';
   }
