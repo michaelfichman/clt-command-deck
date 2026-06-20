@@ -777,26 +777,7 @@ VIEWS.lm=function(){
   let html;
   try{html=metric==='focus'?lmFocusView(M2,person):metric==='deals'?lmDealsView(M2,person,lens):(metric?lmDetail(M2,person,lens,metric):lmHome(M2,person,lens,team));}
   catch(err){html='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-coach"><div class="lm-d-h">RENDER ERROR (tap to go back)</div><p>'+String((err&&err.message)||err)+'</p></div>';}
-  return {html:html,mount(){
-    try{
-    if(!metric||metric==='deals'||metric==='focus')return;
-    const lm=M2.lenses[lens][metric],t=lmTileDef(metric),g=lm.game,gl=css('--glow'),amb=css('--amber'),grn=css('--green'),labels=lm.trend.map(x=>x.label);
-    if(RATIO2[metric]){
-      const cc=RATIO2[metric],nd=M2.lenses[lens][cc[0]].trend.map(x=>x.value),dd=M2.lenses[lens][cc[1]].trend.map(x=>x.value);
-      mk('lmchart',{type:'line',data:{labels:labels,datasets:[
-        {label:cc[2][1],data:dd,borderColor:amb,backgroundColor:'transparent',tension:.3,pointRadius:3,borderWidth:1.6,fill:false,spanGaps:true},
-        {label:cc[2][0],data:nd,borderColor:gl,backgroundColor:'rgba(63,208,255,.12)',tension:.3,pointRadius:3,borderWidth:2,fill:true,spanGaps:true}
-      ]},options:{plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,font:{size:9}}}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,title:{display:true,text:'count',font:{size:9}}}},maintainAspectRatio:false}});
-      return;
-    }
-    const sc=t.fmt==='pct'?100:1,r1=v=>(v==null||isNaN(v))?null:Math.round(v*sc*10)/10,data=lm.trend.map(x=>r1(x.value)),unit=t.fmt==='pct'?'%':(t.fmt==='min'||t.fmt==='spd')?'min':'count';
-    const ds=[{label:t.label,data:data,borderColor:gl,backgroundColor:'rgba(63,208,255,.12)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:gl,borderWidth:2,spanGaps:true}];
-    if(lm.bar!=null)ds.push({label:'Your avg',data:labels.map(()=>r1(lm.bar)),borderColor:amb,borderDash:[5,4],pointRadius:0,borderWidth:1.4,fill:false});
-    const tg=(g&&g.bars&&g.bars.target!=null)?(t.fmt==='pct'&&g.bars.target<=1?g.bars.target*100:g.bars.target):null;
-    if(tg!=null)ds.push({label:'Target',data:labels.map(()=>tg),borderColor:grn,borderDash:[2,3],pointRadius:0,borderWidth:1.4,fill:false});
-    mk('lmchart',{type:'line',data:{labels:labels,datasets:ds},options:{plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,font:{size:9}}}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,title:{display:true,text:unit,font:{size:9}}}},maintainAspectRatio:false}});
-    }catch(e){}
-  }};
+  return {html:html,mount(){lmChartMount(M2,lens,metric,{mk:mk,css:css});}};
 };
 
 function mk(id,conf){if(charts[id])charts[id].destroy();const el=$(id);if(el)charts[id]=new Chart(el,conf)}

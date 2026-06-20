@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050B16">
+<title>CLT · LM Scoreboard</title>
+<link rel="manifest" href="manifest-lm.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="lm-view.css">
+<style>
+/* brand tokens — identical to the owner deck so colors/typography match exactly */
+:root{
+  --ink:#050B16; --surface:#0A1626; --raised:#0F1D33; --card:#0C192C;
+  --line:rgba(122,176,230,.13); --line2:rgba(122,176,230,.26);
+  --txt:#EAF3FC; --txt2:#9FB6CE; --txt3:#5E7791;
+  --brand:#1B9DE2; --brand-deep:#0070B0; --glow:#3FD0FF;
+  --brand-dim:rgba(27,157,226,.16); --glow-dim:rgba(63,208,255,.12);
+  --sky:#8FCBEF; --green:#3FDE9C; --red:#F0617E; --amber:#F2B65A;
+  --r:16px; --nav-h:62px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:var(--ink);color:var(--txt);font-family:Inter,system-ui,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;padding:0 14px 70px;max-width:760px;margin:0 auto}
+.mono{font-family:'IBM Plex Mono',monospace}
+.eyebrow{font-family:'IBM Plex Mono';font-size:9.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--glow)}
+h1{font-family:Sora;font-weight:800;font-size:clamp(22px,5.4vw,32px);letter-spacing:-.01em;margin:6px 0 4px}
+h2{font-family:Sora;font-weight:700;font-size:17px}
+h3{font-family:Sora;font-weight:700}
+.lede{color:var(--txt2);font-size:13px;max-width:680px}
+.sec-h{display:flex;align-items:baseline;gap:10px;margin-bottom:13px;flex-wrap:wrap}
+.sec-h h2{font-family:Sora;font-weight:700;font-size:17px}
+.sec-h .tag{font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--glow)}
+.card{background:linear-gradient(180deg,var(--raised),var(--card));border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.chart-card h3{font-size:12.5px;font-weight:600;color:var(--txt2)}
+.chart-card .sub{font-family:'IBM Plex Mono';font-size:9.5px;color:var(--txt3);margin:2px 0 10px}
+.chart-wrap{position:relative;min-height:210px}
+/* shell: top status bar (the rest of the UI is the shared LM view) */
+.hd{display:flex;justify-content:space-between;align-items:center;padding:14px 0 8px;position:sticky;top:0;background:linear-gradient(180deg,var(--ink) 72%,transparent);z-index:5}
+.brand .nm{font-family:Sora;font-weight:800;letter-spacing:.05em;font-size:14px}
+.brand .sub{font-family:'IBM Plex Mono';font-size:8.5px;letter-spacing:.3em;color:var(--glow);text-transform:uppercase}
+.live{display:flex;align-items:center;gap:7px;font-family:'IBM Plex Mono';font-size:9.5px;color:var(--txt3)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--txt3)}
+.dot.ok{background:var(--green);box-shadow:0 0 8px var(--green)} .dot.err{background:var(--red)} .dot.load{background:var(--amber)}
+.icobtn{background:var(--raised);border:1px solid var(--line2);color:var(--glow);border-radius:9px;width:32px;height:32px;font-size:14px;cursor:pointer}
+/* setup */
+#setup{max-width:440px;margin:54px auto;text-align:center}
+#setup .nm{font-family:Sora;font-weight:800;letter-spacing:.05em;font-size:20px}
+#setup .sub{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.3em;color:var(--glow);text-transform:uppercase;margin-bottom:18px}
+#setup p{color:var(--txt2);font-size:13px}
+#setup label{display:block;text-align:left;font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;margin:14px 0 5px}
+#setup input{width:100%;background:var(--surface);border:1px solid var(--line2);color:var(--txt);border-radius:10px;padding:11px;font-family:'IBM Plex Mono';font-size:12px}
+#setup button{margin-top:18px;width:100%;background:linear-gradient(180deg,var(--brand),var(--brand-deep));color:#fff;border:0;border-radius:11px;padding:13px;font-weight:600;font-size:14px;cursor:pointer}
+.serr{color:var(--red);font-family:'IBM Plex Mono';font-size:11px;margin-top:12px;min-height:14px}
+</style>
+</head>
+<body>
+
+<div id="setup" style="display:none">
+  <div class="nm">CLT BUYERS</div><div class="sub">LM Scoreboard</div>
+  <p>Paste your Apps Script <span class="mono">/exec</span> URL and token. They're stored on this device and in the page link — after connecting, use &ldquo;Add to Home Screen.&rdquo;</p>
+  <label>LM endpoint URL (ends in /exec)</label>
+  <input id="inUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <label>Token</label>
+  <input id="inTok" placeholder="your LM token" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <button onclick="LMApp.connect()">Connect</button>
+  <div class="serr" id="setupErr"></div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="hd">
+    <div class="brand"><div class="nm">CLT BUYERS</div><div class="sub">LM Scoreboard</div></div>
+    <div class="live"><span class="dot" id="dot"></span><span id="fresh">—</span><button class="icobtn" id="refresh" title="Refresh" onclick="LMApp.refresh()">↻</button></div>
+  </div>
+  <main id="view"></main>
+</div>
+
+<script src="lm-engine.js"></script>
+<script src="lm-gamify.js"></script>
+<script src="lm-view.js"></script>
+<script>
+/* Jordan's host shell. Data is PRE-SCOPED by Code-LM.gs (server-side); this
+   client only fetches → buildModel → renders the shared LM view. No RAW, so
+   the team picker / company-goal pace / Michael benchmark auto-hide. */
+(function(){
+  var cfg={url:'',tok:'',role:'lm'}, route={lens:'week',metric:null,person:''}, M=null, charts={};
+  function $(id){return document.getElementById(id);}
+  function css(v){try{return (getComputedStyle(document.documentElement).getPropertyValue(v)||'').trim()||'#3FD0FF';}catch(e){return '#3FD0FF';}}
+  function mk(id,conf){if(charts[id])charts[id].destroy();var el=$(id);if(el&&window.Chart)charts[id]=new Chart(el,conf);}
+  function setDot(s,msg){var d=$('dot');if(d)d.className='dot '+(s==='ok'?'ok':s==='err'?'err':'load');var f=$('fresh');if(f)f.textContent=msg;}
+
+  function readHash(){var h=new URLSearchParams(location.hash.slice(1));if(h.get('e'))cfg.url=h.get('e');if(h.get('t'))cfg.tok=h.get('t');cfg.role=h.get('r')||cfg.role||'lm';if(h.get('lens'))route.lens=h.get('lens');route.metric=h.get('m')||null;}
+  function writeHash(){var h=new URLSearchParams();if(cfg.url)h.set('e',cfg.url);if(cfg.tok)h.set('t',cfg.tok);h.set('r',cfg.role);h.set('lens',route.lens);if(route.metric)h.set('m',route.metric);try{history.replaceState(null,'','#'+h.toString());}catch(e){}}
+  function save(){try{localStorage.setItem('clt_lm',JSON.stringify({url:cfg.url,tok:cfg.tok}));}catch(e){}}
+  function loadCfg(){try{var s=localStorage.getItem('clt_lm');if(s){var o=JSON.parse(s);cfg.url=cfg.url||o.url||'';cfg.tok=cfg.tok||o.tok||'';}}catch(e){}}
+
+  /* global nav — the shared view emits onclick="lmGo(...)" */
+  window.lmGo=function(person,lens,metric){route.person=person||route.person;route.lens=lens||route.lens;var m=metric||'';route.metric=m===''?null:m;writeHash();render();try{window.scrollTo(0,0);}catch(e){}};
+
+  function render(){
+    if(!M)return;
+    var person=route.person||M.person||'', lens=route.lens||'week', metric=route.metric||'', team=[person];
+    var html;
+    try{html=metric==='focus'?lmFocusView(M,person):metric==='deals'?lmDealsView(M,person,lens):(metric?lmDetail(M,person,lens,metric):lmHome(M,person,lens,team));}
+    catch(err){html='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-coach"><div class="lm-d-h">RENDER ERROR (tap to go back)</div><p>'+String((err&&err.message)||err)+'</p></div>';}
+    $('view').innerHTML=html;
+    lmChartMount(M,lens,metric,{mk:mk,css:css});
+  }
+
+  function load(){
+    setDot('load','connecting…');
+    var u=cfg.url+(cfg.url.indexOf('?')>-1?'&':'?')+'token='+encodeURIComponent(cfg.tok)+'&_cb='+Date.now();
+    fetch(u,{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+      if(!j||!j.ok)throw new Error((j&&j.error)||'bad payload');
+      M=window.LMGamify.gamify(window.LMEngine.buildModel(j));
+      route.person=M.person||route.person||'';
+      $('setup').style.display='none';$('app').style.display='';
+      setDot('ok','live · '+new Date().toLocaleTimeString());
+      render();
+    }).catch(function(err){
+      setDot('err','error');$('app').style.display='none';$('setup').style.display='';
+      $('setupErr').textContent='Could not load: '+err.message+' — check the /exec URL and token (Web App access must be "Anyone").';
+    });
+  }
+
+  window.LMApp={
+    connect:function(){cfg.url=$('inUrl').value.trim();cfg.tok=$('inTok').value.trim();if(!cfg.url||!cfg.tok){$('setupErr').textContent='Enter both the /exec URL and the token.';return;}save();writeHash();load();},
+    refresh:function(){if(cfg.url&&cfg.tok)load();}
+  };
+
+  readHash();loadCfg();
+  if(cfg.url&&cfg.tok){writeHash();$('setup').style.display='none';load();}
+  else{$('setup').style.display='';$('app').style.display='none';if(cfg.url)$('inUrl').value=cfg.url;}
+
+  if('serviceWorker' in navigator){try{navigator.serviceWorker.register('sw-lm.js');}catch(e){}}
+})();
+</script>
+</body>
+</html>
