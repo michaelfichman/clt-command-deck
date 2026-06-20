@@ -85,11 +85,14 @@
     for (var i = 0; i < points.length; i++) { var d = points[i].date; if (!d) continue; var dd = sod(d); if (dd.getTime() <= cap && (!best || dd > best)) best = dd; }
     return best;
   }
-  // For the TODAY lens, resolve the effective as-of to the latest data day.
-  function anchorFor(points, asOf, lens) {
+  // TODAY lens: live metrics read the ACTUAL current day (through this moment).
+  // Only `lagged` metrics (calls/talk-time — posted once daily by the routine)
+  // fall back to the latest posted day, flagged so the UI can label it honestly.
+  function anchorFor(points, asOf, lens, lagged) {
     if (lens !== 'today') return { asOf: asOf, anchorDate: null, lagged: false };
+    if (!lagged) return { asOf: asOf, anchorDate: sod(asOf), lagged: false }; // live: today, real-time
     var ld = latestDay(points, asOf);
-    if (!ld) return { asOf: asOf, anchorDate: null, lagged: false };
+    if (!ld) return { asOf: asOf, anchorDate: sod(asOf), lagged: false };
     return { asOf: eod(ld), anchorDate: ld, lagged: sod(ld).getTime() < sod(asOf).getTime() };
   }
 
@@ -130,9 +133,9 @@
   }
 
   /* ---------------- a flow/avg metric across one lens ---------------- */
-  function metricLens(points, asOf, lens, mode, N) {
+  function metricLens(points, asOf, lens, mode, N, lagged) {
     mode = mode || 'sum'; N = N || 4;
-    var a = anchorFor(points, asOf, lens), at = a.asOf, nb = (lens === 'today') ? 14 : N;
+    var a = anchorFor(points, asOf, lens, lagged), at = a.asOf, nb = (lens === 'today') ? 14 : N;
     var cur = aggIn(points, lensWindow(at, lens), mode);
     var cmp = aggIn(points, priorWindow(at, lens), mode);
     var bar = trailingBar(points, at, lens, mode, nb);
@@ -142,9 +145,9 @@
   }
 
   // Ratio metric (num/den) across one lens — show rate, lead→appt, appt→contract.
-  function ratioLens(numPts, denPts, asOf, lens, N) {
+  function ratioLens(numPts, denPts, asOf, lens, N, lagged) {
     N = N || 4;
-    var an = anchorFor(denPts, asOf, lens), at = an.asOf;
+    var an = anchorFor(denPts, asOf, lens, lagged), at = an.asOf;
     function ratio(w) { var d = aggIn(denPts, w, 'sum'); return d ? aggIn(numPts, w, 'sum') / d : null; }
     var cur = ratio(lensWindow(at, lens));
     var cmp = ratio(priorWindow(at, lens));
@@ -274,9 +277,9 @@
     var lenses = {};
     LENSES.forEach(function (lens) {
       lenses[lens] = {
-        calls: metricLens(P.calls, asOf, lens, 'sum'),
-        outbound: metricLens(P.outbound, asOf, lens, 'sum'),
-        talkTime: metricLens(P.talk, asOf, lens, 'sum'),
+        calls: metricLens(P.calls, asOf, lens, 'sum', 4, true),       // lagged: posted once daily
+        outbound: metricLens(P.outbound, asOf, lens, 'sum', 4, true), // lagged
+        talkTime: metricLens(P.talk, asOf, lens, 'sum', 4, true),     // lagged
         leads: metricLens(P.leads, asOf, lens, 'sum'),
         apptsBooked: metricLens(P.booked, asOf, lens, 'sum'),
         apptsShowed: metricLens(P.showed, asOf, lens, 'sum'),

@@ -836,7 +836,7 @@ const lmSpd=v=>(v==null||isNaN(v))?'—':Math.round(v).toLocaleString()+' min';
 const lmPctF=v=>(v==null||isNaN(v))?'—':(v*100).toFixed(0)+'%';
 const lmMoney=v=>'$'+Math.round(v||0).toLocaleString();
 const LM_FMT={num:lmNum,min:lmMin,spd:lmSpd,pct:lmPctF};
-const LM_TILES=[{k:'calls',label:'Calls',fmt:'num'},{k:'talkTime',label:'Talk Time',fmt:'min'},{k:'speed',label:'Speed-to-Lead',fmt:'spd',low:true},{k:'leads',label:'Leads Worked',fmt:'num'},{k:'apptsBooked',label:'Appts Booked',fmt:'num'},{k:'showRate',label:'Show Rate',fmt:'pct'},{k:'leadToAppt',label:'Lead→Appt',fmt:'pct'},{k:'apptToContract',label:'Appt→Contract',fmt:'pct'}];
+const LM_TILES=[{k:'calls',label:'Calls',fmt:'num'},{k:'talkTime',label:'Talk Time',fmt:'min'},{k:'speed',label:'Speed-to-Lead',fmt:'spd',low:true},{k:'leads',label:'Leads Worked',fmt:'num'},{k:'apptsBooked',label:'Appts Booked',fmt:'num'},{k:'apptsShowed',label:'Appts Showed',fmt:'num'},{k:'showRate',label:'Show Rate',fmt:'pct'},{k:'leadToAppt',label:'Lead→Appt',fmt:'pct'},{k:'apptToContract',label:'Appt→Contract',fmt:'pct'}];
 const LM_LENSES=[['today','Today'],['week','Week'],['month','Month'],['quarter','Quarter']];
 const LM_PRIOR={today:'prior day',week:'last week',month:'last month',quarter:'last quarter',ytd:'last yr'};
 const LM_LBL={today:'Today',week:'this week',month:'this month',quarter:'this quarter',ytd:'YTD'};
