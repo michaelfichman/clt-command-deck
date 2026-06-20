@@ -1018,7 +1018,9 @@ function lmLevers(f,M){
   ];
   // effort weeks per lever → drives $/week-of-effort so the pin is the most EFFICIENT lever, not just the biggest total
   const EW={appts:3,close:4,dials:4.33,showrate:4.33,l2a:4.33,sat:4.33,dormant:1.5,dormant25:3,onedeal:4.33,speed:4.33,talk:4.33,nozero:4.33,confirm:4.33,sustain:13};
-  return P.filter(function(l){return l.dollars && isFinite(l.dollars) && l.dollars>=1;}).map(function(l){l.dollars=Math.round(l.dollars);l.ew=EW[l.key]||4.33;l.rate=l.dollars/l.ew;return l;});
+  // monthly STRETCH phrasing — used only when a lever is pinned as the month's big goal (sustain it all month = bigger, harder)
+  const MG={appts:'Hit '+aimWk+' booked every week, all month',close:'Close '+lmPctF(f.tA2C)+' of every show this month',dials:'Hold '+aimD+'/day for the entire month',showrate:'Get '+lmPctF(showT)+' of booked to show, all month',l2a:'Convert '+lmPctF(l2aT)+' of every lead this month',sat:'Work all 4 Saturdays this month',dormant:'Re-touch dead leads every week this month',dormant25:'Mine your whole old list this month',onedeal:'Force 2 extra closes this month',speed:'Be first to every fresh lead, all month',talk:'Win every conversation this month',nozero:'No zero-call days the whole month',confirm:'Confirm every appointment this month',sustain:'Lock +1/wk and hold it all quarter'};
+  return P.filter(function(l){return l.dollars && isFinite(l.dollars) && l.dollars>=1;}).map(function(l){l.dollars=Math.round(l.dollars);l.ew=EW[l.key]||4.33;l.rate=l.dollars/l.ew;l.mdollars=Math.round(l.rate*4.33);l.mdiff=Math.min(3,l.diff+1);l.mg=MG[l.key]||'Go all-in on this all month';l.mwhen='banks ~by '+cashBy(30+CLOSE)+' · '+CLOSE+'-day closes';return l;});
 }
 function lmFocusView(M,person){
   const f=lmFocus(M),first=String(person||'').split(' ')[0]||'You';
@@ -1034,11 +1036,13 @@ function lmFocusView(M,person){
   if(all.length){
     let topI=0;for(let i=1;i<all.length;i++){if(all[i].rate>all[topI].rate)topI=i;}
     const top=all[topI],rest=all.filter((_,i)=>i!==topI);
+    // pin = the highest-leverage lever, scaled up to a bigger, harder MONTHLY goal — same $ unit as the picks below
+    const big={title:top.title,now:top.now,goal:top.mg,diff:top.mdiff,dollars:top.mdollars,when:top.mwhen,est:top.est};
     const doy=Math.floor((M.asOf-new Date(M.asOf.getFullYear(),0,0))/864e5),N=Math.min(4,rest.length),show=[];
     for(let i=0;i<N;i++)show.push(rest[(doy+i)%rest.length]);
     h+='<div class="lm-foc lever"><div class="lm-foc-h">💰 Your earning queue — '+(1+show.length)+' of '+all.length+' levers · refreshes daily</div>';
-    h+='<p class="lm-foc-sub">Scored by effort, ranked by dollars added — pick the trade you like. The mix rotates each day and re-prices off your live numbers.</p>';
-    h+='<div class="lm-q-lbl amber">⚡ Best bang for your effort — '+lmMoney(top.rate)+'/week of work</div>'+card(top,true);
+    h+='<p class="lm-foc-sub">One big monthly goal up top, bite-size picks below — all in dollars you add, banked at close. Rotates daily, re-prices off your live numbers.</p>';
+    h+='<div class="lm-q-lbl amber">⚡ This month’s big goal — your highest-leverage push</div>'+card(big,true);
     h+='<div class="lm-q-lbl">More ways to earn — fresh picks today</div>'+show.map(L=>card(L,false)).join('');
     h+='<p class="lm-foc-sub">Each $ is the <b>added</b> money on top of your current pace, banked at close (~'+CLOSE_DAYS+'-day). Come back tomorrow for a new set.</p></div>';
   }
