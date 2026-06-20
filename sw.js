@@ -1,7 +1,7 @@
 /* CLT Command Deck — service worker.
    Shell: cache-first. Live data (Apps Script endpoint): network-only, never cached. */
-const CACHE = 'clt-deck-v21';
-const SHELL = ['./index.html', './lm-engine.js', './lm-gamify.js', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+const CACHE = 'clt-deck-v22';
+const SHELL = ['./index.html', './lm-view.js', './lm-view.css', './lm-engine.js', './lm-gamify.js', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
