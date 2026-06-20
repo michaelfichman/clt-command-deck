@@ -269,6 +269,8 @@ select.lm-person{cursor:pointer}
 .lm-pay span{font-size:12px;color:var(--txt2)} .lm-pay b{font-family:'IBM Plex Mono';font-size:16px;color:var(--green)}
 .lm-scen{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-top:1px dashed var(--line)} .lm-scen:first-of-type{border-top:0}
 .lm-scen-l{font-size:13.5px;color:var(--txt);font-weight:500;flex:1} .lm-scen-r{text-align:right;white-space:nowrap}
+.lm-scen-now{font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.05em}
+.lm-scen-goal{font-size:13.5px;color:var(--txt);font-weight:600;margin-top:3px}
 .lm-scen-v{font-family:'IBM Plex Mono';font-weight:600;font-size:19px;color:var(--green)} .lm-scen-v span{font-size:11px;color:var(--txt3);font-weight:400}
 .lm-scen-h{font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3);margin-top:2px}
 .lm-foc-t{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono';font-size:12.5px;margin-top:8px}
@@ -963,10 +965,13 @@ function lmFocus(M){
   // what each funnel step is worth to the LM (their split on an avg deal)
   const perDeal=avgDeal*split,perShow=a2c*perDeal,perBooked=sr*perShow,perLead=l2a*perBooked;
   const cpb=(y.apptsBooked.current>0)?y.calls.current/y.apptsBooked.current:null,perDial=cpb?perBooked/cpb:null;
-  const start=new Date(2026,3,22),wks=Math.max(1,(M.asOf-start)/6048e5),showsWk=(y.apptsShowed.current||0)/wks;
+  const start=new Date(2026,3,22),wks=Math.max(1,(M.asOf-start)/6048e5);
+  // his ACTUAL current pace — the baseline every sprint is measured against
+  const bookedYtd=y.apptsBooked.current||0,callsYtd=y.calls.current||0,showsYtd=y.apptsShowed.current||0;
+  const apptsWk=bookedYtd/wks,dialsDay=callsYtd/(wks*5),showsWk=showsYtd/wks;
   const dealsMo=(monthGoal&&avgDeal)?monthGoal/avgDeal:0;
   const needShows=a2c?dealsMo/a2c:0,needBooked=(a2c&&sr)?dealsMo/a2c/sr:0,needLeads=(a2c&&sr&&l2a)?dealsMo/a2c/sr/l2a:0,needDials=cpb?needBooked*cpb:null;
-  return {avgDeal:avgDeal,split:split,perDeal:perDeal,perShow:perShow,perBooked:perBooked,perLead:perLead,perDial:perDial,a2c:a2c,sr:sr,l2a:l2a,tA2C:tA2C,cpb:cpb,showsWk:showsWk,monthGoal:monthGoal,dealsMo:dealsMo,needShows:needShows,needBooked:needBooked,needLeads:needLeads,needDials:needDials,lmShareMo:dealsMo*perDeal};
+  return {avgDeal:avgDeal,split:split,perDeal:perDeal,perShow:perShow,perBooked:perBooked,perLead:perLead,perDial:perDial,a2c:a2c,sr:sr,l2a:l2a,tA2C:tA2C,cpb:cpb,apptsWk:apptsWk,dialsDay:dialsDay,showsWk:showsWk,monthGoal:monthGoal,dealsMo:dealsMo,needShows:needShows,needBooked:needBooked,needLeads:needLeads,needDials:needDials,lmShareMo:dealsMo*perDeal};
 }
 function lmBench(){
   if(typeof RAW==='undefined'||!RAW['Calls'])return null;
@@ -979,15 +984,19 @@ function lmBench(){
 function lmFocusView(M,person){
   const f=lmFocus(M),first=String(person||'').split(' ')[0]||'You';
   const pay=(l,v)=>'<div class="lm-pay"><span>'+l+'</span><b>'+lmMoney(v)+'</b></div>';
-  const scen=(l,mo)=>'<div class="lm-scen"><div class="lm-scen-l">'+l+'</div><div class="lm-scen-r"><div class="lm-scen-v">+'+lmMoney(mo)+'<span>/mo</span></div><div class="lm-scen-h">'+lmMoney(mo*6)+' over 6mo · '+lmMoney(mo*12)+' / yr</div></div></div>';
+  const sprint=(now,goal,dollars,sub)=>'<div class="lm-scen"><div class="lm-scen-l"><div class="lm-scen-now">'+now+'</div><div class="lm-scen-goal">→ '+goal+'</div></div><div class="lm-scen-r"><div class="lm-scen-v">'+lmMoney(dollars)+'</div><div class="lm-scen-h">'+sub+'</div></div></div>';
   let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\'ytd\',\'\')">‹ Scoreboard</button>';
   h+='<div class="lm-head"><div><p class="eyebrow">Your money · how to make more of it</p><h1>'+first+'’s earning levers</h1></div></div>';
   h+='<div class="lm-foc"><div class="lm-foc-h">What each step pays YOU — '+lmPctF(f.split)+' of a '+lmMoney(f.avgDeal)+' deal = '+lmMoney(f.perDeal)+'/deal</div><div class="lm-pays">'+pay('Each deal',f.perDeal)+pay('Each show',f.perShow)+pay('Each booked appt',f.perBooked)+pay('Each lead worked',f.perLead)+(f.perDial?pay('Each dial',f.perDial):'')+'</div><p class="lm-foc-sub">Every action has a price tag — real money in your pocket, at your current rates.</p></div>';
-  h+='<div class="lm-foc lever"><div class="lm-foc-h">💰 Make more — small changes, real money to you</div>';
-  h+=scen('Book +2 appts / week',2*4.333*f.perBooked);
-  if(f.perDial)h+=scen('Make +10 dials / day',10*21.7*f.perDial);
-  if(f.a2c<f.tA2C)h+=scen('Close '+lmPctF(f.tA2C)+' of shows (you’re at '+lmPctF(f.a2c)+') — same appts',Math.max(0,f.showsWk*4.333*(f.tA2C-f.a2c)*f.perDeal));
-  h+='<p class="lm-foc-sub">Pick one and run it 6 months — that’s the number on the right, straight to you.</p></div>';
+  h+='<div class="lm-foc lever"><div class="lm-foc-h">💰 Sprints — beat YOUR current pace, get paid</div>';
+  // appts: grounded in his actual appts/week, stretch over 3 weeks
+  const aimWk=Math.max(Math.ceil(f.apptsWk)+1,Math.round(f.apptsWk*2||2)),sAppts=Math.round(aimWk*3),usual3=f.apptsWk*3;
+  h+=sprint('You’re averaging '+lmR(f.apptsWk,1)+' booked appts/week','Book '+sAppts+' over the next 3 weeks ('+aimWk+'/wk)',sAppts*f.perBooked,'+'+lmMoney(Math.max(0,(sAppts-usual3)*f.perBooked))+' more than your usual '+lmR(usual3,0));
+  // close rate: grounded in his actual a2c, next 4 shows
+  if(f.a2c<f.tA2C){const ns=4;h+=sprint('You’re closing '+lmPctF(f.a2c)+' of the shows you run','Close '+lmPctF(f.tA2C)+' of your next '+ns+' shows',ns*f.tA2C*f.perDeal,'+'+lmMoney(Math.max(0,ns*(f.tA2C-f.a2c)*f.perDeal))+' more than at '+lmPctF(f.a2c));}
+  // dials: grounded in his actual dials/day, +50% for a month
+  if(f.perDial&&f.dialsDay>0){const aimD=Math.round(f.dialsDay*1.5),exD=(aimD-f.dialsDay)*21.7;h+=sprint('You’re making '+lmR(f.dialsDay,0)+' dials/day','Hit '+aimD+'/day for a month (+'+lmR(aimD-f.dialsDay,0)+'/day)',Math.max(0,exD*f.perDial),'+'+lmMoney(Math.max(0,exD*f.perDial))+' from the extra dials');}
+  h+='<p class="lm-foc-sub">Each is a short, beatable jump from where you are right now — and the green number is yours.</p></div>';
   if(f.monthGoal){h+='<div class="lm-foc"><div class="lm-foc-h">Carry the company goal → '+lmMoney(f.lmShareMo)+'/mo to you</div><p class="lm-foc-sub">'+lmR(f.dealsMo,1)+' deals/mo. The daily pace that gets you paid:</p><table class="lm-foc-t"><tr><th>do</th><th>/mo</th><th>5-day/day</th><th>+Sat/day</th></tr>';
     const row=(l,mo)=>'<tr><td>'+l+'</td><td>'+lmR(mo,1)+'</td><td>'+lmR(mo/21.7,1)+'</td><td>'+lmR(mo/26,1)+'</td></tr>';
     h+=row('Leads worked',f.needLeads)+row('Booked appts',f.needBooked)+row('Showed',f.needShows)+(f.needDials?row('Dials',f.needDials):'')+'</table></div>';}
