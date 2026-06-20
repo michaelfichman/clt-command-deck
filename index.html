@@ -259,6 +259,19 @@ select.lm-person{cursor:pointer}
 .lm-funnel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 14px;margin-bottom:6px}
 .lm-frow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px dashed var(--line)}
 .lm-frow:first-child{border-top:0} .lm-fl{font-size:13px;color:var(--txt2)} .lm-fv{font-family:'IBM Plex Mono';font-weight:600;font-size:17px;color:var(--glow)}
+.lm-foc{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.lm-foc.lever{background:radial-gradient(360px 120px at 15% 0%,var(--glow-dim),transparent),var(--card);border-color:var(--line2)}
+.lm-foc-h{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--glow);margin-bottom:6px}
+.lm-foc-sub{font-size:13px;color:var(--txt2);line-height:1.55;margin:8px 0 0} .lm-foc-sub b{color:var(--txt)}
+.lm-foc-big{font-family:'IBM Plex Mono';font-weight:600;font-size:26px;color:var(--amber);margin:4px 0} .lm-foc-big span{font-size:13px;color:var(--txt3)}
+.lm-foc-t{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono';font-size:12.5px;margin-top:8px}
+.lm-foc-t th{text-align:right;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--txt3);font-weight:500;padding:4px 6px}
+.lm-foc-t th:first-child{text-align:left}
+.lm-foc-t td{text-align:right;padding:7px 6px;border-top:1px dashed var(--line);color:var(--txt)} .lm-foc-t td:first-child{text-align:left;color:var(--txt2)}
+.lm-foc-t td:nth-child(2){color:var(--glow);font-weight:600}
+.lm-bench{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+.lm-bn{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:10px;text-align:center} .lm-bn span{display:block;font-family:'IBM Plex Mono';font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px} .lm-bn b{font-family:'IBM Plex Mono';font-size:20px;color:var(--glow)}
+.lm-deals-btn.focusbtn{background:linear-gradient(180deg,#15324a,#0c192c);color:#fff;border-color:var(--brand)}
 .lm-clockbar{margin:0 0 14px;background:var(--card);border:1px solid var(--line2);border-radius:11px;padding:9px 13px;font-family:'IBM Plex Mono';font-size:11px;color:var(--txt3);text-align:center}
 .lm-clockbar #lm-clock{color:var(--glow);font-weight:600;font-size:13px}
 .lm-deals-btn{width:100%;margin-top:14px;background:linear-gradient(180deg,#10243c,#0c192c);border:1px solid var(--line2);color:var(--glow);border-radius:13px;padding:13px;font-family:'IBM Plex Mono';font-size:12.5px;cursor:pointer}
@@ -875,7 +888,7 @@ function lmPaceDay(M){const t=M.lenses.today.calls,d=t.anchorDate,bar=t.bar,when
 function lmPicker(person,team){if(team.length<2)return '<span class="lm-person">'+person+'</span>';return '<select class="lm-person" onchange="lmGo(this.value,\'week\',\'\')">'+team.map(p=>'<option'+(p===person?' selected':'')+'>'+p+'</option>').join('')+'</select>';}
 function lmBars(lm){const g=lm.game;let o='<div class="lm-bars"><div class="lm-bar"><span class="lm-bl">Trailing avg</span><span class="lm-bv">'+(lm.bar==null?'—':Math.round(lm.bar*10)/10)+'</span></div>';o+=(g&&g.bars&&g.bars.target!=null)?'<div class="lm-bar"><span class="lm-bl">Target</span><span class="lm-bv">'+g.bars.target+'</span></div>':'<div class="lm-bar dim"><span class="lm-bl">Target</span><span class="lm-bv">not set</span></div>';return o+'</div>';}
 function lmDiag(lm,t,lens){const b=[];if(lm.comparePct!=null){const up=lm.comparePct>=0,good=t.low?!up:up;b.push(t.label+' is <b>'+Math.abs(lm.comparePct*100).toFixed(0)+'% '+(up?'up':'down')+'</b> vs '+LM_PRIOR[lens]+' — '+(good?'right way.':'slipping.'));}if(lm.bar!=null)b.push(lm.paceState==='ahead'?'Above your trailing pace.':lm.paceState==='on'?'On your trailing pace.':'Below your trailing pace.');if(lm.game&&lm.game.pr&&lm.game.pr.toTie)b.push('<b>'+LM_FMT[t.fmt](lm.game.pr.toTie)+'</b> from your record ('+lm.game.pr.best.label+').');if(lm.lagged)b.push('<i>Latest complete day; today is live in GHL.</i>');return b;}
-function lmHome(M,person,lens,team){return '<div class="lm-head"><div><p class="eyebrow">LM Scoreboard</p><h1>'+person+'</h1></div>'+lmPicker(person,team)+'</div><div class="lm-clockbar">this device&rsquo;s clock → <span id="lm-clock">'+lmNowLbl()+'</span></div>'+lmLensBar(person,lens)+lmComp(M)+'<section class="lm-hero">'+lmStreakHL(M,lens)+lmPaceDay(M)+'</section><div class="sec-h"><h2>Scoreboard</h2><span class="tag">'+LM_LBL[lens]+' · tap a tile</span></div><section class="lm-tiles">'+LM_TILES.map(t=>lmTile(M,person,lens,t)).join('')+'</section><button class="lm-deals-btn" onclick="lmGo(\''+person+'\',\''+lens+'\',\'deals\')">⊞ Deals &amp; Pipeline — '+lmMoney(M.comp.totalOpportunity)+' in play →</button><div class="lm-lb">Solo · self-competition. Head-to-head ranking activates when a 2nd LM joins.</div>';}
+function lmHome(M,person,lens,team){return '<div class="lm-head"><div><p class="eyebrow">LM Scoreboard</p><h1>'+person+'</h1></div>'+lmPicker(person,team)+'</div><div class="lm-clockbar">this device&rsquo;s clock → <span id="lm-clock">'+lmNowLbl()+'</span></div>'+lmLensBar(person,lens)+lmComp(M)+'<section class="lm-hero">'+lmStreakHL(M,lens)+lmPaceDay(M)+'</section><div class="sec-h"><h2>Scoreboard</h2><span class="tag">'+LM_LBL[lens]+' · tap a tile</span></div><section class="lm-tiles">'+LM_TILES.map(t=>lmTile(M,person,lens,t)).join('')+'</section><button class="lm-deals-btn focusbtn" onclick="lmGo(\''+person+'\',\''+lens+'\',\'focus\')">🎯 Focus On — your math-backed daily targets →</button><button class="lm-deals-btn" onclick="lmGo(\''+person+'\',\''+lens+'\',\'deals\')">⊞ Deals &amp; Pipeline — '+lmMoney(M.comp.totalOpportunity)+' in play →</button><div class="lm-lb">Solo · self-competition. Head-to-head ranking activates when a 2nd LM joins.</div>';}
 function lmDetail(M,person,lens,key){const t=lmTileDef(key),lm=M.lenses[lens][key],g=lm.game;let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-head"><div><p class="eyebrow">'+(lens==='today'?lmRel(lm.anchorDate):LM_LBL[lens])+'</p><h1>'+t.label+'</h1></div>'+lmLensBar(person,lens,key)+'</div><div class="lm-big '+lmPaceCls(lm.paceState)+'">'+LM_FMT[t.fmt](lm.current)+'</div><div class="lm-cmp">'+lmDelta(lm.comparePct,t.low)+' vs '+LM_PRIOR[lens]+' ('+LM_FMT[t.fmt](lm.comparison)+')</div>'+lmBars(lm);if(g){h+='<div class="lm-gcards">';if(g.streak)h+='<div class="lm-gc"><div class="lm-gl">Streak</div><div class="lm-gv">'+g.streak.current+'</div><div class="lm-gs">best '+g.streak.best+' '+LM_UNIT[lens]+'s</div></div>';if(g.pr&&g.pr.best)h+='<div class="lm-gc"><div class="lm-gl">Personal record</div><div class="lm-gv">'+LM_FMT[t.fmt](g.pr.best.value)+'</div><div class="lm-gs">'+g.pr.best.label+(g.pr.toTie?' · '+LM_FMT[t.fmt](g.pr.toTie)+' to tie':(g.pr.isRecord?' · NEW 🎉':''))+'</div></div>';if(g.paceToBeat&&g.paceToBeat.remaining!=null&&g.paceToBeat.daysLeft>0)h+='<div class="lm-gc"><div class="lm-gl">Pace to beat '+g.paceToBeat.basis+'</div><div class="lm-gv">'+(Math.round(g.paceToBeat.perDayNeeded*10)/10)+'/day</div><div class="lm-gs">'+LM_FMT[t.fmt](g.paceToBeat.remaining)+' over '+g.paceToBeat.daysLeft+'d</div></div>';h+='</div>';}h+='<div class="card chart-card"><h3>'+t.label+' · '+LM_LBL[lens]+'</h3><p class="sub">'+(RATIO2[key]?'two lines = the counts behind the % (e.g. showed vs booked)':'solid = you · dashed = your avg'+(g&&g.bars&&g.bars.target!=null?' · dotted = target':''))+'</p><div class="chart-wrap"><canvas id="lmchart"></canvas></div></div><div class="lm-diag"><div class="lm-d-h">READOUT</div>'+lmDiag(lm,t,lens).map(x=>'<p>'+x+'</p>').join('')+'</div>';h+=lmCoachBlock(M,key)+lmRecList(M,key,lens);return h;}
 /* ── records, dual-line ratios, coaching, deals view ── */
 function inWin(d,w){return !!(d&&d.getTime()>=w.start.getTime()&&d.getTime()<=w.end.getTime());}
@@ -933,17 +946,57 @@ function lmDealsView(M,person,lens){
   if(c.earnedDeals.length)h+=lmDealList('Closed — earned',c.earnedDeals);
   return h;
 }
+/* ── Focus On: backsolve company goal → required volumes + biggest $ lever ── */
+const lmR=(n,d)=>{const f=Math.pow(10,d||0);return Math.round((+n||0)*f)/f;};
+function lmFocus(M){
+  const g=M.goals||{},y=M.lenses.ytd,avgDeal=+g.avgWholesaleFee||20000,split=M.comp.split||0.1;
+  let monthGoal=0;const GA=(typeof RAW!=='undefined'&&RAW['Goals & Assumptions'])||[];
+  for(let i=0;i<GA.length;i++){if(String(GA[i][0]||'').toLowerCase().indexOf('monthly revenue goal')>-1){monthGoal=parseFloat(String(GA[i][1]).replace(/[^0-9.]/g,''))||0;break;}}
+  const a2c=y.apptToContract.current,sr=y.showRate.current,l2a=y.leadToAppt.current;
+  const tA2C=+g.apptToContract||0.5,tL2A=+g.leadToAppt||0.15,useSR=sr||0.6;
+  const dealsMo=(monthGoal&&avgDeal)?monthGoal/avgDeal:0;
+  const chain=A=>{const shows=A?dealsMo/A:0,booked=useSR?shows/useSR:0,leads=(l2a||tL2A)?booked/(l2a||tL2A):0;return {shows:shows,booked:booked,leads:leads};};
+  const need=chain(a2c||tA2C),atT=chain(tA2C);
+  const cpb=(y.apptsBooked.current>0)?y.calls.current/y.apptsBooked.current:null;
+  const callsMo=cpb?need.booked*cpb:null;
+  return {avgDeal:avgDeal,split:split,monthGoal:monthGoal,dealsMo:dealsMo,a2c:a2c,sr:sr,l2a:l2a,tA2C:tA2C,tL2A:tL2A,need:need,atT:atT,callsMo:callsMo,cpb:cpb,jShare:dealsMo*avgDeal*split};
+}
+function lmBench(){
+  if(typeof RAW==='undefined'||!RAW['Calls'])return null;
+  const C=RAW['Calls'],h=C[0],ui=h.findIndex(x=>String(x).toLowerCase().trim()==='user'),tci=h.findIndex(x=>/total calls/i.test(x)),tti=h.findIndex(x=>/total talk/i.test(x));
+  const cut=new Date(2026,3,22);let jt=0,jc=0,mt=0,mc=0;
+  for(let i=1;i<C.length;i++){const u=String(C[i][ui]||''),d=LMEngine.parseDate(C[i][0]),tc=+C[i][tci]||0,tt=+C[i][tti]||0;
+    if(u==='Jordan Mathis'){jt+=tt;jc+=tc;}else if(u==='Michael Fichman'&&d&&d<cut){mt+=tt;mc+=tc;}}
+  return {j:jc?jt/jc:null,m:mc?mt/mc:null,jc:jc,mc:mc};
+}
+function lmFocusView(M,person){
+  const f=lmFocus(M),WD=21.7,SD=26;
+  let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\'ytd\',\'\')">‹ Scoreboard</button>';
+  h+='<div class="lm-head"><div><p class="eyebrow">Focus On · math-backed, not vibes</p><h1>What to do next</h1></div></div>';
+  if(!f.monthGoal){h+='<div class="lm-foc"><p class="lm-foc-sub">No monthly revenue goal found in Goals &amp; Assumptions — set it to drive this.</p></div>';return h;}
+  h+='<div class="lm-foc"><div class="lm-foc-h">REQUIRED PACE → '+lmMoney(f.monthGoal)+'/mo company goal ('+lmR(f.dealsMo,1)+' deals)</div>';
+  h+='<p class="lm-foc-sub">Backsolved through your live rates — Appt→Contract '+lmPctF(f.a2c)+' · Show '+lmPctF(f.sr)+' · Lead→Appt '+lmPctF(f.l2a)+':</p>';
+  h+='<table class="lm-foc-t"><tr><th>need</th><th>/mo</th><th>5-day/day</th><th>+Sat/day</th></tr>';
+  const row=(l,mo)=>'<tr><td>'+l+'</td><td>'+lmR(mo,1)+'</td><td>'+lmR(mo/WD,1)+'</td><td>'+lmR(mo/SD,1)+'</td></tr>';
+  h+=row('Leads worked',f.need.leads)+row('Booked appts',f.need.booked)+row('Showed',f.need.shows)+row('Deals',f.dealsMo)+(f.callsMo?row('Dials',f.callsMo):'');
+  h+='</table></div>';
+  if(f.a2c!=null&&f.a2c<f.tA2C){const mult=f.tA2C/(f.a2c||f.tA2C);
+    h+='<div class="lm-foc lever"><div class="lm-foc-h">⚡ BIGGEST LEVER — Appt→Contract</div><p class="lm-foc-big">'+lmPctF(f.a2c)+' <span>vs '+lmPctF(f.tA2C)+' target</span></p><p class="lm-foc-sub">Your weakest link. Close it and the <b>same shows make '+lmR(mult,1)+'× the deals</b> — your take roughly '+lmR(mult,1)+'×s, and the company goal needs only <b>'+lmR(f.atT.leads/SD,1)+' leads/day</b> (+Sat) instead of <b>'+lmR(f.need.leads/SD,1)+'</b>. Same money, half the grind.</p></div>';}
+  const b=lmBench();
+  if(b&&b.m!=null&&b.j!=null){h+='<div class="lm-foc"><div class="lm-foc-h">BENCHMARK — avg talk time per call</div><div class="lm-bench"><div class="lm-bn"><span>You</span><b>'+lmR(b.j,2)+'m</b></div><div class="lm-bn"><span>Michael · pre-4/22</span><b>'+lmR(b.m,2)+'m</b></div></div><p class="lm-foc-sub">'+(b.j<b.m?'You\'re <b>'+lmR(b.m-b.j,2)+'m shorter</b> per call than Michael\'s pre-hire bar':'You\'re at or above Michael\'s pre-hire bar')+'. Connect quality feeds booking rate — the proven $ levers are the funnel math above; this is the input that drives it.</p></div>';}
+  return h;
+}
 VIEWS.lm=function(){
   if(!RAW||!window.LMEngine)return {html:'<p class="lede">LM engine not loaded.</p>',mount(){}};
   const team=lmTeam();let st=lmState(),person=st.person||team[0]||'',lens=st.lens,metric=st.metric;
   if(!person)return {html:'<p class="lede">No LM found in the Team tab.</p>',mount(){}};
   let M2;try{M2=lmBuild(person);}catch(e){return {html:'<p class="lede">LM build error: '+e.message+'</p>',mount(){}};}
   let html;
-  try{html=metric==='deals'?lmDealsView(M2,person,lens):(metric?lmDetail(M2,person,lens,metric):lmHome(M2,person,lens,team));}
+  try{html=metric==='focus'?lmFocusView(M2,person):metric==='deals'?lmDealsView(M2,person,lens):(metric?lmDetail(M2,person,lens,metric):lmHome(M2,person,lens,team));}
   catch(err){html='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-coach"><div class="lm-d-h">RENDER ERROR (tap to go back)</div><p>'+String((err&&err.message)||err)+'</p></div>';}
   return {html:html,mount(){
     try{
-    if(!metric||metric==='deals')return;
+    if(!metric||metric==='deals'||metric==='focus')return;
     const lm=M2.lenses[lens][metric],t=lmTileDef(metric),g=lm.game,gl=css('--glow'),amb=css('--amber'),grn=css('--green'),labels=lm.trend.map(x=>x.label);
     if(RATIO2[metric]){
       const cc=RATIO2[metric],nd=M2.lenses[lens][cc[0]].trend.map(x=>x.value),dd=M2.lenses[lens][cc[1]].trend.map(x=>x.value);
