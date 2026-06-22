@@ -1,6 +1,6 @@
 /* CLT LM Scoreboard — service worker (Jordan's app).
    Shell: cache-first. Live data (Apps Script /exec): network-only, never cached. */
-const CACHE = 'clt-lm-v1';
+const CACHE = 'clt-lm-v2';
 const SHELL = ['./lm.html', './lm-view.js', './lm-view.css', './lm-engine.js', './lm-gamify.js', './manifest-lm.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

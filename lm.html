@@ -132,7 +132,7 @@ h3{font-family:Sora;font-weight:700}
   };
 
   readHash();loadCfg();
-  if(cfg.url&&cfg.tok){writeHash();$('setup').style.display='none';load();}
+  if(cfg.url&&cfg.tok){save();writeHash();$('setup').style.display='none';load();}
   else{$('setup').style.display='';$('app').style.display='none';if(cfg.url)$('inUrl').value=cfg.url;}
 
   if('serviceWorker' in navigator){try{navigator.serviceWorker.register('sw-lm.js');}catch(e){}}
