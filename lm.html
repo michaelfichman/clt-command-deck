@@ -104,7 +104,7 @@ h3{font-family:Sora;font-weight:700}
     if(!M)return;
     var person=route.person||M.person||'', lens=route.lens||'week', metric=route.metric||'', team=[person];
     var html;
-    try{html=metric==='focus'?lmFocusView(M,person):metric==='deals'?lmDealsView(M,person,lens):(metric?lmDetail(M,person,lens,metric):lmHome(M,person,lens,team));}
+    try{html=metric==='focus'?lmFocusView(M,person):metric==='deals'?lmDealsView(M,person,lens):LM_EARN[metric]?lmEarnView(M,person,lens,metric):(metric?lmDetail(M,person,lens,metric):lmHome(M,person,lens,team));}
     catch(err){html='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-coach"><div class="lm-d-h">RENDER ERROR (tap to go back)</div><p>'+String((err&&err.message)||err)+'</p></div>';}
     $('view').innerHTML=html;
     lmChartMount(M,lens,metric,{mk:mk,css:css});

@@ -40,7 +40,8 @@ function lmSpark(trend,pct){
   return '<svg class="lm-spark" viewBox="0 0 100 28" preserveAspectRatio="none"><line x1="0" y1="25.5" x2="100" y2="25.5" class="lm-base"/>'+r+'</svg>';
 }
 function lmLensBar(person,lens,metric){metric=metric||'';return '<div class="lm-seg">'+LM_LENSES.map(l=>'<button class="'+(lens===l[0]?'on':'')+'" onclick="lmGo(\''+person+'\',\''+l[0]+'\',\''+metric+'\')">'+l[1]+'</button>').join('')+'</div>';}
-function lmComp(M,person,lens){const c=M.comp,go="lmGo('"+person+"','"+lens+"','deals')",s=(l,v,cls,sub)=>'<button class="lm-cstat '+(cls||'')+'" onclick="'+go+'"><div class="lm-cl">'+l+'</div><div class="lm-cv">'+v+'</div><div class="lm-cs">'+(sub||'')+'</div></button>';return '<section class="lm-comp">'+s('Earned',lmMoney(c.earned),'gr',c.earnedDeals.length+' closed')+s('Earmarked',lmMoney(c.earmarked),'br',c.earmarkedDeals.length+' under contract')+s('Projected',lmMoney(c.projected),'',c.projectedDeals.length+' pre-contract')+s('Potential',lmMoney(c.potential),'',c.openOffers.length+' offers out')+'</section>';}
+const LM_EARN={earned:1,earmarked:1,projected:1,potential:1};
+function lmComp(M,person,lens){const c=M.comp,s=(l,v,cls,sub,b)=>'<button class="lm-cstat '+(cls||'')+'" onclick="lmGo(\''+person+'\',\''+lens+'\',\''+b+'\')"><div class="lm-cl">'+l+'</div><div class="lm-cv">'+v+'</div><div class="lm-cs">'+(sub||'')+'</div></button>';return '<section class="lm-comp">'+s('Earned',lmMoney(c.earned),'gr',c.earnedDeals.length+' closed','earned')+s('Earmarked',lmMoney(c.earmarked),'br',c.earmarkedDeals.length+' under contract','earmarked')+s('Projected',lmMoney(c.projected),'',c.projectedDeals.length+' pre-contract','projected')+s('Potential',lmMoney(c.potential),'',c.openOffers.length+' offers out','potential')+'</section>';}
 function lmTile(M,person,lens,t){const lm=M.lenses[lens][t.k];if(!lm)return '';const g=lm.game;let badge='';if(g&&g.streak&&g.streak.current>=2)badge='<span class="lm-badge fire">🔥'+g.streak.current+'</span>';if(g&&g.pr&&g.pr.isRecord)badge='<span class="lm-badge pr">PR</span>';const pc=lmPaceCls(lm.paceState);return '<button class="lm-tile '+pc+'" onclick="lmGo(\''+person+'\',\''+lens+'\',\''+t.k+'\')"><div class="lm-t-top"><span class="lm-t-lbl">'+t.label+'</span>'+badge+'</div><div class="lm-t-val">'+LM_FMT[t.fmt](lm.current)+'</div><div class="lm-t-spark '+pc+'">'+lmSpark(lm.trend,t.fmt==='pct')+'</div><div class="lm-t-foot">'+lmDelta(lm.comparePct,t.low)+' <span>vs '+LM_PRIOR[lens]+'</span></div></button>';}
 function lmStreakHL(M,lens){let best=null;['calls','leads','apptsBooked','apptsShowed','talkTime','speed'].forEach(k=>{const lm=M.lenses[lens][k];if(!lm||!lm.game)return;const s=lm.game.streak;if(s&&s.current>=1&&(!best||s.current>best.cur))best={k:k,cur:s.current};});if(!best)return '<div class="lm-hl-streak none">No active streak '+LM_LBL[lens]+' — start one.</div>';return '<div class="lm-hl-streak"><span class="fire">🔥</span><b>'+best.cur+' '+LM_UNIT[lens]+(best.cur>1?'s':'')+'</b> above your '+lmTileDef(best.k).label.toLowerCase()+' pace</div>';}
 function lmPaceDay(M){const t=M.lenses.today.calls,d=t.anchorDate,bar=t.bar,when=lmRel(d);let tail='';if(bar!=null)tail=t.current>=bar?' · <span class="lm-up">+'+Math.round(t.current-bar)+' vs avg</span>':' · <span class="lm-dn">'+Math.round(bar-t.current)+' under avg</span>';const note=t.lagged?'latest closed day · today posts tomorrow AM':'today so far';return '<div class="lm-hl-pace"><div class="lm-pl">PACE THE DAY · '+when+'</div><div class="lm-pv">'+lmNum(t.current)+' calls</div><div class="lm-ps">'+note+' · avg '+(bar==null?'—':lmNum(bar))+tail+'</div></div>';}
@@ -95,6 +96,27 @@ function lmCoach(M,key){
 function lmCoachBlock(M,key){const x=lmCoach(M,key);return x?'<div class="lm-coach"><div class="lm-d-h">COACH — what moves the number</div><p>'+x+'</p></div>':'';}
 function lmDealList(title,deals){if(!deals||!deals.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+deals.length+')</div>'+deals.map(d=>'<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+d.name+'</div>'+(d.stage?'<div class="lm-rsub">'+d.stage+'</div>':'')+'</div><div class="lm-rmetric lm-rd br">'+lmMoney(d.cut)+'</div></div>').join('')+'</div>';}
 function lmOfferList(title,offers){if(!offers||!offers.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+offers.length+')</div>'+offers.map(o=>'<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+o.name+'</div>'+(o.property?'<div class="lm-rsub">'+o.property+'</div>':'')+'</div><div class="lm-rmetric lm-rd">~'+lmMoney(o.est)+'</div></div>').join('')+'</div>';}
+/* Per-bucket earnings view — opened from a comp card. Focuses on ONE stage of
+   money (Earned/Earmarked/Projected/Potential): its $, the exact deals/offers
+   in it, and how it advances. Separate from the Funnel & Money (Deals) page. */
+const LM_EARN_ORDER=['potential','projected','earmarked','earned'];
+function lmEarnView(M,person,lens,bucket){
+  const c=M.comp,sp=lmPctF(c.split||0.1);
+  const cfg={
+    earned:{label:'Earned',cls:'gr',val:c.earned,deals:c.earnedDeals,kind:'deal',sub:'Closed deals — money in hand. Your '+sp+' of each closed wholesale fee.',empty:'No closed deals yet. Earmarked deals land here the day they close.'},
+    earmarked:{label:'Earmarked',cls:'br',val:c.earmarked,deals:c.earmarkedDeals,kind:'deal',sub:'Signed AND under contract on the dispo side — a buyer is locked. This banks at close.',empty:'Nothing under contract yet. Projected deals move here once a buyer goes Under Contract.'},
+    projected:{label:'Projected',cls:'',val:c.projected,deals:c.projectedDeals,kind:'deal',sub:'Signed, but the dispo side isn’t under contract yet — likely, not locked. Becomes Earmarked when a buyer goes Under Contract.',empty:'No signed-but-pre-contract deals right now.'},
+    potential:{label:'Potential',cls:'',val:c.potential,deals:c.openOffers,kind:'offer',sub:'Open offers out, estimated at the avg fee × your '+sp+' split until one gets signed.',empty:'No open offers out right now — make offers to fill this.'}
+  };
+  const E=cfg[bucket]; if(!E)return '<p class="lede">Unknown earnings stage.</p>';
+  let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button>';
+  h+='<div class="lm-head"><div><p class="eyebrow">Your money · '+E.label+'</p><h1 class="lm-earn-v '+E.cls+'">'+lmMoney(E.val)+'</h1></div></div>';
+  h+='<div class="lm-ladder">'+LM_EARN_ORDER.map(k=>'<button class="lm-lad'+(k===bucket?' on':'')+' '+cfg[k].cls+'" onclick="lmGo(\''+person+'\',\''+lens+'\',\''+k+'\')"><span>'+cfg[k].label+'</span><b>'+lmMoney(cfg[k].val)+'</b></button>').join('<i>›</i>')+'</div>';
+  h+='<p class="lede">'+E.sub+'</p>';
+  const list=E.kind==='offer'?lmOfferList(E.label+' — offers out',E.deals):lmDealList(E.label,E.deals);
+  h+=list||('<div class="lm-reclist"><div class="lm-rec none">'+E.empty+'</div></div>');
+  return h;
+}
 function lmDealsView(M,person,lens){
   const c=M.comp,L=M.lenses[lens];
   const funnel=[['Leads',L.leads.current],['Appts Booked',L.apptsBooked.current],['Showed',L.apptsShowed.current],['Offers Made',L.offersMade.current],['Contracts',L.contractsSigned.current]];
@@ -197,7 +219,7 @@ function lmFocusView(M,person){
 }
 /* Shared chart mount — host supplies {mk,css}. Used by the deck (VIEWS.lm) AND Jordan's app. */
 function lmChartMount(M,lens,metric,host){var mk=host.mk,css=host.css;try{
-  if(!metric||metric==='deals'||metric==='focus')return;
+  if(!metric||metric==='deals'||metric==='focus'||LM_EARN[metric])return;
   const lm=M.lenses[lens][metric],t=lmTileDef(metric),g=lm.game,gl=css('--glow'),amb=css('--amber'),grn=css('--green'),labels=lm.trend.map(x=>x.label);
   if(RATIO2[metric]){
     const cc=RATIO2[metric],nd=M.lenses[lens][cc[0]].trend.map(x=>x.value),dd=M.lenses[lens][cc[1]].trend.map(x=>x.value);
