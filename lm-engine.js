@@ -175,7 +175,8 @@
     // Calls
     var c = tab('Calls'), ci = colIndexer(c[0]);
     var calls = rowsOf(c).map(function (r) {
-      return { date: parseDate(r[ci('Date')]), total: +r[ci('Total Calls')] || 0, inbound: +r[ci('Inbound Calls')] || 0, outbound: +r[ci('Outbound Calls')] || 0, talk: +r[ci('Total Talk Time (min)')] || 0 };
+      return { date: parseDate(r[ci('Date')]), total: +r[ci('Total Calls')] || 0, inbound: +r[ci('Inbound Calls')] || 0, outbound: +r[ci('Outbound Calls')] || 0, talk: +r[ci('Total Talk Time (min)')] || 0,
+        connected: +r[ci('Connected')] || 0, conv: +r[ci('Conversations')] || 0, deep: +r[ci('Deep Conversations')] || 0 };
     }).filter(function (x) { return x.date; });
 
     // Leads
@@ -266,6 +267,9 @@
       calls: ds.calls.map(function (c) { return { date: c.date, value: c.total }; }),
       outbound: ds.calls.map(function (c) { return { date: c.date, value: c.outbound }; }),
       talk: ds.calls.map(function (c) { return { date: c.date, value: c.talk }; }),
+      conversations: ds.calls.map(function (c) { return { date: c.date, value: c.conv }; }),
+      connected: ds.calls.map(function (c) { return { date: c.date, value: c.connected }; }),
+      deepConv: ds.calls.map(function (c) { return { date: c.date, value: c.deep }; }),
       leads: ds.leads.map(function (l) { return { date: l.date, value: 1 }; }),
       booked: ds.appts.filter(function (a) { return a.outcome.toLowerCase() === 'confirmed'; }).map(function (a) { return { date: a.conf, value: 1 }; }),
       showed: ds.appts.filter(function (a) { return a.outcome.toLowerCase() === 'showed'; }).map(function (a) { return { date: a.dispo, value: 1 }; }),
@@ -280,6 +284,10 @@
         calls: metricLens(P.calls, asOf, lens, 'sum', 4, true),       // lagged: posted once daily
         outbound: metricLens(P.outbound, asOf, lens, 'sum', 4, true), // lagged
         talkTime: metricLens(P.talk, asOf, lens, 'sum', 4, true),     // lagged
+        conversations: metricLens(P.conversations, asOf, lens, 'sum', 4, true), // lagged: ≥75s real talks
+        connected: metricLens(P.connected, asOf, lens, 'sum', 4, true),         // lagged: duration>0
+        deepConv: metricLens(P.deepConv, asOf, lens, 'sum', 4, true),           // lagged: ≥180s
+        connectRate: ratioLens(P.conversations, P.calls, asOf, lens, 4, true),  // conversations ÷ dials (lagged)
         leads: metricLens(P.leads, asOf, lens, 'sum'),
         apptsBooked: metricLens(P.booked, asOf, lens, 'sum'),
         apptsShowed: metricLens(P.showed, asOf, lens, 'sum'),
