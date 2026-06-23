@@ -7,7 +7,8 @@ select.lm-person{cursor:pointer}
 .lm-seg button{flex:1;background:transparent;border:0;color:var(--txt2);font-family:'IBM Plex Mono';font-size:12px;padding:8px 4px;border-radius:9px;cursor:pointer}
 .lm-seg button.on{background:linear-gradient(180deg,var(--brand),var(--brand-deep));color:#fff;box-shadow:0 0 16px rgba(63,208,255,.25)}
 .lm-comp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
-.lm-cstat{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 10px}
+.lm-cstat{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 10px;font:inherit;text-align:left;width:100%;cursor:pointer;color:var(--txt);transition:border-color .12s,transform .12s}
+.lm-cstat:active{transform:scale(.97)} .lm-cstat:hover{border-color:var(--line2)}
 .lm-cl{font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt3)}
 .lm-cv{font-family:'IBM Plex Mono';font-weight:600;font-size:clamp(15px,4.4vw,20px);margin-top:3px}
 .lm-cs{font-family:'IBM Plex Mono';font-size:8.5px;color:var(--txt3);margin-top:3px}
