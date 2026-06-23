@@ -12,7 +12,7 @@ const lmSpd=v=>(v==null||isNaN(v))?'—':Math.round(v).toLocaleString()+' min';
 const lmPctF=v=>(v==null||isNaN(v))?'—':(v*100).toFixed(0)+'%';
 const lmMoney=v=>'$'+Math.round(v||0).toLocaleString();
 const LM_FMT={num:lmNum,min:lmMin,spd:lmSpd,pct:lmPctF};
-const LM_TILES=[{k:'calls',label:'Dials',fmt:'num'},{k:'conversations',label:'Conversations',fmt:'num'},{k:'connectRate',label:'Connect Rate',fmt:'pct'},{k:'talkTime',label:'Talk Time',fmt:'min'},{k:'speed',label:'Speed-to-Lead',fmt:'spd',low:true},{k:'leads',label:'New Leads',fmt:'num'},{k:'apptsBooked',label:'Appts Booked',fmt:'num'},{k:'apptsShowed',label:'Appts Showed',fmt:'num'},{k:'offersMade',label:'Offers Made',fmt:'num'},{k:'contractsSigned',label:'Contracts',fmt:'num'},{k:'showRate',label:'Show Rate',fmt:'pct'},{k:'leadToAppt',label:'Lead→Appt',fmt:'pct'},{k:'apptToContract',label:'Appt→Contract',fmt:'pct'}];
+const LM_TILES=[{k:'calls',label:'Dials',fmt:'num'},{k:'conversations',label:'Conversations',fmt:'num'},{k:'qualifying',label:'Qualifying Calls',fmt:'num'},{k:'connectRate',label:'Connect Rate',fmt:'pct'},{k:'talkTime',label:'Talk Time',fmt:'min'},{k:'speed',label:'Speed-to-Lead',fmt:'spd',low:true},{k:'leads',label:'New Leads',fmt:'num'},{k:'apptsBooked',label:'Appts Booked',fmt:'num'},{k:'apptsShowed',label:'Appts Showed',fmt:'num'},{k:'offersMade',label:'Offers Made',fmt:'num'},{k:'contractsSigned',label:'Contracts',fmt:'num'},{k:'showRate',label:'Show Rate',fmt:'pct'},{k:'leadToAppt',label:'Lead→Appt',fmt:'pct'},{k:'apptToContract',label:'Appt→Contract',fmt:'pct'}];
 const LM_LENSES=[['today','Today'],['week','Week'],['month','Month'],['quarter','Quarter']];
 const LM_PRIOR={today:'prior day',week:'last week',month:'last month',quarter:'last quarter',ytd:'last yr'};
 const LM_LBL={today:'Today',week:'this week',month:'this month',quarter:'this quarter',ytd:'YTD'};
@@ -81,6 +81,7 @@ function lmCoach(M,key){
     calls:'Dials feed the funnel. At your '+P(l2a)+' Lead→Appt rate, ~'+(l2a?Math.round(1/l2a):'—')+' leads worked ≈ 1 appt — volume here is what creates everything downstream.',
     conversations:'Real conversations (≥75s) are the ONE call metric that matters — no-answers and voicemails don’t count. Target ~3/day. Each one is a chance to book; lift this and appts follow.',
     connectRate:'Of every dial, how many become a real ≥75s conversation. Yours is the leading quality signal — better openers turn more pickups into talks without dialing more.',
+    qualifying:'Qualifying calls (≥10 min) are the premium avenue — a real discovery conversation. These convert to appts/offers far above any other call. Few and high-value: protect and grow them.',
     outbound:'Outbound is your controllable input. More dials → more conversations → more appts at your '+P(l2a)+' booking rate.',
     talkTime:'Talk time = conversation quality. Deeper conversations lift your booking rate (now '+P(l2a)+').',
     leads:'Each lead worked is worth ~'+lmMoney(l2a*perShow)+' to you (book '+P(l2a)+' → show '+P(sr)+' → contract '+P(a2c)+' × $'+Math.round(perK)+'/contract).',
