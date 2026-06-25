@@ -23,7 +23,10 @@
     calls: { s: 'calls', mode: 'sum' }, outbound: { s: 'outbound', mode: 'sum' },
     talkTime: { s: 'talk', mode: 'sum' }, leads: { s: 'leads', mode: 'sum' },
     apptsBooked: { s: 'booked', mode: 'sum' }, apptsShowed: { s: 'showed', mode: 'sum' },
-    offersMade: { s: 'offersMade', mode: 'sum' }, speed: { s: 'speed', mode: 'avg' }
+    offersMade: { s: 'offersMade', mode: 'sum' }, speed: { s: 'speed', mode: 'avg' },
+    conversations: { s: 'conversations', mode: 'sum' }, qualifying: { s: 'qualifying', mode: 'sum' },
+    connected: { s: 'connected', mode: 'sum' }, deepConv: { s: 'deepConv', mode: 'sum' },
+    contractsSigned: { s: 'signed', mode: 'sum' }
   };
   var HIGHER_IS_BETTER = { speed: false }; // speed-to-lead: lower is better
 
@@ -113,14 +116,18 @@
   function gamify(model) {
     var asOf = model.asOf, person = model.person, targets = model.lmTargets || [];
     E.LENSES.forEach(function (lens) {
-      Object.keys(REG).forEach(function (mk) {
-        var reg = REG[mk], pts = model.series[reg.s] || [], lm = model.lenses[lens][mk];
-        if (!lm) return;
+      var L = model.lenses[lens] || {};
+      // EVERY lens metric (incl. ratios + the call-quality tiers) gets a target bar.
+      // streak/PR/pace need a single backing point series (REG); ratios have none → null those, keep the target.
+      Object.keys(L).forEach(function (mk) {
+        var lm = L[mk];
+        if (!lm || typeof lm.current === 'undefined') return;
+        var reg = REG[mk], pts = reg ? (model.series[reg.s] || []) : null, mode = reg ? reg.mode : 'sum';
         var ft = fixedTarget(targets, mk, lens, person);
         lm.game = {
-          streak: streak(pts, asOf, lens, reg.mode, mk),
-          pr: pr(pts, asOf, lens, reg.mode, mk),
-          paceToBeat: paceToBeat(pts, asOf, lens, reg.mode, mk, ft),
+          streak: pts ? streak(pts, asOf, lens, mode, mk) : null,
+          pr: pts ? pr(pts, asOf, lens, mode, mk) : null,
+          paceToBeat: pts ? paceToBeat(pts, asOf, lens, mode, mk, ft) : null,
           bars: { trailing: lm.bar, target: ft },
           paceVsTrailing: paceState(mk, lm.current, lm.bar),
           paceVsTarget: ft == null ? 'none' : paceState(mk, lm.current, ft)
