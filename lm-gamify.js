@@ -96,14 +96,29 @@
     };
   }
 
+  // working-days per lens — a `daily` count target fans out to every timeframe
+  var DAYS_IN = { today: 1, week: 5, month: 21.7, quarter: 65, ytd: 130 };
+  // Resolve a metric's target for a lens. Priority:
+  //   1. exact (metric, lens) row  — explicit per-lens override
+  //   2. `daily` base × working-days-in-lens — counts auto-fill all timeframes
+  //   3. blank-lens row (flat) — ratios/averages (same value every lens)
   function fixedTarget(lmTargets, metricKey, lens, person) {
     if (!lmTargets || !lmTargets.length) return null;
+    var mk = metricKey.toLowerCase(), ll = lens.toLowerCase(), pl = String(person || '').toLowerCase();
+    var exact = null, daily = null, flat = null;
     for (var i = 0; i < lmTargets.length; i++) {
-      var t = lmTargets[i], mk = String(t.Metric || '').toLowerCase(), ln = String(t.Lens || '').toLowerCase(), pp = String(t.Person || '').toLowerCase();
-      if (mk === metricKey.toLowerCase() && (!t.Lens || ln === lens.toLowerCase()) && (!t.Person || pp === String(person || '').toLowerCase())) {
-        var v = +t.Target; if (isFinite(v)) return v;
-      }
+      var t = lmTargets[i];
+      if (String(t.Metric || '').toLowerCase() !== mk) continue;
+      if (t.Person && String(t.Person).toLowerCase() !== pl) continue;
+      var v = +t.Target; if (!isFinite(v) || t.Target === '' || t.Target == null) continue;
+      var ln = String(t.Lens || '').toLowerCase();
+      if (ln === ll) exact = v;
+      else if (ln === 'daily') daily = v;
+      else if (ln === '') flat = v;
     }
+    if (exact != null) return exact;
+    if (daily != null) return daily * (DAYS_IN[ll] || 1);
+    if (flat != null) return flat;
     return null;
   }
   function paceState(metricKey, cur, bar) {
