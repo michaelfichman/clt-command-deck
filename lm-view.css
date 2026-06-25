@@ -16,7 +16,7 @@ select.lm-person{cursor:pointer}
 .lm-earn-v{font-family:'IBM Plex Mono';font-weight:700;font-size:clamp(34px,11vw,52px);line-height:1}
 .lm-earn-v.gr{color:var(--green)} .lm-earn-v.br{color:var(--glow)}
 .chart-card .chart-wrap{cursor:pointer;position:relative} .chart-expand{position:absolute;top:6px;right:8px;font-family:'IBM Plex Mono';font-size:9px;color:var(--txt3);background:var(--card);border:1px solid var(--line);border-radius:7px;padding:2px 6px;pointer-events:none}
-.lm-fs{position:fixed;inset:0;z-index:1000;background:var(--ink);display:none;flex-direction:column;padding:16px 14px;box-sizing:border-box} html.lm-fs-on{overflow:hidden} html.lm-fs-on .lm-fs{display:flex}
+.lm-fs{position:fixed;inset:0;z-index:1000;background:var(--ink);display:none;flex-direction:column;box-sizing:border-box;padding:calc(env(safe-area-inset-top,0px) + 14px) calc(env(safe-area-inset-right,0px) + 14px) calc(env(safe-area-inset-bottom,0px) + 14px) calc(env(safe-area-inset-left,0px) + 14px)} html.lm-fs-on{overflow:hidden} html.lm-fs-on .lm-fs{display:flex}
 .lm-fs-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
 .lm-fs-ttl{font-family:Sora;font-weight:700;font-size:16px;color:var(--txt)}
 .lm-fs-x{flex:none;background:var(--raised);border:1px solid var(--line2);color:var(--txt);border-radius:10px;width:36px;height:36px;font-size:15px;cursor:pointer}

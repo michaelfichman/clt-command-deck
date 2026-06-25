@@ -1,8 +1,8 @@
 /* CLT Command Deck — service worker.
    HTML shell: NETWORK-FIRST (always pick up a new release on launch when online).
    Versioned assets (?v=N): cache-first. Live data (Apps Script endpoint): never cached. */
-const CACHE = 'clt-deck-v32';
-const V = '32';
+const CACHE = 'clt-deck-v33';
+const V = '33';
 const SHELL = ['./index.html', './lm-view.js?v=' + V, './lm-view.css?v=' + V, './lm-engine.js?v=' + V, './lm-gamify.js?v=' + V, './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

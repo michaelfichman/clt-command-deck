@@ -249,18 +249,24 @@ function lmChartMount(cv,M,lens,metric,host){var mk=host.mk,css=host.css;try{
   if(!metric||metric==='deals'||metric==='focus'||LM_EARN[metric])return;
   const lm=M.lenses[lens][metric],t=lmTileDef(metric),g=lm.game,gl=css('--glow'),amb=css('--amber'),grn=css('--green'),labels=lm.trend.map(x=>x.label);
   if(cv==='lmchart')LM_FS_CTX={M:M,metric:metric,lens:lens};   // stash for the tap-to-fullscreen view
+  const big=cv==='lmfschart', fs=big?13:9, pr=big?4:3;
+  // 18% headroom so the target/avg lines sit inside the frame, never jammed at the top
+  const opt=(unit)=>({plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:big?16:10,font:{size:fs},padding:big?16:8,usePointStyle:true}}},
+    scales:{x:{grid:{display:false},ticks:{font:{size:fs},maxRotation:0,autoSkip:true}},
+      y:{beginAtZero:true,grace:'18%',title:{display:true,text:unit,font:{size:fs}},ticks:{font:{size:fs}},grid:{color:'rgba(122,176,230,.08)'}}},
+    layout:{padding:{top:big?10:2}},interaction:{intersect:false,mode:'index'},maintainAspectRatio:false});
   if(RATIO2[metric]){
     const cc=RATIO2[metric],nd=M.lenses[lens][cc[0]].trend.map(x=>x.value),dd=M.lenses[lens][cc[1]].trend.map(x=>x.value);
     mk(cv,{type:'line',data:{labels:labels,datasets:[
-      {label:cc[2][1],data:dd,borderColor:amb,backgroundColor:'transparent',tension:.3,pointRadius:3,borderWidth:1.6,fill:false,spanGaps:true},
-      {label:cc[2][0],data:nd,borderColor:gl,backgroundColor:'rgba(63,208,255,.12)',tension:.3,pointRadius:3,borderWidth:2,fill:true,spanGaps:true}
-    ]},options:{plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,font:{size:9}}}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,title:{display:true,text:'count',font:{size:9}}}},maintainAspectRatio:false}});
+      {label:cc[2][1],data:dd,borderColor:amb,backgroundColor:'transparent',tension:.3,pointRadius:pr,borderWidth:big?2.2:1.6,fill:false,spanGaps:true},
+      {label:cc[2][0],data:nd,borderColor:gl,backgroundColor:'rgba(63,208,255,.12)',tension:.3,pointRadius:pr,borderWidth:big?2.8:2,fill:true,spanGaps:true}
+    ]},options:opt('count')});
     return;
   }
   const sc=t.fmt==='pct'?100:1,r1=v=>(v==null||isNaN(v))?null:Math.round(v*sc*10)/10,data=lm.trend.map(x=>r1(x.value)),unit=t.fmt==='pct'?'%':(t.fmt==='min'||t.fmt==='spd')?'min':'count';
-  const ds=[{label:t.label,data:data,borderColor:gl,backgroundColor:'rgba(63,208,255,.12)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:gl,borderWidth:2,spanGaps:true}];
-  if(lm.bar!=null)ds.push({label:'Your avg',data:labels.map(()=>r1(lm.bar)),borderColor:amb,borderDash:[5,4],pointRadius:0,borderWidth:1.4,fill:false});
+  const ds=[{label:t.label,data:data,borderColor:gl,backgroundColor:'rgba(63,208,255,.12)',fill:true,tension:.3,pointRadius:pr,pointBackgroundColor:gl,borderWidth:big?2.8:2,spanGaps:true}];
+  if(lm.bar!=null)ds.push({label:'Your avg',data:labels.map(()=>r1(lm.bar)),borderColor:amb,borderDash:[5,4],pointRadius:0,borderWidth:big?2:1.4,fill:false});
   const tg=(g&&g.bars&&g.bars.target!=null)?(t.fmt==='pct'&&g.bars.target<=1?g.bars.target*100:g.bars.target):null;
-  if(tg!=null)ds.push({label:'Target',data:labels.map(()=>tg),borderColor:grn,borderDash:[2,3],pointRadius:0,borderWidth:1.4,fill:false});
-  mk(cv,{type:'line',data:{labels:labels,datasets:ds},options:{plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,font:{size:9}}}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,title:{display:true,text:unit,font:{size:9}}}},maintainAspectRatio:false}});
+  if(tg!=null)ds.push({label:'🎯 Target',data:labels.map(()=>tg),borderColor:grn,borderDash:[2,3],pointRadius:0,borderWidth:big?2.4:1.4,fill:false});
+  mk(cv,{type:'line',data:{labels:labels,datasets:ds},options:opt(unit)});
 }catch(e){}}
