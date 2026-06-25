@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="lm-view.css">
+<link rel="stylesheet" href="lm-view.css?v=31">
 <style>
 /* ── CLT BUYERS BRAND × FUTURIST TERMINAL ──
    brand blue #0070B0 (from logo) → live spectrum #1B9DE2 → #3FD0FF on deep blue-black */
@@ -236,9 +236,9 @@ footer{margin-top:46px;border-top:1px solid var(--line);padding-top:16px;font-fa
 </div></nav>
 
 <!-- LM Scoreboard engine (framework-free; validated by lm-engine.test/lm-gamify.test) -->
-<script src="lm-engine.js"></script>
-<script src="lm-gamify.js"></script>
-<script src="lm-view.js"></script>
+<script src="lm-engine.js?v=31"></script>
+<script src="lm-gamify.js?v=31"></script>
+<script src="lm-view.js?v=31"></script>
 
 <script>
 /* ═══════════ CONFIG ═══════════ */
@@ -777,7 +777,7 @@ VIEWS.lm=function(){
   let html;
   try{html=metric==='focus'?lmFocusView(M2,person):metric==='deals'?lmDealsView(M2,person,lens):LM_EARN[metric]?lmEarnView(M2,person,lens,metric):(metric?lmDetail(M2,person,lens,metric):lmHome(M2,person,lens,team));}
   catch(err){html='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-coach"><div class="lm-d-h">RENDER ERROR (tap to go back)</div><p>'+String((err&&err.message)||err)+'</p></div>';}
-  return {html:html,mount(){lmChartMount(M2,lens,metric,{mk:mk,css:css});}};
+  return {html:html,mount(){lmChartMount('lmchart',M2,lens,metric,{mk:mk,css:css});}};
 };
 
 function mk(id,conf){if(charts[id])charts[id].destroy();const el=$(id);if(el)charts[id]=new Chart(el,conf)}
