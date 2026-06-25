@@ -120,15 +120,25 @@
     return 'behind';                // red
   }
 
-  // Trend sub-buckets across a lens (label + window each).
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  // Label one trend period by the lens granularity (uniform x-axis per lens).
+  function periodLabel(s, lens) {
+    if (lens === 'month') return MON[s.getMonth()];
+    if (lens === 'quarter') return 'Q' + (Math.floor(s.getMonth() / 3) + 1) + " '" + String(s.getFullYear()).slice(2);
+    return (s.getMonth() + 1) + '/' + s.getDate(); // week → week-of M/D ; (today handled below)
+  }
+  // Trend buckets: each lens plots PERIODS OF ITS OWN GRANULARITY — day lens =
+  // individual days, week = each week, month = each month, quarter = each quarter.
   function trendBuckets(asOf, lens) {
     var out = [], i;
-    if (lens === 'week') { var mon = mondayOf(asOf); for (i = 0; i <= ((sod(asOf) - mon) / 864e5); i++) { var d = addDays(mon, i); out.push({ label: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'][i], start: sod(d), end: eod(d) }); } return out; }
     if (lens === 'today') { for (i = 13; i >= 0; i--) { var dd = addDays(asOf, -i); out.push({ label: (dd.getMonth() + 1) + '/' + dd.getDate(), start: sod(dd), end: eod(dd) }); } return out; }
-    if (lens === 'month') { var w = mondayOf(new Date(asOf.getFullYear(), asOf.getMonth(), 1)); while (w <= sod(asOf)) { var we = addDays(w, 6); out.push({ label: (w.getMonth() + 1) + '/' + w.getDate(), start: w, end: eod(we < asOf ? we : asOf) }); w = addDays(w, 7); } return out; }
-    if (lens === 'quarter') { var qs = new Date(asOf.getFullYear(), Math.floor(asOf.getMonth() / 3) * 3, 1); var wk = mondayOf(qs); while (wk <= sod(asOf)) { var wke = addDays(wk, 6); out.push({ label: (wk.getMonth() + 1) + '/' + wk.getDate(), start: wk, end: eod(wke < asOf ? wke : asOf) }); wk = addDays(wk, 7); } return out; }
-    // ytd → monthly
-    for (i = 0; i <= asOf.getMonth(); i++) { var ms = new Date(asOf.getFullYear(), i, 1); var me = new Date(asOf.getFullYear(), i + 1, 0); out.push({ label: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i], start: ms, end: eod(me < asOf ? me : asOf) }); }
+    if (lens === 'ytd') { for (i = 0; i <= asOf.getMonth(); i++) { var ms = new Date(asOf.getFullYear(), i, 1); var me = new Date(asOf.getFullYear(), i + 1, 0); out.push({ label: MON[i], start: ms, end: eod(me < asOf ? me : asOf) }); } return out; }
+    // week / month / quarter → the last N WHOLE periods of that granularity, oldest→newest
+    var N = (lens === 'week') ? 9 : (lens === 'month') ? 6 : 5;
+    for (var k = N - 1; k >= 0; k--) {
+      var w = lensWindow(shiftAsOf(asOf, lens, k), lens);
+      out.push({ label: periodLabel(w.start, lens), start: w.start, end: (k === 0 ? eod(asOf) : w.end) });
+    }
     return out;
   }
 
@@ -139,7 +149,8 @@
     var cur = aggIn(points, lensWindow(at, lens), mode);
     var cmp = aggIn(points, priorWindow(at, lens), mode);
     var bar = trailingBar(points, at, lens, mode, nb);
-    var buckets = trendBuckets(at, lens).map(function (b) { return { label: b.label, value: aggIn(points, b, mode) }; });
+    var sp = dataSpan(points);
+    var buckets = trendBuckets(at, lens).filter(function (b) { return !sp.lo || b.end >= sp.lo; }).map(function (b) { return { label: b.label, value: aggIn(points, b, mode) }; });
     var pct = (cmp == null || cmp === 0) ? null : ((cur - cmp) / cmp);
     return { current: cur, comparison: cmp, comparePct: pct, bar: bar, paceState: paceState(cur, bar), trend: buckets, anchorDate: a.anchorDate, lagged: a.lagged };
   }
@@ -154,7 +165,7 @@
     var span = dataSpan(denPts), vals = [];
     if (span.lo) for (var k = 1; k <= N; k++) { var w = lensWindow(shiftAsOf(at, lens, k), lens); if (w.end < span.lo || w.start > span.hi) continue; var r = ratio(w); if (r != null) vals.push(r); }
     var bar = vals.length ? vals.reduce(function (a, b) { return a + b; }, 0) / vals.length : null;
-    var buckets = trendBuckets(at, lens).map(function (b) { return { label: b.label, value: ratio(b) }; });
+    var buckets = trendBuckets(at, lens).filter(function (b) { return !span.lo || b.end >= span.lo; }).map(function (b) { return { label: b.label, value: ratio(b) }; });
     var pct = (cmp == null || cmp === 0) ? null : ((cur - cmp) / cmp);
     return { current: cur, comparison: cmp, comparePct: pct, bar: bar, paceState: paceState(cur, bar), trend: buckets, anchorDate: an.anchorDate, lagged: an.lagged };
   }
