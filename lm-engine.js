@@ -212,7 +212,13 @@
       return { signed: parseDate(r[ki('Signed Date')]), dispo: parseDate(r[ki('Disposition Date')]), outcome: String(r[ki('Outcome')] || '').trim(), contactId: r[ki('Contact ID')], name: r[ki('Contact Name')], property: r[ki('Property Address')] };
     });
 
-    return { calls: calls, leads: leads, appts: appts, offers: offers, contracts: contracts,
+    // Closings (live) — drives EARNED at actual revenue
+    var cl = tab('Closings'), cli = colIndexer(cl[0]);
+    var closings = rowsOf(cl).map(function (r) {
+      return { date: parseDate(r[cli('Closed')]), revenue: +String(r[cli('Revenue')] == null ? '' : r[cli('Revenue')]).replace(/[^0-9.\-]/g, '') || 0, contactId: String(r[cli('Contact ID')] || ''), name: String(r[cli('Contact Name')] || '') };
+    }).filter(function (c) { return c.contactId || c.revenue; });
+
+    return { calls: calls, leads: leads, appts: appts, offers: offers, contracts: contracts, closings: closings,
       fees: payload.fees || {}, stages: payload.stages || {}, goals: payload.goals || {}, splitRate: payload.splitRate || 0.10, person: payload.person };
   }
 
@@ -244,12 +250,21 @@
     var split = ds.splitRate, avgFee = +ds.goals.avgWholesaleFee || 0, stages = ds.stages || {};
     var resC = resolveByContact(ds.contracts, ['dispo', 'signed']);
     var earned = 0, earmarked = 0, projected = 0, earnedDeals = [], earmarkedDeals = [], projectedDeals = [];
+    // EARNED — actual closed revenue from the LIVE Closings tab (×split). Live on row-add.
+    (ds.closings || []).forEach(function (c) {
+      var rev = +c.revenue || 0; if (!rev && !c.contactId) return;
+      var ec = rev * split; earned += ec;
+      earnedDeals.push({ name: c.name || c.contactId, fee: rev, cut: ec, stage: 'closed' });
+    });
+    var closedIds = {}; (ds.closings || []).forEach(function (c) { if (c.contactId) closedIds[c.contactId] = true; });
     Object.keys(resC).forEach(function (id) {
-      var st = (resC[id].row.outcome || '').toLowerCase(), fee = +ds.fees[id] || 0, cut = fee * split, nm = resC[id].row.name, stg = stages[id] || '';
-      if (st === 'closed') { earned += cut; earnedDeals.push({ name: nm, fee: fee, cut: cut, stage: stg }); }
-      else if (st === 'signed') {
-        if (underContract(stg)) { earmarked += cut; earmarkedDeals.push({ name: nm, fee: fee, cut: cut, stage: stg }); }
-        else { projected += cut; projectedDeals.push({ name: nm, fee: fee, cut: cut, stage: stg || 'pre-contract' }); }
+      var st = (resC[id].row.outcome || '').toLowerCase(), nm = resC[id].row.name, stg = stages[id] || '', realFee = +ds.fees[id] || 0;
+      if (st === 'closed' || closedIds[id]) return;      // EARNED is sourced from the Closings tab
+      if (st === 'signed') {
+        // EARMARKED — signed AND dispo "Under Contract": the one bucket that needs the nightly stash (stage + real fee).
+        if (underContract(stg)) { var mc = realFee * split; earmarked += mc; earmarkedDeals.push({ name: nm, fee: realFee, cut: mc, stage: stg }); }
+        // PROJECTED — signed, not yet locked: LIVE from the Contracts tab. Use the real fee if the routine has stashed it, else the avg fee so a just-added deal prices immediately.
+        else { var pf = realFee || avgFee, pc = pf * split; projected += pc; projectedDeals.push({ name: nm, fee: pf, cut: pc, stage: stg || 'pre-contract', est: !realFee }); }
       }
       // cancelled → 0
     });

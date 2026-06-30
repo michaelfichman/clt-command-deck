@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="lm-view.css?v=33">
+<link rel="stylesheet" href="lm-view.css?v=34">
 <style>
 /* ── CLT BUYERS BRAND × FUTURIST TERMINAL ──
    brand blue #0070B0 (from logo) → live spectrum #1B9DE2 → #3FD0FF on deep blue-black */
@@ -236,9 +236,9 @@ footer{margin-top:46px;border-top:1px solid var(--line);padding-top:16px;font-fa
 </div></nav>
 
 <!-- LM Scoreboard engine (framework-free; validated by lm-engine.test/lm-gamify.test) -->
-<script src="lm-engine.js?v=33"></script>
-<script src="lm-gamify.js?v=33"></script>
-<script src="lm-view.js?v=33"></script>
+<script src="lm-engine.js?v=34"></script>
+<script src="lm-gamify.js?v=34"></script>
+<script src="lm-view.js?v=34"></script>
 
 <script>
 /* ═══════════ CONFIG ═══════════ */
@@ -519,6 +519,8 @@ function scopeToLM(RAW, person){
   // fees: Pipeline Y:Z stash, ONLY this LM's own Contract contacts
   const fees={},stages={},mine={},c=tabs['Contracts'];
   if(c&&c.length>1){const ci=ix(c[0],'Contact ID');for(let i=1;i<c.length;i++){const x=c[i][ci];if(x)mine[x]=1;}}
+  // Closings: this LM's own deal contacts (live → drives Earned at real revenue)
+  {const CL=RAW['Closings'];if(CL&&CL.length){const cci=ix(CL[0],'Contact ID'),o=[CL[0].slice()];for(let i=1;i<CL.length;i++){const k=CL[i][cci];if(k&&mine[k])o.push(CL[i].slice());}tabs['Closings']=o;}}
   const P=RAW['Pipeline'];
   if(P&&P.length>1)for(let i=1;i<P.length;i++){const cid=P[i][24],fee=P[i][25];if(cid&&mine[cid]){fees[cid]=(typeof fee==='number'?fee:Number(fee)||0);stages[cid]=P[i][23]||'';}} // X=idx23 dispo stage, Y=idx24 contactId, Z=idx25 fee
   // curated goals (allow-list; never revenue/profit/cost)

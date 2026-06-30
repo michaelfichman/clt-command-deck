@@ -1,8 +1,8 @@
 /* CLT LM Scoreboard — service worker (Jordan's app).
    HTML shell: NETWORK-FIRST (always pick up a new release on launch when online).
    Versioned assets (?v=N): cache-first. Live data (Apps Script /exec): never cached. */
-const CACHE = 'clt-lm-v12';
-const V = '33';
+const CACHE = 'clt-lm-v13';
+const V = '34';
 const SHELL = ['./lm.html', './lm-view.js?v=' + V, './lm-view.css?v=' + V, './lm-engine.js?v=' + V, './lm-gamify.js?v=' + V, './manifest-lm.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

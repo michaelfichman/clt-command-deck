@@ -106,7 +106,7 @@ function lmCoach(M,key){
   return L[key]||'';
 }
 function lmCoachBlock(M,key){const x=lmCoach(M,key);return x?'<div class="lm-coach"><div class="lm-d-h">COACH — what moves the number</div><p>'+x+'</p></div>':'';}
-function lmDealList(title,deals){if(!deals||!deals.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+deals.length+')</div>'+deals.map(d=>'<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+d.name+'</div>'+(d.stage?'<div class="lm-rsub">'+d.stage+'</div>':'')+'</div><div class="lm-rmetric lm-rd br">'+lmMoney(d.cut)+'</div></div>').join('')+'</div>';}
+function lmDealList(title,deals){if(!deals||!deals.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+deals.length+')</div>'+deals.map(d=>'<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+d.name+'</div>'+((d.stage||d.est)?'<div class="lm-rsub">'+(d.stage||'')+(d.est?(d.stage?' · ':'')+'est. at avg fee':'')+'</div>':'')+'</div><div class="lm-rmetric lm-rd br">'+(d.est?'~':'')+lmMoney(d.cut)+'</div></div>').join('')+'</div>';}
 function lmOfferList(title,offers){if(!offers||!offers.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+offers.length+')</div>'+offers.map(o=>'<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+o.name+'</div>'+(o.property?'<div class="lm-rsub">'+o.property+'</div>':'')+'</div><div class="lm-rmetric lm-rd">~'+lmMoney(o.est)+'</div></div>').join('')+'</div>';}
 /* Per-bucket earnings view — opened from a comp card. Focuses on ONE stage of
    money (Earned/Earmarked/Projected/Potential): its $, the exact deals/offers
