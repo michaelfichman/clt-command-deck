@@ -172,8 +172,13 @@
 
   /* ---------------- parse the scoped payload ---------------- */
   function colIndexer(header) {
+    // Exact match first; then prefix match so a human-relabeled header like
+    // "Conversations (75+ sec)" still resolves for 'Conversations' instead of
+    // silently zeroing every metric that reads the column.
     return function (name) {
-      for (var i = 0; i < header.length; i++) { if (String(header[i]).toLowerCase().trim() === name.toLowerCase()) return i; }
+      var want = name.toLowerCase();
+      for (var i = 0; i < header.length; i++) { if (String(header[i]).toLowerCase().trim() === want) return i; }
+      for (var j = 0; j < header.length; j++) { if (String(header[j]).toLowerCase().trim().indexOf(want) === 0) return j; }
       return -1;
     };
   }
