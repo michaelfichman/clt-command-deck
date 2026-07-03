@@ -120,6 +120,17 @@
     return 'behind';                // red
   }
 
+  // Whole calendar period containing d (week Mon-Sun, month 1st-last, quarter 3 months).
+  function wholeWindow(d, lens) {
+    var w = lensWindow(d, lens);
+    var full = (lens === 'week') ? eod(addDays(w.start, 6))
+             : (lens === 'month') ? eod(new Date(w.start.getFullYear(), w.start.getMonth() + 1, 0))
+             : (lens === 'quarter') ? eod(new Date(w.start.getFullYear(), w.start.getMonth() + 3, 0))
+             : w.end;
+    return { start: w.start, end: full };
+  }
+  function daysBetween(a, b) { return Math.round((sod(b) - sod(a)) / 86400000) + 1; }
+
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   // Label one trend period by the lens granularity (uniform x-axis per lens).
   function periodLabel(s, lens) {
@@ -129,50 +140,82 @@
   }
   // Trend buckets: each lens plots PERIODS OF ITS OWN GRANULARITY — day lens =
   // individual days, week = each week, month = each month, quarter = each quarter.
-  function trendBuckets(asOf, lens) {
+  // With spanLo (the LM's global start date) the axis reaches back exactly to the
+  // period containing it (capped), so EVERY metric's graph shares one x-axis that
+  // starts at the LM's start — a partial first month/quarter still gets its bar.
+  function trendBuckets(asOf, lens, spanLo) {
     var out = [], i;
     if (lens === 'today') { for (i = 13; i >= 0; i--) { var dd = addDays(asOf, -i); out.push({ label: (dd.getMonth() + 1) + '/' + dd.getDate(), start: sod(dd), end: eod(dd) }); } return out; }
     if (lens === 'ytd') { for (i = 0; i <= asOf.getMonth(); i++) { var ms = new Date(asOf.getFullYear(), i, 1); var me = new Date(asOf.getFullYear(), i + 1, 0); out.push({ label: MON[i], start: ms, end: eod(me < asOf ? me : asOf) }); } return out; }
-    // week / month / quarter → the last N WHOLE periods of that granularity, oldest→newest.
-    // lensWindow() caps end at the point-in-period (right for vs-comparisons, wrong for
-    // graph buckets): a prior bucket must span its FULL period or "Jun" plots June 1-3.
+    // week / month / quarter → WHOLE periods of that granularity, oldest→newest,
+    // back to spanLo's period (or the legacy fixed N without a spanLo). lensWindow()
+    // caps end at the point-in-period (right for vs-comparisons, wrong for graph
+    // buckets): a prior bucket must span its FULL period or "Jun" plots June 1-3.
     var N = (lens === 'week') ? 9 : (lens === 'month') ? 6 : 5;
+    var CAP = (lens === 'week') ? 12 : (lens === 'month') ? 12 : 8;
+    if (spanLo) {
+      for (var back = 0; back < CAP; back++) { if (wholeWindow(shiftAsOf(asOf, lens, back), lens).start <= spanLo) break; }
+      N = Math.min(CAP, back + 1);
+    }
     for (var k = N - 1; k >= 0; k--) {
-      var w = lensWindow(shiftAsOf(asOf, lens, k), lens);
-      var full = (lens === 'week') ? eod(addDays(w.start, 6))
-               : (lens === 'month') ? eod(new Date(w.start.getFullYear(), w.start.getMonth() + 1, 0))
-               : eod(new Date(w.start.getFullYear(), w.start.getMonth() + 3, 0));
-      out.push({ label: periodLabel(w.start, lens), start: w.start, end: (k === 0 ? eod(asOf) : full) });
+      var w = wholeWindow(shiftAsOf(asOf, lens, k), lens);
+      out.push({ label: periodLabel(w.start, lens), start: w.start, end: (k === 0 ? eod(asOf) : w.end) });
     }
     return out;
   }
 
   /* ---------------- a flow/avg metric across one lens ---------------- */
-  function metricLens(points, asOf, lens, mode, N, lagged) {
+  function metricLens(points, asOf, lens, mode, N, lagged, spanLo) {
     mode = mode || 'sum'; N = N || 4;
     var a = anchorFor(points, asOf, lens, lagged), at = a.asOf, nb = (lens === 'today') ? 14 : N;
     var cur = aggIn(points, lensWindow(at, lens), mode);
-    var cmp = aggIn(points, priorWindow(at, lens), mode);
-    var bar = trailingBar(points, at, lens, mode, nb);
     var sp = dataSpan(points);
-    var buckets = trendBuckets(at, lens).filter(function (b) { return !sp.lo || b.end >= sp.lo; }).map(function (b) { return { label: b.label, value: aggIn(points, b, mode) }; });
+    var lo = spanLo || sp.lo;
+    // vs-period: exact point-in-period when the prior period is fully covered by
+    // data. When the LM STARTED mid-prior-period (e.g. Q3 vs a Q2 begun 4/22),
+    // the point-in-period window predates their start and reads a useless 0 —
+    // instead compare against the prior period's PACE: its per-day rate over the
+    // covered stretch × days elapsed this period. Flagged comparisonEst.
+    var pw = priorWindow(at, lens), cmp, cmpEst = false;
+    if (lo && pw.start < lo && lens !== 'today') {
+      var fullPrior = wholeWindow(shiftAsOf(at, lens, 1), lens);
+      var covStart = lo > fullPrior.start ? lo : fullPrior.start;
+      if (covStart > fullPrior.end) { cmp = null; }
+      else if (mode === 'sum') {
+        var rate = aggIn(points, { start: covStart, end: fullPrior.end }, 'sum') / daysBetween(covStart, fullPrior.end);
+        cmp = Math.round(rate * daysBetween(lensWindow(at, lens).start, at) * 10) / 10;
+        cmpEst = true;
+      } else { cmp = aggIn(points, { start: covStart, end: fullPrior.end }, mode); cmpEst = cmp != null; }
+    } else { cmp = aggIn(points, pw, mode); }
+    var bar = trailingBar(points, at, lens, mode, nb);
+    var buckets = trendBuckets(at, lens, spanLo).filter(function (b) { return !lo || b.end >= lo; }).map(function (b) { return { label: b.label, value: aggIn(points, b, mode) }; });
     var pct = (cmp == null || cmp === 0) ? null : ((cur - cmp) / cmp);
-    return { current: cur, comparison: cmp, comparePct: pct, bar: bar, paceState: paceState(cur, bar), trend: buckets, anchorDate: a.anchorDate, lagged: a.lagged };
+    return { current: cur, comparison: cmp, comparisonEst: cmpEst, comparePct: pct, bar: bar, paceState: paceState(cur, bar), trend: buckets, anchorDate: a.anchorDate, lagged: a.lagged };
   }
 
   // Ratio metric (num/den) across one lens — show rate, lead→appt, appt→contract.
-  function ratioLens(numPts, denPts, asOf, lens, N, lagged) {
+  function ratioLens(numPts, denPts, asOf, lens, N, lagged, spanLo) {
     N = N || 4;
     var an = anchorFor(denPts, asOf, lens, lagged), at = an.asOf;
     function ratio(w) { var d = aggIn(denPts, w, 'sum'); return d ? aggIn(numPts, w, 'sum') / d : null; }
     var cur = ratio(lensWindow(at, lens));
-    var cmp = ratio(priorWindow(at, lens));
-    var span = dataSpan(denPts), vals = [];
+    var span = dataSpan(denPts);
+    var lo = spanLo || span.lo;
+    // ratios are scale-free: when the prior point-in-period predates the LM's
+    // start, compare against the ratio over the covered stretch of that period.
+    var pw = priorWindow(at, lens), cmp, cmpEst = false;
+    if (lo && pw.start < lo && lens !== 'today') {
+      var fullPrior = wholeWindow(shiftAsOf(at, lens, 1), lens);
+      var covStart = lo > fullPrior.start ? lo : fullPrior.start;
+      cmp = covStart > fullPrior.end ? null : ratio({ start: covStart, end: fullPrior.end });
+      cmpEst = cmp != null;
+    } else { cmp = ratio(pw); }
+    var vals = [];
     if (span.lo) for (var k = 1; k <= N; k++) { var w = lensWindow(shiftAsOf(at, lens, k), lens); if (w.end < span.lo || w.start > span.hi) continue; var r = ratio(w); if (r != null) vals.push(r); }
     var bar = vals.length ? vals.reduce(function (a, b) { return a + b; }, 0) / vals.length : null;
-    var buckets = trendBuckets(at, lens).filter(function (b) { return !span.lo || b.end >= span.lo; }).map(function (b) { return { label: b.label, value: ratio(b) }; });
+    var buckets = trendBuckets(at, lens, spanLo).filter(function (b) { return !lo || b.end >= lo; }).map(function (b) { return { label: b.label, value: ratio(b) }; });
     var pct = (cmp == null || cmp === 0) ? null : ((cur - cmp) / cmp);
-    return { current: cur, comparison: cmp, comparePct: pct, bar: bar, paceState: paceState(cur, bar), trend: buckets, anchorDate: an.anchorDate, lagged: an.lagged };
+    return { current: cur, comparison: cmp, comparisonEst: cmpEst, comparePct: pct, bar: bar, paceState: paceState(cur, bar), trend: buckets, anchorDate: an.anchorDate, lagged: an.lagged };
   }
 
   /* ---------------- parse the scoped payload ---------------- */
@@ -315,26 +358,34 @@
       speed: (function () { var s = (payload.tabs['Speed to Lead'] || [['']]); var si = colIndexer(s[0]); return rowsOf(s).map(function (r) { return { date: parseDate(r[si('Lead Created At')]), value: +String(r[si('Speed (Min)')]).replace(/,/g, '') || 0 }; }).filter(function (x) { return x.date; }); })()
     };
 
+    // The LM's global start: earliest activity across ALL core series. Every
+    // graph's x-axis anchors here, so a metric whose first event came later
+    // (e.g. first contract in May) still plots the same periods as the rest.
+    var LO = null;
+    ['calls', 'leads', 'booked', 'showed', 'offersMade', 'signed'].forEach(function (k) {
+      var s = dataSpan(P[k]); if (s.lo && (!LO || s.lo < LO)) LO = s.lo;
+    });
+
     var lenses = {};
     LENSES.forEach(function (lens) {
       lenses[lens] = {
-        calls: metricLens(P.calls, asOf, lens, 'sum', 4, true),       // lagged: posted once daily
-        outbound: metricLens(P.outbound, asOf, lens, 'sum', 4, true), // lagged
-        talkTime: metricLens(P.talk, asOf, lens, 'sum', 4, true),     // lagged
-        conversations: metricLens(P.conversations, asOf, lens, 'sum', 4, true), // lagged: ≥75s real talks
-        connected: metricLens(P.connected, asOf, lens, 'sum', 4, true),         // lagged: duration>0
-        deepConv: metricLens(P.deepConv, asOf, lens, 'sum', 4, true),           // lagged: ≥180s
-        qualifying: metricLens(P.qualifying, asOf, lens, 'sum', 4, true),       // lagged: ≥600s truly-qualifying
-        connectRate: ratioLens(P.conversations, P.calls, asOf, lens, 4, true),  // conversations ÷ dials (lagged)
-        leads: metricLens(P.leads, asOf, lens, 'sum'),
-        apptsBooked: metricLens(P.booked, asOf, lens, 'sum'),
-        apptsShowed: metricLens(P.showed, asOf, lens, 'sum'),
-        offersMade: metricLens(P.offersMade, asOf, lens, 'sum'),
-        contractsSigned: metricLens(P.signed, asOf, lens, 'sum'),
-        speed: metricLens(P.speed, asOf, lens, 'avg'),
-        showRate: ratioLens(P.showed, P.booked, asOf, lens),     // showed ÷ booked
-        leadToAppt: ratioLens(P.booked, P.leads, asOf, lens),    // booked ÷ leads
-        apptToContract: ratioLens(P.signed, P.showed, asOf, lens) // signed ÷ SHOWED (matches in-sheet)
+        calls: metricLens(P.calls, asOf, lens, 'sum', 4, true, LO),       // lagged: posted once daily
+        outbound: metricLens(P.outbound, asOf, lens, 'sum', 4, true, LO), // lagged
+        talkTime: metricLens(P.talk, asOf, lens, 'sum', 4, true, LO),     // lagged
+        conversations: metricLens(P.conversations, asOf, lens, 'sum', 4, true, LO), // lagged: ≥75s real talks
+        connected: metricLens(P.connected, asOf, lens, 'sum', 4, true, LO),         // lagged: duration>0
+        deepConv: metricLens(P.deepConv, asOf, lens, 'sum', 4, true, LO),           // lagged: ≥180s
+        qualifying: metricLens(P.qualifying, asOf, lens, 'sum', 4, true, LO),       // lagged: ≥600s truly-qualifying
+        connectRate: ratioLens(P.conversations, P.calls, asOf, lens, 4, true, LO),  // conversations ÷ dials (lagged)
+        leads: metricLens(P.leads, asOf, lens, 'sum', 4, false, LO),
+        apptsBooked: metricLens(P.booked, asOf, lens, 'sum', 4, false, LO),
+        apptsShowed: metricLens(P.showed, asOf, lens, 'sum', 4, false, LO),
+        offersMade: metricLens(P.offersMade, asOf, lens, 'sum', 4, false, LO),
+        contractsSigned: metricLens(P.signed, asOf, lens, 'sum', 4, false, LO),
+        speed: metricLens(P.speed, asOf, lens, 'avg', 4, false, LO),
+        showRate: ratioLens(P.showed, P.booked, asOf, lens, 4, false, LO),     // showed ÷ booked
+        leadToAppt: ratioLens(P.booked, P.leads, asOf, lens, 4, false, LO),    // booked ÷ leads
+        apptToContract: ratioLens(P.signed, P.showed, asOf, lens, 4, false, LO) // signed ÷ SHOWED (matches in-sheet)
       };
     });
 
