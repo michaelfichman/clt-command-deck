@@ -133,11 +133,16 @@
     var out = [], i;
     if (lens === 'today') { for (i = 13; i >= 0; i--) { var dd = addDays(asOf, -i); out.push({ label: (dd.getMonth() + 1) + '/' + dd.getDate(), start: sod(dd), end: eod(dd) }); } return out; }
     if (lens === 'ytd') { for (i = 0; i <= asOf.getMonth(); i++) { var ms = new Date(asOf.getFullYear(), i, 1); var me = new Date(asOf.getFullYear(), i + 1, 0); out.push({ label: MON[i], start: ms, end: eod(me < asOf ? me : asOf) }); } return out; }
-    // week / month / quarter → the last N WHOLE periods of that granularity, oldest→newest
+    // week / month / quarter → the last N WHOLE periods of that granularity, oldest→newest.
+    // lensWindow() caps end at the point-in-period (right for vs-comparisons, wrong for
+    // graph buckets): a prior bucket must span its FULL period or "Jun" plots June 1-3.
     var N = (lens === 'week') ? 9 : (lens === 'month') ? 6 : 5;
     for (var k = N - 1; k >= 0; k--) {
       var w = lensWindow(shiftAsOf(asOf, lens, k), lens);
-      out.push({ label: periodLabel(w.start, lens), start: w.start, end: (k === 0 ? eod(asOf) : w.end) });
+      var full = (lens === 'week') ? eod(addDays(w.start, 6))
+               : (lens === 'month') ? eod(new Date(w.start.getFullYear(), w.start.getMonth() + 1, 0))
+               : eod(new Date(w.start.getFullYear(), w.start.getMonth() + 3, 0));
+      out.push({ label: periodLabel(w.start, lens), start: w.start, end: (k === 0 ? eod(asOf) : full) });
     }
     return out;
   }
