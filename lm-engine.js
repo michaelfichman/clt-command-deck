@@ -403,6 +403,20 @@
       lenses[lens].speed.bySource = Object.keys(g).map(function (k) {
         var v = g[k]; return { source: k, n: v.length, avg: Math.round(v.reduce(function (a, b) { return a + b; }, 0) / v.length * 10) / 10 };
       }).sort(function (a, b) { return a.avg - b.avg; });
+      // Per-source TREND on the same buckets/labels as speed.trend, so the
+      // chart can plot one line per lead source instead of one blended line.
+      var bks = trendBuckets(asOf, lens, LO).filter(function (b) { return !LO || b.end >= LO; });
+      var srcs = {};
+      speedRecs.forEach(function (r) { srcs[r.source || '—'] = (srcs[r.source || '—'] || 0) + 1; });
+      lenses[lens].speed.sourceTrend = Object.keys(srcs).sort(function (a, b) { return srcs[b] - srcs[a]; }).map(function (src) {
+        var per = bks.map(function (b) {
+          var v = speedRecs.filter(function (r) { return (r.source || '—') === src && r.date >= b.start && r.date <= b.end; }).map(function (r) { return r.speed; });
+          return v.length ? { n: v.length, avg: Math.round(v.reduce(function (a, c) { return a + c; }, 0) / v.length * 10) / 10 } : null;
+        });
+        return { source: src, n: srcs[src],
+                 data: per.map(function (p) { return p && p.avg; }),      // plotted line
+                 counts: per.map(function (p) { return p ? p.n : 0; }) }; // tooltip: leads behind each point
+      });
     });
 
     return { person: ds.person, asOf: asOf, lenses: lenses, comp: comp(ds),

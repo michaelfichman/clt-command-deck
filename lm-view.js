@@ -265,8 +265,25 @@ function lmChartMount(cv,M,lens,metric,host){var mk=host.mk,css=host.css;try{
     return;
   }
   const sc=t.fmt==='pct'?100:1,r1=v=>(v==null||isNaN(v))?null:Math.round(v*sc*10)/10,data=lm.trend.map(x=>r1(x.value)),unit=t.fmt==='pct'?'%':(t.fmt==='min'||t.fmt==='spd')?'min':'count';
-  const ds=[{label:t.label,data:data,borderColor:gl,backgroundColor:'rgba(63,208,255,.12)',fill:true,tension:.3,pointRadius:pr,pointBackgroundColor:gl,borderWidth:big?2.8:2,spanGaps:true}];
-  if(lm.bar!=null)ds.push({label:'Your avg',data:labels.map(()=>r1(lm.bar)),borderColor:amb,borderDash:[5,4],pointRadius:0,borderWidth:big?2:1.4,fill:false});
+  let ds;
+  if(metric==='speed'&&lm.sourceTrend&&lm.sourceTrend.length){
+    // one plot line per LEAD SOURCE — a blended speed line hides inbound vs cold-list.
+    // Colors are FIXED per source (never cycled by index): a source keeps its color
+    // across lenses/days even as which sources appear changes. Palette validated
+    // (CVD ΔE 23.7, ≥3:1 on --card #0C192C).
+    const srcColor=s=>({'Google Ads':'#3987e5','MLS':'#c98500','Website':'#199e70','PPL':'#9085e9','SMS':'#e66767','D4D':'#d55181','Events':'#d95926','Office Phone':'#008300','Referral':'#7ab0e6'})[s]||'#8b97a8';
+    ds=lm.sourceTrend.map(s=>({label:s.source,data:s.data,borderColor:srcColor(s.source),backgroundColor:'transparent',fill:false,tension:.3,pointRadius:pr,pointHoverRadius:big?7:5,pointBackgroundColor:srcColor(s.source),borderWidth:big?2.4:1.8,spanGaps:true,lmCounts:s.counts}));
+    const o=opt(unit);
+    o.plugins.tooltip={callbacks:{label:(c)=>{const n=(c.dataset.lmCounts||[])[c.dataIndex]||0;return c.dataset.label+': '+LM_FMT[t.fmt](c.parsed.y)+' avg · '+n+' lead'+(n===1?'':'s');}}};
+    const tg0=(g&&g.bars&&g.bars.target!=null)?g.bars.target:null;
+    if(tg0!=null)ds.push({label:'🎯 Target',data:labels.map(()=>tg0),borderColor:grn,borderDash:[2,3],pointRadius:0,borderWidth:big?2.4:1.4,fill:false});
+    mk(cv,{type:'line',data:{labels:labels,datasets:ds},options:o});
+    return;
+  }
+  {
+    ds=[{label:t.label,data:data,borderColor:gl,backgroundColor:'rgba(63,208,255,.12)',fill:true,tension:.3,pointRadius:pr,pointBackgroundColor:gl,borderWidth:big?2.8:2,spanGaps:true}];
+    if(lm.bar!=null)ds.push({label:'Your avg',data:labels.map(()=>r1(lm.bar)),borderColor:amb,borderDash:[5,4],pointRadius:0,borderWidth:big?2:1.4,fill:false});
+  }
   const tg=(g&&g.bars&&g.bars.target!=null)?(t.fmt==='pct'&&g.bars.target<=1?g.bars.target*100:g.bars.target):null;
   if(tg!=null)ds.push({label:'🎯 Target',data:labels.map(()=>tg),borderColor:grn,borderDash:[2,3],pointRadius:0,borderWidth:big?2.4:1.4,fill:false});
   mk(cv,{type:'line',data:{labels:labels,datasets:ds},options:opt(unit)});
