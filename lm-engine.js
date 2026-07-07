@@ -355,7 +355,11 @@
       showed: ds.appts.filter(function (a) { return a.outcome.toLowerCase() === 'showed'; }).map(function (a) { return { date: a.dispo, value: 1 }; }),
       offersMade: ds.offers.filter(function (o) { return o.outcome.toLowerCase() === 'made' && o.made; }).map(function (o) { return { date: o.made, value: 1 }; }),
       signed: ds.contracts.filter(function (c) { return c.outcome.toLowerCase() === 'signed'; }).map(function (c) { return { date: c.signed, value: 1 }; }),
-      speed: (function () { var s = (payload.tabs['Speed to Lead'] || [['']]); var si = colIndexer(s[0]); return rowsOf(s).map(function (r) { return { date: parseDate(r[si('Lead Created At')]), value: +String(r[si('Speed (Min)')]).replace(/,/g, '') || 0 }; }).filter(function (x) { return x.date; }); })()
+      // Speed = first HUMAN touch (call OR SMS, source=app) when the synced
+      // 'Speed First Touch (min)' column exists; falls back to the legacy
+      // call-only 'Speed (Min)'. Blank cells are SKIPPED, never coerced to 0
+      // (rows appended before a first touch would otherwise fake a 0-min speed).
+      speed: (function () { var s = (payload.tabs['Speed to Lead'] || [['']]); var si = colIndexer(s[0]); var ci = si('Speed First Touch'); if (ci < 0) ci = si('Speed (Min)'); return rowsOf(s).map(function (r) { var raw = String(r[ci] == null ? '' : r[ci]).replace(/,/g, '').trim(); return { date: parseDate(r[si('Lead Created At')]), value: raw === '' ? null : +raw }; }).filter(function (x) { return x.date && x.value != null && isFinite(x.value); }); })()
     };
 
     // The LM's global start: earliest activity across ALL core series. Every
@@ -389,7 +393,7 @@
       };
     });
 
-    var speedRecs = (function () { var s = (payload.tabs['Speed to Lead'] || [['']]); var si = colIndexer(s[0]); return rowsOf(s).map(function (r) { return { date: parseDate(r[si('Lead Created At')]), name: r[si('Contact Name')], source: r[si('Lead Source')], speed: +String(r[si('Speed (Min)')]).replace(/,/g, '') || 0 }; }).filter(function (x) { return x.date; }); })();
+    var speedRecs = (function () { var s = (payload.tabs['Speed to Lead'] || [['']]); var si = colIndexer(s[0]); var ci = si('Speed First Touch'); if (ci < 0) ci = si('Speed (Min)'); var chi = si('First Touch Channel'); return rowsOf(s).map(function (r) { var raw = String(r[ci] == null ? '' : r[ci]).replace(/,/g, '').trim(); return { date: parseDate(r[si('Lead Created At')]), name: r[si('Contact Name')], source: r[si('Lead Source')], channel: chi < 0 ? '' : (r[chi] || ''), speed: raw === '' ? null : +raw }; }).filter(function (x) { return x.date && x.speed != null && isFinite(x.speed); }); })();
 
     return { person: ds.person, asOf: asOf, lenses: lenses, comp: comp(ds),
       series: P,                          // raw per-metric point series (Part 3 reads these)
