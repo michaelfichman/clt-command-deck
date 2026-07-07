@@ -395,6 +395,16 @@
 
     var speedRecs = (function () { var s = (payload.tabs['Speed to Lead'] || [['']]); var si = colIndexer(s[0]); var ci = si('Speed First Touch'); if (ci < 0) ci = si('Speed (Min)'); var chi = si('First Touch Channel'); return rowsOf(s).map(function (r) { var raw = String(r[ci] == null ? '' : r[ci]).replace(/,/g, '').trim(); return { date: parseDate(r[si('Lead Created At')]), name: r[si('Contact Name')], source: r[si('Lead Source')], channel: chi < 0 ? '' : (r[chi] || ''), speed: raw === '' ? null : +raw }; }).filter(function (x) { return x.date && x.speed != null && isFinite(x.speed); }); })();
 
+    // Speed BY LEAD TYPE per lens — a blended avg mixes cold MLS list-working
+    // with inbound-inquiry response and reads as one overwhelming number.
+    LENSES.forEach(function (lens) {
+      var w = lensWindow(asOf, lens), g = {};
+      speedRecs.forEach(function (r) { if (r.date >= w.start && r.date <= w.end) { var k = r.source || '—'; (g[k] = g[k] || []).push(r.speed); } });
+      lenses[lens].speed.bySource = Object.keys(g).map(function (k) {
+        var v = g[k]; return { source: k, n: v.length, avg: Math.round(v.reduce(function (a, b) { return a + b; }, 0) / v.length * 10) / 10 };
+      }).sort(function (a, b) { return a.avg - b.avg; });
+    });
+
     return { person: ds.person, asOf: asOf, lenses: lenses, comp: comp(ds),
       series: P,                          // raw per-metric point series (Part 3 reads these)
       records: { leads: ds.leads, appts: ds.appts, offers: ds.offers, contracts: ds.contracts, speed: speedRecs },
