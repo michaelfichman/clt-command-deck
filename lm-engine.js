@@ -405,7 +405,12 @@
       }).sort(function (a, b) { return a.avg - b.avg; });
       // Per-source TREND on the same buckets/labels as speed.trend, so the
       // chart can plot one line per lead source instead of one blended line.
-      var bks = trendBuckets(asOf, lens, LO).filter(function (b) { return !LO || b.end >= LO; });
+      // Bucket set MUST mirror metricLens exactly (spanLo for generation, then
+      // filter by spanLo-or-own-data-span) or the series misalign with labels.
+      var spLo = null;
+      speedRecs.forEach(function (r) { if (!spLo || r.date < spLo) spLo = r.date; });
+      var fLo = LO || spLo;
+      var bks = trendBuckets(asOf, lens, LO).filter(function (b) { return !fLo || b.end >= fLo; });
       var srcs = {};
       speedRecs.forEach(function (r) { srcs[r.source || '—'] = (srcs[r.source || '—'] || 0) + 1; });
       lenses[lens].speed.sourceTrend = Object.keys(srcs).sort(function (a, b) { return srcs[b] - srcs[a]; }).map(function (src) {
