@@ -117,3 +117,10 @@ select.lm-person{cursor:pointer}
 .lm-clockbar{margin:0 0 14px;background:var(--card);border:1px solid var(--line2);border-radius:11px;padding:9px 13px;font-family:'IBM Plex Mono';font-size:11px;color:var(--txt3);text-align:center}
 .lm-clockbar #lm-clock{color:var(--glow);font-weight:600;font-size:13px}
 .lm-deals-btn{width:100%;margin-top:14px;background:linear-gradient(180deg,#10243c,#0c192c);border:1px solid var(--line2);color:var(--glow);border-radius:13px;padding:13px;font-family:'IBM Plex Mono';font-size:12.5px;cursor:pointer}
+
+/* REACH diagnostic card (not gamified) */
+.lm-reach{padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.lm-reach-row{display:flex;justify-content:space-between;align-items:baseline;font-size:14px}
+.lm-reach-row.sub{font-size:12.5px;opacity:.75;padding-left:10px}
+.lm-reach-row b{font-variant-numeric:tabular-nums}
+.lm-reach-never{font-size:12px;opacity:.7;line-height:1.5;border-top:1px solid rgba(122,176,230,.12);padding-top:8px}

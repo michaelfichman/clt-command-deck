@@ -236,11 +236,16 @@
     var T = payload.tabs || {};
     function tab(name) { return T[name] || [['']]; }
 
-    // Calls
+    // Calls. TWO SEPARATE call-answer metrics (operator directive 2026-07-09):
+    // PICKUPS = the legacy duration>0 column — activity, target 43/day —
+    // header renamed on the sheet to "Dials Picked Up" (fallback: 'Connected').
+    // TRUE CONNECTS = two-speaker verified reach (its own column) — diagnostic.
     var c = tab('Calls'), ci = colIndexer(c[0]);
+    var pkCol = ci('Dials Picked Up'); if (pkCol < 0) pkCol = ci('Connected');
     var calls = rowsOf(c).map(function (r) {
       return { date: parseDate(r[ci('Date')]), total: +r[ci('Total Calls')] || 0, inbound: +r[ci('Inbound Calls')] || 0, outbound: +r[ci('Outbound Calls')] || 0, talk: +r[ci('Total Talk Time (min)')] || 0,
-        connected: +r[ci('Connected')] || 0, conv: +r[ci('Conversations')] || 0, deep: +r[ci('Deep Conversations')] || 0, qual: +r[ci('Qualifying Conversations')] || 0 };
+        connected: +r[pkCol] || 0, conv: +r[ci('Conversations')] || 0, deep: +r[ci('Deep Conversations')] || 0, qual: +r[ci('Qualifying Conversations')] || 0,
+        tconn: +r[ci('True Connects')] || 0 };
     }).filter(function (x) { return x.date; });
 
     // Leads
@@ -350,6 +355,7 @@
       connected: ds.calls.map(function (c) { return { date: c.date, value: c.connected }; }),
       deepConv: ds.calls.map(function (c) { return { date: c.date, value: c.deep }; }),
       qualifying: ds.calls.map(function (c) { return { date: c.date, value: c.qual }; }),
+      trueConnects: ds.calls.map(function (c) { return { date: c.date, value: c.tconn }; }),
       leads: ds.leads.map(function (l) { return { date: l.date, value: 1 }; }),
       booked: ds.appts.filter(function (a) { return a.outcome.toLowerCase() === 'confirmed'; }).map(function (a) { return { date: a.conf, value: 1 }; }),
       showed: ds.appts.filter(function (a) { return a.outcome.toLowerCase() === 'showed'; }).map(function (a) { return { date: a.dispo, value: 1 }; }),
@@ -381,6 +387,8 @@
         deepConv: metricLens(P.deepConv, asOf, lens, 'sum', 4, true, LO),           // lagged: ≥180s
         qualifying: metricLens(P.qualifying, asOf, lens, 'sum', 4, true, LO),       // lagged: ≥600s truly-qualifying
         connectRate: ratioLens(P.conversations, P.calls, asOf, lens, 4, true, LO),  // conversations ÷ dials (lagged)
+        trueConnects: metricLens(P.trueConnects, asOf, lens, 'sum', 4, true, LO),   // REACH: two-speaker verified (diagnostic)
+        trueConnectRate: ratioLens(P.trueConnects, P.calls, asOf, lens, 4, true, LO), // REACH: true connects ÷ dials (diagnostic)
         leads: metricLens(P.leads, asOf, lens, 'sum', 4, false, LO),
         apptsBooked: metricLens(P.booked, asOf, lens, 'sum', 4, false, LO),
         apptsShowed: metricLens(P.showed, asOf, lens, 'sum', 4, false, LO),
@@ -393,7 +401,25 @@
       };
     });
 
-    var speedRecs = (function () { var s = (payload.tabs['Speed to Lead'] || [['']]); var si = colIndexer(s[0]); var ci = si('Speed First Touch'); if (ci < 0) ci = si('Speed (Min)'); var chi = si('First Touch Channel'); return rowsOf(s).map(function (r) { var raw = String(r[ci] == null ? '' : r[ci]).replace(/,/g, '').trim(); return { date: parseDate(r[si('Lead Created At')]), name: r[si('Contact Name')], source: r[si('Lead Source')], channel: chi < 0 ? '' : (r[chi] || ''), speed: raw === '' ? null : +raw }; }).filter(function (x) { return x.date && x.speed != null && isFinite(x.speed); }); })();
+    var speedRecs = (function () { var s = (payload.tabs['Speed to Lead'] || [['']]); var si = colIndexer(s[0]); var ci = si('Speed First Touch'); if (ci < 0) ci = si('Speed (Min)'); var chi = si('First Touch Channel'); var vi = si('Connected (Y/N)'), bi = si('Connect Basis'); return rowsOf(s).map(function (r) { var raw = String(r[ci] == null ? '' : r[ci]).replace(/,/g, '').trim(); return { date: parseDate(r[si('Lead Created At')]), name: r[si('Contact Name')], source: r[si('Lead Source')], channel: chi < 0 ? '' : (r[chi] || ''), conn: vi < 0 ? '' : (r[vi] || ''), basis: bi < 0 ? '' : (r[bi] || ''), speed: raw === '' ? null : +raw }; }).filter(function (x) { return x.date && x.speed != null && isFinite(x.speed); }); })();
+
+    // REACH (diagnostic, per lens): attempt→connect from the Speed tab's
+    // Connected column, split inbound vs cold-list (MLS) — connect rate is
+    // heavily source-dependent, so reach is DIAGNOSED, never gamified.
+    LENSES.forEach(function (lens) {
+      var w = lensWindow(asOf, lens);
+      var att = 0, con = 0, est = 0, ia = 0, ic2 = 0, ca = 0, cc2 = 0, never = [];
+      speedRecs.forEach(function (r) {
+        if (r.date < w.start || r.date > w.end || !r.conn) return;
+        att++;
+        var cold = (r.source === 'MLS');
+        if (cold) ca++; else ia++;
+        if (r.conn === 'Y') { con++; if (cold) cc2++; else ic2++; if (r.basis === 'estimated') est++; }
+        else never.push(r.name);
+      });
+      lenses[lens].speed.reach = att ? { attempted: att, connected: con, rate: con / att, estimated: est,
+        inbound: { att: ia, con: ic2 }, cold: { att: ca, con: cc2 }, never: never } : null;
+    });
 
     // Speed BY LEAD TYPE per lens — a blended avg mixes cold MLS list-working
     // with inbound-inquiry response and reads as one overwhelming number.
