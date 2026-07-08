@@ -393,8 +393,8 @@
         connectRate: ratioLens(P.conversations, P.calls, asOf, lens, 4, true, LO),  // conversations ÷ dials (lagged)
         trueConnects: metricLens(P.trueConnects, asOf, lens, 'sum', 4, true, LO),   // REACH: two-speaker verified (diagnostic)
         trueConnectRate: ratioLens(P.trueConnects, P.calls, asOf, lens, 4, true, LO), // B: DIALING EFFICIENCY — true connects ÷ DIALS
-        reached: ratioLens(P.reachedLeads, P.leads, asOf, lens, 4, false, LO),          // A: LEAD RESPONSE — reached ÷ NEW LEADS (cohort by created date)
-        attemptConnect: ratioLens(P.reachedLeads, P.attemptedLeads, asOf, lens, 4, false, LO), // C: reached ÷ ATTEMPTED leads
+        reached: ratioLens(P.reachedLeads, P.leads, asOf, lens, 4, false, dataSpan(P.attemptedLeads).lo || LO),          // A: LEAD RESPONSE — reached ÷ NEW LEADS; axis starts at the funnel epoch (pre-funnel weeks would fake 0%)
+        attemptConnect: ratioLens(P.reachedLeads, P.attemptedLeads, asOf, lens, 4, false, dataSpan(P.attemptedLeads).lo || LO), // C: reached ÷ ATTEMPTED leads
         leads: metricLens(P.leads, asOf, lens, 'sum', 4, false, LO),
         apptsBooked: metricLens(P.booked, asOf, lens, 'sum', 4, false, LO),
         apptsShowed: metricLens(P.showed, asOf, lens, 'sum', 4, false, LO),

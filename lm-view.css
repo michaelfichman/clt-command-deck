@@ -124,3 +124,11 @@ select.lm-person{cursor:pointer}
 .lm-reach-row.sub{font-size:12.5px;opacity:.75;padding-left:10px}
 .lm-reach-row b{font-variant-numeric:tabular-nums}
 .lm-reach-never{font-size:12px;opacity:.7;line-height:1.5;border-top:1px solid rgba(122,176,230,.12);padding-top:8px}
+
+/* reach detail: stacked metric blocks (no label/value wrap collision) */
+.lm-reach-m{display:flex;flex-direction:column;gap:2px;padding:2px 0}
+.lm-reach-m+.lm-reach-m{border-top:1px solid rgba(122,176,230,.08);padding-top:8px}
+.lm-reach-l{font-size:11px;letter-spacing:.06em;opacity:.65}
+.lm-reach-l i{font-style:normal;text-transform:none;letter-spacing:0;opacity:.9}
+.lm-reach-v{font-size:14.5px}
+.lm-reach-v b{font-variant-numeric:tabular-nums}
