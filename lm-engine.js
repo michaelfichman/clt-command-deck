@@ -376,6 +376,10 @@
       var s = dataSpan(P[k]); if (s.lo && (!LO || s.lo < LO)) LO = s.lo;
     });
 
+    var speedRecs = (function () { var s = (payload.tabs['Speed to Lead'] || [['']]); var si = colIndexer(s[0]); var ci = si('Speed First Touch'); if (ci < 0) ci = si('Speed (Min)'); var chi = si('First Touch Channel'); var vi = si('Connected (Y/N)'), bi = si('Connect Basis'); return rowsOf(s).map(function (r) { var raw = String(r[ci] == null ? '' : r[ci]).replace(/,/g, '').trim(); return { date: parseDate(r[si('Lead Created At')]), name: r[si('Contact Name')], source: r[si('Lead Source')], channel: chi < 0 ? '' : (r[chi] || ''), conn: vi < 0 ? '' : (r[vi] || ''), basis: bi < 0 ? '' : (r[bi] || ''), speed: raw === '' ? null : +raw }; }).filter(function (x) { return x.date && x.speed != null && isFinite(x.speed); }); })();
+    P.attemptedLeads = speedRecs.map(function (r) { return { date: r.date, value: 1 }; });
+    P.reachedLeads = speedRecs.filter(function (r) { return r.conn === 'Y'; }).map(function (r) { return { date: r.date, value: 1 }; });
+
     var lenses = {};
     LENSES.forEach(function (lens) {
       lenses[lens] = {
@@ -388,7 +392,9 @@
         qualifying: metricLens(P.qualifying, asOf, lens, 'sum', 4, true, LO),       // lagged: ≥600s truly-qualifying
         connectRate: ratioLens(P.conversations, P.calls, asOf, lens, 4, true, LO),  // conversations ÷ dials (lagged)
         trueConnects: metricLens(P.trueConnects, asOf, lens, 'sum', 4, true, LO),   // REACH: two-speaker verified (diagnostic)
-        trueConnectRate: ratioLens(P.trueConnects, P.calls, asOf, lens, 4, true, LO), // REACH: true connects ÷ dials (diagnostic)
+        trueConnectRate: ratioLens(P.trueConnects, P.calls, asOf, lens, 4, true, LO), // B: DIALING EFFICIENCY — true connects ÷ DIALS
+        reached: ratioLens(P.reachedLeads, P.leads, asOf, lens, 4, false, LO),          // A: LEAD RESPONSE — reached ÷ NEW LEADS (cohort by created date)
+        attemptConnect: ratioLens(P.reachedLeads, P.attemptedLeads, asOf, lens, 4, false, LO), // C: reached ÷ ATTEMPTED leads
         leads: metricLens(P.leads, asOf, lens, 'sum', 4, false, LO),
         apptsBooked: metricLens(P.booked, asOf, lens, 'sum', 4, false, LO),
         apptsShowed: metricLens(P.showed, asOf, lens, 'sum', 4, false, LO),
@@ -401,7 +407,6 @@
       };
     });
 
-    var speedRecs = (function () { var s = (payload.tabs['Speed to Lead'] || [['']]); var si = colIndexer(s[0]); var ci = si('Speed First Touch'); if (ci < 0) ci = si('Speed (Min)'); var chi = si('First Touch Channel'); var vi = si('Connected (Y/N)'), bi = si('Connect Basis'); return rowsOf(s).map(function (r) { var raw = String(r[ci] == null ? '' : r[ci]).replace(/,/g, '').trim(); return { date: parseDate(r[si('Lead Created At')]), name: r[si('Contact Name')], source: r[si('Lead Source')], channel: chi < 0 ? '' : (r[chi] || ''), conn: vi < 0 ? '' : (r[vi] || ''), basis: bi < 0 ? '' : (r[bi] || ''), speed: raw === '' ? null : +raw }; }).filter(function (x) { return x.date && x.speed != null && isFinite(x.speed); }); })();
 
     // REACH (diagnostic, per lens): attempt→connect from the Speed tab's
     // Connected column, split inbound vs cold-list (MLS) — connect rate is
@@ -417,8 +422,10 @@
         if (r.conn === 'Y') { con++; if (cold) cc2++; else ic2++; if (r.basis === 'estimated') est++; }
         else never.push(r.name);
       });
-      lenses[lens].speed.reach = att ? { attempted: att, connected: con, rate: con / att, estimated: est,
-        inbound: { att: ia, con: ic2 }, cold: { att: ca, con: cc2 }, never: never } : null;
+      var newLeads = lenses[lens].leads.current || 0;
+      lenses[lens].reached.reach = { newLeads: newLeads, touched: att, connected: con,
+        estimated: est, dials: lenses[lens].calls.current, trueConnects: lenses[lens].trueConnects.current,
+        inbound: { att: ia, con: ic2 }, cold: { att: ca, con: cc2 }, never: never };
     });
 
     // Speed BY LEAD TYPE per lens — a blended avg mixes cold MLS list-working
