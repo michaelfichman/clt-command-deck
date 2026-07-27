@@ -1,6 +1,11 @@
-# Keep the Apps Script endpoint source OUT of this public repo
+# Keep token-BEARING Apps Script editor copies OUT of this public repo.
+# (Local copies you paste into the editor carry LIVE tokens — never commit.)
 Code.gs
 Code-*.gs
+# ...but DO track the REDACTED source-of-truth copies under apps-script/
+# (placeholder tokens only — see each file's header). Negation must follow
+# the broad rules above to take effect.
+!apps-script/Code-*.gs
 # Dev-only test harnesses / assets
 *.test.js
 logos.zip
