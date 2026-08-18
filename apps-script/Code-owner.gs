@@ -55,7 +55,12 @@ var TABS = [
   'Pipeline',
   'Team',
   'Goals & Assumptions' ,
-  'LM Targets'
+  'LM Targets',
+  // Lead-source → channel map, channel cost basis, and the date-effective PARTNER
+  // RATE table. The deck reads all three from here; without this tab it falls back
+  // to a built-in map and can apply no partner rate at all (it says so on screen
+  // rather than guessing). REDEPLOY REQUIRED after adding this line.
+  'Channel Map'
 ];
 
 var TOKENS = ['SET-IN-DEPLOYED-EDITOR', 'SET-IN-DEPLOYED-EDITOR'];   // two live tokens (you + Ed); real values only in the deployed editor

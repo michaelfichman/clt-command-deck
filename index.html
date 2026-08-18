@@ -243,11 +243,98 @@ footer{margin-top:46px;border-top:1px solid var(--line);padding-top:16px;font-fa
 <script>
 /* ═══════════ CONFIG ═══════════ */
 const REFRESH_MS = 60000;
+/* The LM split. 10% of the GROSS assignment fee — not of net-to-CLT. On a partner
+   channel that makes the cut a larger share of what CLT actually banks; intended. */
+const LM_SPLIT = 0.10;
+/* Lead-source → channel. SEEDED here, then OVERWRITTEN from the Channel Map tab
+   whenever /exec serves it (see loadChannelMap). The tab is the source of truth;
+   this literal only keeps attribution alive if the tab is ever missing. A source
+   with no map row lands in '(unmapped)' and is dropped from the ROAS table — so a
+   missing row silently deletes a channel's revenue. Keep the two in step. */
 const CHANNEL_MAP = {'Google Ads':'Google Ads','PPL':'PPL','JV':'Events','Referral':'Events','Events':'Events',
-  'MLS':'MLS','Website':'Website/SEO','Office Phone':'Website/SEO','D4D':'D4D','SMS':'SMS'};
+  'MLS':'MLS','Website':'Website/SEO','Office Phone':'Website/SEO','D4D':'D4D','SMS':'SMS',
+  'Cardinal':'Cardinal','Pre Foreclosures':'Pre Foreclosures'};
 const SOURCE_OVERRIDES = {'usb48ZOFE6CbB1EUAbHe':'Google Ads','pzC0nOf7qvbz4VG0JEVT':'JV','yKl1dbkQpNT5x0VkVoRz':'PPL',
   'nA1qtki8h3HRHyzrsfh2':'Google Ads','ROahOIKJ9CfFhgqUKj7L':'Referral','z8LdrKqyp3sgmfZzYIra':'JV'};
-const SCALABLE = {'Google Ads':'linear','PPL':'provider-capped','MLS':'volume-limited','Events':'not purchasable','Website/SEO':'organic','D4D':'when active','SMS':'when active'};
+const SCALABLE = {'Google Ads':'linear','PPL':'provider-capped','MLS':'volume-limited','Events':'not purchasable','Website/SEO':'organic','D4D':'when active','SMS':'when active',
+  'Cardinal':'partner rev-share','Pre Foreclosures':'variable cost'};
+
+/* DISPLAY-ONLY alias. The KEY stays 'Website/SEO' because the Marketing Spend tab
+   joins on that literal string — renaming the key would orphan every spend row for
+   the channel and silently drop its cost to zero. Website + Office Phone are already
+   folded into this one key by CHANNEL_MAP; this only changes what the table prints. */
+const CH_LABEL = {'Website/SEO':'Organic'};
+const chLabel = c => CH_LABEL[c] || c;
+
+/* PARTNER channels (Channel Type = "Partner" on the Channel Map tab) pay their cut
+   on the HUD and carry ZERO upfront spend. ROAS is therefore a divide-by-zero, not
+   a low number — they are excluded from the ROAS table BY NAME, never silently.
+   Populated from the sheet; empty until the Channel Map tab reaches /exec. */
+const PARTNER_CH = {};
+/* Date-effective partner rates, straight off the Channel Map rate table. NEVER
+   hardcode a rate here: the Baxter term ends 1/31/2027 and the next rate is
+   undetermined. A close date no row covers yields a null rate = an explicit error. */
+/* Channels the WORKBOOK says belong in the Capital table — Channel Map §2 column D
+   ("In Capital Table"). The roster is a business decision, so it lives in the sheet
+   where Michael can change it without a redeploy. Before this, the row set was
+   whatever happened to have spend or revenue, which is why Cardinal (rev-share, no
+   spend, no closing yet) silently had no row at all. */
+const CAPITAL_CH = {};
+let PARTNER_RATES = [], CHANNEL_MAP_LOADED = false;
+function loadChannelMap(RAW){
+  const t = RAW && RAW['Channel Map']; if(!t || !t.length) return;
+  let sec = 0;
+  for(let i=0;i<t.length;i++){
+    const a=String(t[i][0]==null?'':t[i][0]).trim(), b=String(t[i][1]==null?'':t[i][1]).trim();
+    if(a==='Lead Source'){sec=1;continue;}
+    if(a==='Channel'&&b==='Monthly Cost'){sec=2;continue;}
+    if(a==='Channel'&&b==='Effective From'){sec=3;continue;}
+    if(!a) continue;
+    if(sec===1){const ch=b||a;CHANNEL_MAP[a]=ch;
+      if(String(t[i][2]==null?'':t[i][2]).trim().toLowerCase()==='partner')PARTNER_CH[ch]=true;}
+    else if(sec===2){
+      if(String(t[i][3]==null?'':t[i][3]).trim().toLowerCase()==='yes')CAPITAL_CH[a]=true;}
+    else if(sec===3){const raw=t[i][3];
+      PARTNER_RATES.push({ch:a,from:D(t[i][1]),to:D(t[i][2]),rate:(raw===''||raw==null)?null:Number(raw)});}
+  }
+  CHANNEL_MAP_LOADED = true;
+}
+/* Rate for a channel on a given CLOSE date. Three outcomes, never conflated:
+   not a partner channel → 0 (gross == entered value); covered by a term → that rate;
+   partner channel with no covering term or a blank rate → null + reason. */
+function partnerRate(ch,date){
+  if(!PARTNER_RATES.some(r=>r.ch===ch)) return {rate:0,err:null};
+  const hit=PARTNER_RATES.find(r=>r.ch===ch&&r.from&&date&&date>=r.from&&(!r.to||date<=r.to));
+  if(!hit||hit.rate==null) return {rate:null,err:'no partner rate on file for '+ch+(date?' @ '+date.toLocaleDateString():'')};
+  return {rate:hit.rate,err:null};
+}
+
+/* CONTRIBUTION PER DEAL — (gross revenue − acquisition cost) ÷ deals closed.
+   ADDITIVE to ROAS, never a replacement. ROAS is undefined where there is no spend,
+   and reads 0.00x where spend is near-zero — so the two channels that may be the best
+   performers either vanish from the table or look dead in it. This ranks on the money
+   actually kept per deal instead.
+
+   Acquisition cost by channel type:
+     partner (rev-share)  the partner's % of GROSS, paid on the HUD
+     everything else      tracked ad spend YTD
+
+   A partner channel's entered revenue is ALREADY NET to CLT Buyers (the workbook's
+   entry convention: the value entered is net at every stage). So gross = net/(1-rate)
+   and gross - rate*gross = net, and the formula collapses to net ÷ deals.
+   DO NOT multiply by 0.70 here — that subtracts the partner's cut a second time.
+
+   0 deals -> null, rendered '—'. Never 0, never a divide-by-zero: a channel that has
+   closed nothing has no contribution per deal, which is a different fact from zero. */
+function contribPerDeal(x,m){
+  if(!x.deals) return null;
+  if(x.partner){
+    const pr=partnerRate(x.c,m&&m.now);
+    if(pr.rate==null) return null;   // no rate on file -> no number, same as the sheet does
+    return x.rev/x.deals;            // x.rev is already net; see the note above
+  }
+  return (x.rev-x.cost)/x.deals;
+}
 
 /* ═══════════ UTIL ═══════════ */
 const $=id=>document.getElementById(id);
@@ -304,6 +391,7 @@ async function load(){
 
 /* ═══════════ MODEL — first principles ═══════════ */
 function model(T){
+  loadChannelMap(T);   // sheet-driven channel map + partner rates, BEFORE any attribution
   const now=new Date(),yr=now.getFullYear();
   const m={now,monthsElapsed:(now-new Date(yr,0,1))/(864e5*30.44),weeksElapsed:(now-new Date(yr,0,1))/(864e5*7)};
   const G=rows(T['Goals & Assumptions']);
@@ -350,9 +438,34 @@ function model(T){
     m.spendByCh[ch]=(m.spendByCh[ch]||0)+v;m.spendByMo[d.getMonth()]+=v;m.spendYTD+=v;
     (m.spendByChMo[ch]=m.spendByChMo[ch]||Array(12).fill(0))[d.getMonth()]+=v});
 
-  m.chRev={};m.chDeals={};
+  m.chRev={};m.chDeals={};m.chLmCut={};m.chRateErr={};
   m.closings.forEach(x=>{const src=m.leadSrcById[x.id]||SOURCE_OVERRIDES[x.id]||'(unmapped)';
-    const ch=CHANNEL_MAP[src]||src;m.chRev[ch]=(m.chRev[ch]||0)+x.rev;m.chDeals[ch]=(m.chDeals[ch]||0)+1});
+    const ch=CHANNEL_MAP[src]||src;m.chRev[ch]=(m.chRev[ch]||0)+x.rev;m.chDeals[ch]=(m.chDeals[ch]||0)+1;
+    // The LM cut is 10% of GROSS, so the partner's HUD-side share is added back first.
+    // A close date outside every rate term yields NO number — it is listed, not guessed.
+    const pr=partnerRate(ch,x.d);
+    if(pr.rate==null)(m.chRateErr[ch]=m.chRateErr[ch]||[]).push((x.nm||x.id)+' — '+pr.err);
+    else m.chLmCut[ch]=(m.chLmCut[ch]||0)+(x.rev/(1-pr.rate))*LM_SPLIT;});
+
+  // Signed-but-not-yet-closed, per channel — the "in pipeline" leg of the volume line.
+  const closedSet=new Set(m.closings.map(x=>x.id));
+  m.chPipe={};
+  m.signedIds.forEach(id=>{if(closedSet.has(id))return;
+    const src=m.leadSrcById[id]||SOURCE_OVERRIDES[id]||'(unmapped)';
+    const ch=CHANNEL_MAP[src]||src;m.chPipe[ch]=(m.chPipe[ch]||0)+1});
+
+  // PARTNER channels get a panel, not a ROAS row: zero upfront spend makes ROAS a
+  // divide-by-zero. Reported on the terms where they can actually win or lose.
+  m.partnerTable=Object.keys(PARTNER_CH).map(ch=>({c:ch,
+    rev:m.chRev[ch]||0, deals:m.chDeals[ch]||0, leads:m.chLeads[ch]||0, pipe:m.chPipe[ch]||0,
+    lmCut:m.chLmCut[ch]||0, netAfterLm:(m.chRev[ch]||0)-(m.chLmCut[ch]||0),
+    l2c:(m.chLeads[ch]||0)?(m.chDeals[ch]||0)/(m.chLeads[ch]||0):null,
+    errs:m.chRateErr[ch]||[]})).sort((a,b)=>b.rev-a.rev||b.leads-a.leads);
+  // Partner channels are no longer excluded from the ROAS table — they appear with
+  // "n/a — rev share" in the ROAS cell and a real CONTRIB/DEAL. This list is kept
+  // only as the roster the partner panel renders from; nothing is omitted anywhere.
+  m.partnerChannels=Object.keys(PARTNER_CH);
+  m.channelMapLoaded=CHANNEL_MAP_LOADED;
 
   const E=rows(T['OpEx']);const ei={d:idx(E.hdr,'Month'),t:idx(E.hdr,'Type'),v:idx(E.hdr,'Monthly Cost')};
   m.opexCashMo=Array(12).fill(0);m.opexImpMo=Array(12).fill(0);
@@ -410,11 +523,26 @@ function model(T){
      meta:`${m.booked} booked ÷ ${m.leads.length} leads`}
   ].sort((a,b)=>(b.ytd+b.fwd)-(a.ytd+a.fwd));
 
-  m.chTable=Object.keys({...m.spendByCh,...m.chRev}).filter(c=>c!=='(unmapped)')
+  // Partner channels are back IN this table. Their ROAS cell reads "n/a — rev share"
+  // rather than a number, which is the honest rendering of a divide-by-zero; excluding
+  // them entirely made a possibly-best channel look like it did not exist.
+  // ROSTER COMES FROM THE WORKBOOK. Channel Map §2 "In Capital Table" decides which
+  // channels get a row; falls back to spend-or-revenue only when the tab isn't served.
+  const roster=Object.keys(CAPITAL_CH).length?Object.keys(CAPITAL_CH)
+                                             :Object.keys({...m.spendByCh,...m.chRev});
+  // A channel earning revenue while absent from the roster is a CONFIG ERROR, not a
+  // reason to drop its money on the floor — surface it by name instead of hiding it.
+  m.chOrphanRev=Object.keys(CAPITAL_CH).length
+    ? Object.keys(m.chRev).filter(c=>c!=='(unmapped)'&&!CAPITAL_CH[c]&&(m.chRev[c]||0)>0) : [];
+  m.chTable=roster.filter(c=>c!=='(unmapped)')
     .map(c=>({c,cost:m.spendByCh[c]||0,rev:m.chRev[c]||0,leads:m.chLeads[c]||0,deals:m.chDeals[c]||0}))
-    .map(x=>({...x,roas:x.cost?x.rev/x.cost:null,cpl:x.leads?x.cost/x.leads:null,
+    .map(x=>({...x,partner:!!PARTNER_CH[x.c],
+      roas:PARTNER_CH[x.c]?null:(x.cost?x.rev/x.cost:null),
+      cpl:x.leads?x.cost/x.leads:null,
       lv:x.leads&&x.deals?x.deals/x.leads*m.avgGross:null}))
-    .sort((a,b)=>b.rev-a.rev||b.cost-a.cost);
+    .map(x=>({...x,cpd:contribPerDeal(x,m)}))
+    // CONTRIB/DEAL desc. Channels with no closed deal sort last, then by revenue.
+    .sort((a,b)=>(a.cpd==null)-(b.cpd==null)||(b.cpd||0)-(a.cpd||0)||b.rev-a.rev);
   return m;
 }
 
@@ -422,6 +550,33 @@ function model(T){
 const IC={good:'▲',bad:'▼',warn:'◆',info:'●'};
 function diag(list){return `<div class="card diag"><div class="d-h"><span class="d-scan"></span><h3>DIAGNOSIS — auto-derived from the data</h3></div>`+
   list.map(i=>`<div class="ins ${i.s}"><span class="ic">${IC[i.s]}</span><span>${i.t}</span></div>`).join('')+`</div>`}
+
+/* PARTNER CHANNEL PANEL — the deliberate replacement for a ROAS row. A channel with no
+   upfront spend cannot have a return-on-spend; ROAS would be a divide-by-zero dressed up
+   as a number. What it CAN be judged on: what it contributes net, and how efficiently its
+   leads convert against the paid channels — the one place it genuinely wins or loses. */
+function partnerPanel(m){
+  const P=m.partnerTable||[]; if(!P.length) return '';
+  const paid=(m.chTable||[]).filter(x=>x.cost>0);
+  const paidLeads=paid.reduce((s,x)=>s+x.leads,0), paidDeals=paid.reduce((s,x)=>s+x.deals,0);
+  const paidL2C=paidLeads?paidDeals/paidLeads:null;
+  return P.map(x=>`
+  <div class="card" style="margin-top:12px">
+    <h3>${esc(x.c)} — partner channel</h3>
+    <p class="sub">Rev-share paid on the HUD, so the partner's cut never enters CLT Buyers. No upfront spend ⇒ ROAS is undefined by construction — reported here instead of in the ROAS table.</p>
+    <div class="head-metric" style="margin-top:8px">
+      <span class="hm-big">${fmtK(x.rev)}</span>
+      <span class="hm-side">net contribution to CLT Buyers<br>${fmtK(x.netAfterLm)} after the LM ${(LM_SPLIT*100).toFixed(0)}% of gross (${fmtK(x.lmCut)})</span></div>
+    <div class="tbl" style="margin-top:12px"><table>
+      <tr><th>Metric</th><th class="num">${esc(x.c)}</th><th class="num">Paid channels</th></tr>
+      <tr><td>Lead → close</td><td class="num">${x.l2c!=null?pct(x.l2c):'—'}</td><td class="num">${paidL2C!=null?pct(paidL2C):'—'}</td></tr>
+      <tr><td>Leads received</td><td class="num">${x.leads}</td><td class="num">${paidLeads}</td></tr>
+      <tr><td>In pipeline — signed, not closed</td><td class="num">${x.pipe}</td><td class="num">—</td></tr>
+      <tr><td>Closed</td><td class="num">${x.deals}</td><td class="num">${paidDeals}</td></tr>
+    </table></div>
+    ${x.errs.length?`<p class="sub" style="margin-top:10px;color:var(--red)">⚠ Excluded from the money above — ${x.errs.map(esc).join(' · ')}</p>`:''}
+  </div>`).join('');
+}
 
 function insightsHome(m){const g=m.gaps[0];return [
   {s:m.runRate>=m.reqMo?'good':'bad',t:`Pace: run rate <b class="m">${fmtK(m.runRate)}/mo</b> vs required <b class="m">${fmtK(m.reqMo)}/mo</b> — ${m.runRate>=m.reqMo?'on pace':'<b>'+fmtK(m.reqMo-m.runRate)+'/mo behind</b>; at current rate the year lands ≈ <b class="m">'+fmtK(m.projEOY)+'</b>'}.`},
@@ -479,10 +634,16 @@ function insightsProfit(m){const nowMo=m.now.getMonth();const out=[];
 
 function insightsActivity(m){const out=[];
   const wks=Object.keys(m.callsWk).sort((a,b)=>{const[p,q]=[a,b].map(s=>s.split('/').map(Number));return p[0]-q[0]||p[1]-q[1]});
-  const j='Jordan Mathis';const jw=wks.map(w=>(m.callsWk[w]||{})[j]||0).filter((v,i)=>wks.length-i<=8);
-  if(jw.length>=8){const recent=jw.slice(-4).reduce((a,b)=>a+b,0)/4,prior=jw.slice(0,4).reduce((a,b)=>a+b,0)/4;
+  // One dial-trend line PER LM, roster-driven off the Team tab. A literal name here
+  // meant a second LM's dials were simply never reported.
+  lmTeam().forEach(lm=>{
+    const jw=wks.map(w=>(m.callsWk[w]||{})[lm]||0).filter((v,i)=>wks.length-i<=8);
+    if(jw.length<8)return;
+    const recent=jw.slice(-4).reduce((a,b)=>a+b,0)/4,prior=jw.slice(0,4).reduce((a,b)=>a+b,0)/4;
+    if(!recent&&!prior)return;                       // never hired / no data — say nothing
     const ch=prior?(recent-prior)/prior:null;
-    out.push({s:ch>=0?'good':'warn',t:`Jordan's dials: last-4-week avg <b class="m">${Math.round(recent)}/wk</b> vs prior <b class="m">${Math.round(prior)}/wk</b> — ${ch!=null?(ch>=0?'▲ up ':'▼ down ')+pct(Math.abs(ch),0):''}.`})}
+    const first=String(lm).split(' ')[0];
+    out.push({s:ch>=0?'good':'warn',t:`${esc(first)}'s dials: last-4-week avg <b class="m">${Math.round(recent)}/wk</b> vs prior <b class="m">${Math.round(prior)}/wk</b> — ${ch!=null?(ch>=0?'▲ up ':'▼ down ')+pct(Math.abs(ch),0):''}.`})});
   if(m.speedAvg!=null)out.push({s:m.speedAvg<=5?'good':'warn',t:`Speed to lead averages <b class="m">${Math.round(m.speedAvg)} min</b> across ${m.speed.length} tracked leads${m.speedAvg>5?' — industry contact-rate cliff sits near 5 minutes; the slow ones are conversions leaking':''}.`});
   const chAvg=Object.entries(m.speedByCh||{}).map(([c,v])=>({c,avg:v.sum/v.n,n:v.n})).filter(x=>x.c!=='(untagged)');
   if(chAvg.length){const ga=chAvg.find(x=>x.c==='Google Ads');const rest=chAvg.filter(x=>x.c!=='Google Ads');
@@ -638,13 +799,19 @@ channels(m){const t=m.chTable,wc=t.filter(x=>x.cost>0);return {html:`
   <div class="card chart-card" style="margin-top:14px"><h3>ROAS by channel</h3><p class="sub">revenue ÷ all-in spend · tap a table row to drill in</p>
     <div class="chart-wrap"><canvas id="c1"></canvas></div></div>
   <div class="card" style="margin-top:12px"><div class="tbl"><table>
-    <tr><th>Channel</th><th class="num">Spend</th><th class="num">Rev</th><th class="num">ROAS</th><th class="num">Leads</th><th class="num">CPL</th><th class="num">Deals</th><th>Scale</th></tr>
+    <tr><th>Channel</th><th class="num">Spend</th><th class="num">Rev</th><th class="num">ROAS</th><th class="num">CONTRIB/DEAL</th><th class="num">Leads</th><th class="num">CPL</th><th class="num">Deals</th><th>Scale</th></tr>
     ${t.map(x=>`<tr class="rowlink" onclick="go('channel','${x.c.replace(/'/g,"\\'")}')">
-      <td style="color:var(--txt)">${x.c} ›</td><td class="num">${fmt$(x.cost)}</td><td class="num">${fmt$(x.rev)}</td>
-      <td class="num" style="color:${x.roas>=3?css('--green'):x.roas>=1?css('--glow'):x.roas==null?css('--txt3'):css('--red')}">${x.roas!=null?x.roas.toFixed(2)+'×':'—'}</td>
+      <td style="color:var(--txt)">${esc(chLabel(x.c))} ›</td><td class="num">${fmt$(x.partner?0:x.cost)}</td><td class="num">${fmt$(x.rev)}</td>
+      <td class="num" style="color:${x.partner?css('--txt3'):x.roas>=3?css('--green'):x.roas>=1?css('--glow'):x.roas==null?css('--txt3'):css('--red')}">${x.partner?'n/a — rev share':(x.roas!=null?x.roas.toFixed(2)+'×':'—')}</td>
+      <td class="num" style="color:${x.cpd!=null?css('--green'):css('--txt3')}">${x.cpd!=null?fmt$(x.cpd):'—'}</td>
       <td class="num">${x.leads}</td><td class="num">${x.cpl!=null?fmt$(x.cpl):'—'}</td><td class="num">${x.deals}</td>
       <td><span class="pill ${SCALABLE[x.c]==='linear'?'g':SCALABLE[x.c]==='not purchasable'?'a':'c'}">${SCALABLE[x.c]||'—'}</span></td></tr>`).join('')}
-  </table></div></div>
+  </table></div>
+  <p class="sub" style="margin-top:10px"><b>Rev</b> is what CLT Buyers banks — for a rev-share channel that is already NET of the partner's cut, so it is directly comparable to the paid channels. <b>CONTRIB/DEAL</b> = (gross revenue − acquisition cost) ÷ deals closed; acquisition cost is ad spend for paid channels and the partner's share of gross for rev-share. <b>—</b> means no closed deal yet, which is not the same as zero.</p>
+  ${m.chOrphanRev.length?`<p class="sub" style="margin-top:10px;color:var(--red)">⚠ Earning revenue but missing from the table: <b>${m.chOrphanRev.map(esc).join(', ')}</b> — set <b>In Capital Table = yes</b> on Channel Map §2, or this channel's revenue is invisible here.</p>`:''}
+  ${m.channelMapLoaded?'':`<p class="sub" style="margin-top:10px;color:var(--red)">⚠ Channel Map tab not served by /exec — the channel roster, partner flags and rates cannot be applied. Redeploy Code-owner.gs with 'Channel Map' in TABS.</p>`}
+  </div>
+  ${partnerPanel(m)}
   ${diag(insightsChannels(m))}`,
   mount(){mk('c1',{type:'bar',data:{labels:wc.map(x=>x.c),datasets:[{data:wc.map(x=>x.roas),borderRadius:7,
     backgroundColor:wc.map(x=>x.roas>=3?css('--green')+'CC':x.roas>=1?css('--glow')+'B3':css('--red')+'99')}]},
@@ -714,7 +881,12 @@ profit(m){const nowMo=m.now.getMonth();
 
 activity(m){const wks=Object.keys({...m.callsWk,...m.leadsByWk})
     .sort((a,b)=>{const[p,q]=[a,b].map(s=>s.split('/').map(Number));return p[0]-q[0]||p[1]-q[1]});
-  const users=[...m.callUsers];const pal={'Jordan Mathis':css('--glow'),'Michael Fichman':'#8FCBEF','ALEX':'#5E7791'};
+  // Fixed colours for the non-LM buckets; LMs take the brand ramp in roster order,
+  // so a second LM gets a distinct colour instead of falling through to the default.
+  const users=[...m.callUsers];
+  const LM_RAMP=[css('--glow'),'#7FD1AE','#E0A96D','#B49BE0'];
+  const pal={'Michael Fichman':'#8FCBEF','ALEX':'#5E7791','Unassigned':'#6B7A88'};
+  lmTeam().forEach((lm,i)=>{pal[lm]=LM_RAMP[i%LM_RAMP.length]});
   return {html:`
   <p class="eyebrow">Detail · 07 the engine</p><h1>Effort &amp; speed</h1>
   <div class="head-metric"><span class="hm-big">${m.speedAvg!=null?Math.round(m.speedAvg)+'<span style="font-size:.45em"> min</span>':'—'}</span>
