@@ -1,7 +1,13 @@
-/* CLT LM Scoreboard — service worker (Jordan's app).
+/* CLT LM Scoreboard — service worker (the LM app; one install per LM).
    HTML shell: NETWORK-FIRST (always pick up a new release on launch when online).
-   Versioned assets (?v=N): cache-first. Live data (Apps Script /exec): never cached. */
-const CACHE = 'clt-lm-v23';
+   Versioned assets (?v=N): cache-first. Live data (Apps Script /exec): never cached.
+
+   CACHE MUST TRACK V. `activate` deletes every cache whose key !== CACHE, so a
+   frozen name makes that sweep a permanent no-op and any release that changes an
+   asset WITHOUT bumping V is served stale from the same bucket forever. This name
+   sat at v23 while assets reached v44. Bump BOTH on every release — the owner
+   worker (sw.js) already does, which is why it never drifted. */
+const CACHE = 'clt-lm-v44';
 const V = '44';
 const SHELL = ['./lm.html', './lm-view.js?v=' + V, './lm-view.css?v=' + V, './lm-engine.js?v=' + V, './lm-gamify.js?v=' + V, './manifest-lm.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
