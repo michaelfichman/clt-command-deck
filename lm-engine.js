@@ -267,13 +267,15 @@
     // Contracts
     var k = tab('Contracts'), ki = colIndexer(k[0]);
     var contracts = rowsOf(k).map(function (r) {
-      return { signed: parseDate(r[ki('Signed Date')]), dispo: parseDate(r[ki('Disposition Date')]), outcome: String(r[ki('Outcome')] || '').trim(), contactId: r[ki('Contact ID')], name: r[ki('Contact Name')], property: r[ki('Property Address')] };
+      var g = grossCell(r[ki('Gross Assignment Fee')]);
+      return { signed: parseDate(r[ki('Signed Date')]), dispo: parseDate(r[ki('Disposition Date')]), outcome: String(r[ki('Outcome')] || '').trim(), contactId: r[ki('Contact ID')], name: r[ki('Contact Name')], property: r[ki('Property Address')], gross: g.v, grossErr: g.err };
     });
 
     // Closings (live) — drives EARNED at actual revenue
     var cl = tab('Closings'), cli = colIndexer(cl[0]);
     var closings = rowsOf(cl).map(function (r) {
-      return { date: parseDate(r[cli('Closed')]), revenue: +String(r[cli('Revenue')] == null ? '' : r[cli('Revenue')]).replace(/[^0-9.\-]/g, '') || 0, contactId: String(r[cli('Contact ID')] || ''), name: String(r[cli('Contact Name')] || '') };
+      var g = grossCell(r[cli('Gross Assignment Fee')]);
+      return { date: parseDate(r[cli('Closed')]), revenue: +String(r[cli('Revenue')] == null ? '' : r[cli('Revenue')]).replace(/[^0-9.\-]/g, '') || 0, contactId: String(r[cli('Contact ID')] || ''), name: String(r[cli('Contact Name')] || ''), gross: g.v, grossErr: g.err };
     }).filter(function (c) { return c.contactId || c.revenue; });
 
     return { calls: calls, leads: leads, appts: appts, offers: offers, contracts: contracts, closings: closings,
@@ -304,25 +306,51 @@
   // A deal's fee is only "earmarked" (binding) once its DISPO opp reaches the
   // "Under Contract" stage — a buyer is locked. Before that it's projected.
   function underContract(s) { return !!(s && /under\s*contract/i.test(String(s))); }
+  /* GROSS vs NET. A partner channel (Cardinal) pays its rev-share ON THE HUD, so
+     the money never reaches CLT Buyers and the value entered on every tab is NET.
+     The LM's split is calculated on the GROSS fee. This reads the workbook's own
+     derived-gross column — it never recomputes a partner rate, so the app cannot
+     disagree with the sheet. A non-numeric cell is the sheet's explicit "no rate
+     on file" alarm and is carried through as an ERROR, never coerced to a number. */
+  function grossCell(raw) {
+    if (typeof raw === 'number') return { v: raw, err: null };
+    var s = String(raw == null ? '' : raw).trim();
+    if (!s) return { v: null, err: null };
+    var n = Number(s.replace(/[$,\s]/g, ''));
+    return isFinite(n) ? { v: n, err: null } : { v: null, err: s };
+  }
   function comp(ds) {
     var split = ds.splitRate, avgFee = +ds.goals.avgWholesaleFee || 0, stages = ds.stages || {};
     var resC = resolveByContact(ds.contracts, ['dispo', 'signed']);
-    var earned = 0, earmarked = 0, projected = 0, earnedDeals = [], earmarkedDeals = [], projectedDeals = [];
-    // EARNED — actual closed revenue from the LIVE Closings tab (×split). Live on row-add.
+    var earned = 0, earmarked = 0, projected = 0, earnedDeals = [], earmarkedDeals = [], projectedDeals = [], rateErrors = [];
+    // Derived GROSS per contact, straight off the Contracts tab's computed column.
+    var grossBy = {};
+    (ds.contracts || []).forEach(function (r) {
+      if (!r.contactId) return;
+      if (r.grossErr) grossBy[r.contactId] = { v: null, err: r.grossErr };
+      else if (r.gross != null && grossBy[r.contactId] == null) grossBy[r.contactId] = { v: r.gross, err: null };
+    });
+    // EARNED — actual closed revenue from the LIVE Closings tab (×split on GROSS). Live on row-add.
     (ds.closings || []).forEach(function (c) {
       var rev = +c.revenue || 0; if (!rev && !c.contactId) return;
-      var ec = rev * split; earned += ec;
-      earnedDeals.push({ name: c.name || c.contactId, fee: rev, cut: ec, stage: 'closed' });
+      if (c.grossErr) { rateErrors.push({ name: c.name || c.contactId, stage: 'closed', msg: c.grossErr }); return; }
+      var base = (c.gross != null ? c.gross : rev);
+      var ec = base * split; earned += ec;
+      earnedDeals.push({ name: c.name || c.contactId, fee: base, net: rev, partner: base > rev, cut: ec, stage: 'closed' });
     });
     var closedIds = {}; (ds.closings || []).forEach(function (c) { if (c.contactId) closedIds[c.contactId] = true; });
     Object.keys(resC).forEach(function (id) {
       var st = (resC[id].row.outcome || '').toLowerCase(), nm = resC[id].row.name, stg = stages[id] || '', realFee = +ds.fees[id] || 0;
       if (st === 'closed' || closedIds[id]) return;      // EARNED is sourced from the Closings tab
       if (st === 'signed') {
+        // The split is on GROSS: prefer the sheet's derived gross, fall back to the stashed net.
+        var g = grossBy[id];
+        if (g && g.err) { rateErrors.push({ name: nm, stage: stg || 'signed', msg: g.err }); return; }
+        var base = (g && g.v != null) ? g.v : realFee;
         // EARMARKED — signed AND dispo "Under Contract": the one bucket that needs the nightly stash (stage + real fee).
-        if (underContract(stg)) { var mc = realFee * split; earmarked += mc; earmarkedDeals.push({ name: nm, fee: realFee, cut: mc, stage: stg }); }
+        if (underContract(stg)) { var mc = base * split; earmarked += mc; earmarkedDeals.push({ name: nm, fee: base, net: realFee, partner: base > realFee, cut: mc, stage: stg }); }
         // PROJECTED — signed, not yet locked: LIVE from the Contracts tab. Use the real fee if the routine has stashed it, else the avg fee so a just-added deal prices immediately.
-        else { var pf = realFee || avgFee, pc = pf * split; projected += pc; projectedDeals.push({ name: nm, fee: pf, cut: pc, stage: stg || 'pre-contract', est: !realFee }); }
+        else { var pf = base || avgFee, pc = pf * split; projected += pc; projectedDeals.push({ name: nm, fee: pf, net: realFee, partner: realFee > 0 && pf > realFee, cut: pc, stage: stg || 'pre-contract', est: !realFee }); }
       }
       // cancelled → 0
     });
@@ -338,7 +366,8 @@
       split: split, avgFee: avgFee,
       earned: earned, earmarked: earmarked, projected: projected, potential: potential,
       totalOpportunity: earmarked + projected + potential,
-      earnedDeals: earnedDeals, earmarkedDeals: earmarkedDeals, projectedDeals: projectedDeals, openOffers: openOffers
+      earnedDeals: earnedDeals, earmarkedDeals: earmarkedDeals, projectedDeals: projectedDeals, openOffers: openOffers,
+      rateErrors: rateErrors
     };
   }
 

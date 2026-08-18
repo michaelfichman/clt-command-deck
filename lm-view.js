@@ -115,7 +115,17 @@ function lmCoach(M,key){
   return L[key]||'';
 }
 function lmCoachBlock(M,key){const x=lmCoach(M,key);return x?'<div class="lm-coach"><div class="lm-d-h">COACH — what moves the number</div><p>'+x+'</p></div>':'';}
-function lmDealList(title,deals){if(!deals||!deals.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+deals.length+')</div>'+deals.map(d=>'<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+d.name+'</div>'+((d.stage||d.est)?'<div class="lm-rsub">'+(d.stage||'')+(d.est?(d.stage?' · ':'')+'est. at avg fee':'')+'</div>':'')+'</div><div class="lm-rmetric lm-rd br">'+(d.est?'~':'')+lmMoney(d.cut)+'</div></div>').join('')+'</div>';}
+function lmDealList(title,deals){if(!deals||!deals.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+deals.length+')</div>'+deals.map(d=>{
+  // A partner-channel deal pays its rev-share on the HUD, so the fee shown here is the
+  // GROSS the split is taken on — always name it, or the cut reads like the wrong percent.
+  const sub=[d.stage||'',d.est?'est. at avg fee':'',d.partner?'gross fee '+lmMoney(d.fee)+' · CLT receives '+lmMoney(d.net):''].filter(Boolean).join(' · ');
+  return '<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+d.name+'</div>'+(sub?'<div class="lm-rsub">'+sub+'</div>':'')+'</div><div class="lm-rmetric lm-rd br">'+(d.est?'~':'')+lmMoney(d.cut)+'</div></div>';}).join('')+'</div>';}
+/* Partner-rate alarm. A deal whose close date falls outside every rate term has NO
+   defensible gross — the sheet refuses to guess and so does this. Show the deal by
+   name and omit it from the money, never fold it in at a stale rate. */
+function lmRateAlarm(c){const e=(c&&c.rateErrors)||[];if(!e.length)return '';
+  return '<div class="lm-reclist"><div class="lm-rec-h">⚠ Excluded — no partner rate on file ('+e.length+')</div>'+
+    e.map(x=>'<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+x.name+'</div><div class="lm-rsub">'+x.msg+'</div></div><div class="lm-rmetric lm-rd">—</div></div>').join('')+'</div>';}
 function lmOfferList(title,offers){if(!offers||!offers.length)return '';return '<div class="lm-reclist"><div class="lm-rec-h">'+title+' ('+offers.length+')</div>'+offers.map(o=>'<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+o.name+'</div>'+(o.property?'<div class="lm-rsub">'+o.property+'</div>':'')+'</div><div class="lm-rmetric lm-rd">~'+lmMoney(o.est)+'</div></div>').join('')+'</div>';}
 /* Per-bucket earnings view — opened from a comp card. Focuses on ONE stage of
    money (Earned/Earmarked/Projected/Potential): its $, the exact deals/offers
@@ -136,6 +146,7 @@ function lmEarnView(M,person,lens,bucket){
   h+='<p class="lede">'+E.sub+'</p>';
   const list=E.kind==='offer'?lmOfferList(E.label+' — offers out',E.deals):lmDealList(E.label,E.deals);
   h+=list||('<div class="lm-reclist"><div class="lm-rec none">'+E.empty+'</div></div>');
+  h+=lmRateAlarm(c);
   return h;
 }
 function lmDealsView(M,person,lens){
@@ -147,6 +158,7 @@ function lmDealsView(M,person,lens){
   h+='<div class="sec-h"><h2>Funnel</h2><span class="tag">'+LM_LBL[lens]+'</span></div><div class="lm-funnel">'+funnel.map(f=>'<div class="lm-frow"><span class="lm-fl">'+f[0]+'</span><span class="lm-fv">'+lmNum(f[1])+'</span></div>').join('')+'</div>';
   h+=lmDealList('Under contract — earmarked',c.earmarkedDeals)+lmDealList('Projected — pre-contract',c.projectedDeals)+lmOfferList('Offers out — potential',c.openOffers);
   if(c.earnedDeals.length)h+=lmDealList('Closed — earned',c.earnedDeals);
+  h+=lmRateAlarm(c);
   return h;
 }
 /* ── Focus On: backsolve company goal → required volumes + biggest $ lever ── */
@@ -167,12 +179,15 @@ function lmFocus(M){
   const needShows=a2c?dealsMo/a2c:0,needBooked=(a2c&&sr)?dealsMo/a2c/sr:0,needLeads=(a2c&&sr&&l2a)?dealsMo/a2c/sr/l2a:0,needDials=cpb?needBooked*cpb:null;
   return {avgDeal:avgDeal,split:split,perDeal:perDeal,perShow:perShow,perBooked:perBooked,perLead:perLead,perDial:perDial,a2c:a2c,sr:sr,l2a:l2a,tA2C:tA2C,cpb:cpb,apptsWk:apptsWk,dialsDay:dialsDay,showsWk:showsWk,leadsWk:leadsWk,tL2A:(+g.leadToAppt||0.15),monthGoal:monthGoal,dealsMo:dealsMo,needShows:needShows,needBooked:needBooked,needLeads:needLeads,needDials:needDials,lmShareMo:dealsMo*perDeal};
 }
-function lmBench(){
-  if(typeof RAW==='undefined'||!RAW['Calls'])return null;
+/* Talk-time-per-call benchmark: this LM vs Michael's pre-hire bar. PERSON-DRIVEN —
+   passing the name in is what lets a second LM see their own bar. A literal here
+   meant any other LM silently scored 0 calls and the whole block vanished. */
+function lmBench(person){
+  if(typeof RAW==='undefined'||!RAW['Calls']||!person)return null;
   const C=RAW['Calls'],h=C[0],ui=h.findIndex(x=>String(x).toLowerCase().trim()==='user'),tci=h.findIndex(x=>/total calls/i.test(x)),tti=h.findIndex(x=>/total talk/i.test(x));
   const cut=new Date(2026,3,22);let jt=0,jc=0,mt=0,mc=0;
   for(let i=1;i<C.length;i++){const u=String(C[i][ui]||''),d=LMEngine.parseDate(C[i][0]),tc=+C[i][tci]||0,tt=+C[i][tti]||0;
-    if(u==='Jordan Mathis'){jt+=tt;jc+=tc;}else if(u==='Michael Fichman'&&d&&d<cut){mt+=tt;mc+=tc;}}
+    if(u===person){jt+=tt;jc+=tc;}else if(u==='Michael Fichman'&&d&&d<cut){mt+=tt;mc+=tc;}}
   return {j:jc?jt/jc:null,m:mc?mt/mc:null,jc:jc,mc:mc};
 }
 /* Living lever library — every item computed off f (his live rates).
@@ -234,7 +249,7 @@ function lmFocusView(M,person){
   if(f.monthGoal){h+='<div class="lm-foc"><div class="lm-foc-h">Carry the company goal → '+lmMoney(f.lmShareMo)+'/mo to you</div><p class="lm-foc-sub">'+lmR(f.dealsMo,1)+' deals/mo. The daily pace that gets you paid:</p><table class="lm-foc-t"><tr><th>do</th><th>/mo</th><th>5-day/day</th><th>+Sat/day</th></tr>';
     const row=(l,mo)=>'<tr><td>'+l+'</td><td>'+lmR(mo,1)+'</td><td>'+lmR(mo/21.7,1)+'</td><td>'+lmR(mo/26,1)+'</td></tr>';
     h+=row('Leads worked',f.needLeads)+row('Booked appts',f.needBooked)+row('Showed',f.needShows)+(f.needDials?row('Dials',f.needDials):'')+'</table></div>';}
-  const b=lmBench();
+  const b=lmBench(person);
   if(b&&b.m!=null&&b.j!=null){h+='<div class="lm-foc"><div class="lm-foc-h">Your bar to beat — talk time per call</div><div class="lm-bench"><div class="lm-bn"><span>You</span><b>'+lmR(b.j,2)+'m</b></div><div class="lm-bn"><span>Michael · pre-hire</span><b>'+lmR(b.m,2)+'m</b></div></div><p class="lm-foc-sub">'+(b.j<b.m?'You’re <b>'+lmR(b.m-b.j,2)+'m shorter</b> per call than the pre-hire bar — and each booked appt is <b>'+lmMoney(f.perBooked)+'</b> to you. Better conversations book more appts.':'You’re matching the pre-hire bar on connect quality — keep it up.')+'</p></div>';}
   return h;
 }

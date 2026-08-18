@@ -64,8 +64,15 @@ var SHEET_ID = '1MT1lc3bsB2Wf-ELv_-HGqt400BDAQbK0o5TcBa-hC0w';
    token; an LM literally cannot request another LM's data (no person param).
    REDACTED for the public repo — the live token lives ONLY in the deployed
    editor. Re-insert it before pasting (see REDEPLOY CHECKLIST at top). */
+/* !! THE PLACEHOLDERS MUST STAY DISTINCT. This is an OBJECT keyed by token: two
+   keys with the same literal silently collapse to ONE entry and the last one wins,
+   which would leave an LM unable to authenticate with no error anywhere. Each LM
+   gets their own placeholder, and each must be replaced with a DIFFERENT real
+   token in the deployed editor. Never hand two LMs the same token — the token IS
+   the identity, so a shared one serves the wrong person's scoped data. */
 var LM_TOKENS = {
-  'SET-IN-DEPLOYED-EDITOR': 'Jordan Mathis'
+  'SET-IN-DEPLOYED-EDITOR-JORDAN': 'Jordan Mathis',
+  'SET-IN-DEPLOYED-EDITOR-ANDREW': 'Andrew Estrada'
 };
 
 var LM_DEFAULT_SPLIT = 0.10;   // LM earns 10% of each wholesale fee.
@@ -73,14 +80,29 @@ var LM_DEFAULT_SPLIT = 0.10;   // LM earns 10% of each wholesale fee.
 /* LM-safe, person-attributed tabs and the 0-based column holding the person's
    name. `cols` (optional) caps how many leading columns ship — used to drop a
    tab's side/summary block. Every column of these tabs is non-dollar, so
-   row-filtering to the LM leaks no company money. */
+   row-filtering to the LM leaks no company money.
+
+   COLUMNS ARE RESOLVED BY HEADER NAME, never by index. A `Current Owner` column
+   was inserted into Leads at I; any index-based lookup to its right would have
+   shifted by one and scoped the dashboard off the wrong column — silently, with
+   no error. The numeric `attr`/`member` values remain ONLY as a last-resort
+   fallback for a tab whose headers get renamed.
+
+   `attrNames` is an ORDERED PREFERENCE resolved PER ROW to the first non-blank:
+   on Leads that is `Current Owner` (who works the lead now) falling back to
+   `Assigned User` (who was given it at creation). Those are two different facts
+   and both are kept. A row the backfill missed still scopes to someone instead
+   of disappearing. */
 var PERSON_TABS = {
-  'Leads':         { attr: 6 },                // G Assigned User (single-attribution)
-  'Appointments':  { attr: 3, member: 9 },     // D Booker (LM); opportunity key = J Contact ID
-  'Offers':        { attr: 3, member: 9 },     // D Booker (LM); opportunity key = J Contact ID
-  'Contracts':     { attr: 4, member: 10 },    // E Booker (LM); opportunity key = K Contact ID
-  'Calls':         { attr: 1 },                // B User (single-attribution)
-  'Speed to Lead': { attr: 6, cols: 25 }       // G Assigned User; A–Y (N:Q speeds, V:Y connect funnel)
+  'Leads':         { attrNames: ['Current Owner', 'Assigned User'], attr: 6 },
+  'Appointments':  { attrNames: ['Booker (LM)'], memberNames: ['Contact ID'], attr: 3, member: 9 },
+  'Offers':        { attrNames: ['Booker (LM)'], memberNames: ['Contact ID'], attr: 3, member: 9 },
+  'Contracts':     { attrNames: ['Booker (LM)'], memberNames: ['Contact ID'], attr: 4, member: 10 },
+  'Calls':         { attrNames: ['User'], attr: 1 },
+  // NOTE: Speed to Lead has its OWN Assigned User column and no Current Owner
+  // column, so it is still scoped at-creation. Reassigned leads stay on the
+  // previous owner's speed funnel until that tab gains the same treatment.
+  'Speed to Lead': { attrNames: ['Assigned User'], attr: 6, cols: 25 }
 };
 
 /* Curated Goals allow-list (default-DENY): ONLY these labels leave the
@@ -151,6 +173,18 @@ function doGet(e) {
    Without this, a deal's terminal status would be invisible to the LM and an
    AM-declined offer would wrongly read as "open." Only the LM's OWN
    opportunities are included, and these tabs carry no dollar columns. */
+/* Header-name → column index. Returns EVERY named column that exists, in the
+   order named, so the caller can coalesce across them per row. */
+function colsByName_(header, names) {
+  var out = [];
+  (names || []).forEach(function (n) {
+    for (var i = 0; i < header.length; i++) {
+      if (norm_(header[i]) === norm_(n)) { out.push(i); return; }
+    }
+  });
+  return out;
+}
+
 function scopeTab_(ss, name, cfg, person) {
   var sh = ss.getSheetByName(name);
   if (!sh) return null;
@@ -160,21 +194,43 @@ function scopeTab_(ss, name, cfg, person) {
   var want = norm_(person);
   var out = [values[0].slice(0, width)];
 
-  if (cfg.member == null) {                 // single-attribution
+  // Ownership columns, by header name; numeric `attr` only if no header matched.
+  var attrIdx = colsByName_(values[0], cfg.attrNames);
+  if (!attrIdx.length && cfg.attr != null) attrIdx = [cfg.attr];
+  if (!attrIdx.length) return out;          // no ownership column -> visibly empty, not silently everyone
+
+  // The owner is the FIRST NON-BLANK across the preference list, evaluated per row.
+  function ownerOf(row) {
+    for (var k = 0; k < attrIdx.length; k++) {
+      var v = row[attrIdx[k]];
+      if (v != null && String(v).trim() !== '') return norm_(v);
+    }
+    return '';
+  }
+
+  var memberIdx = -1;
+  if (cfg.memberNames) {
+    var m = colsByName_(values[0], cfg.memberNames);
+    memberIdx = m.length ? m[0] : (cfg.member == null ? -1 : cfg.member);
+  } else if (cfg.member != null) {
+    memberIdx = cfg.member;
+  }
+
+  if (memberIdx < 0) {                      // single-attribution
     for (var i = 1; i < values.length; i++) {
-      if (norm_(values[i][cfg.attr]) === want) out.push(values[i].slice(0, width));
+      if (ownerOf(values[i]) === want) out.push(values[i].slice(0, width));
     }
     return out;
   }
 
   var ids = {};                             // opportunity membership
   for (var a = 1; a < values.length; a++) {
-    if (norm_(values[a][cfg.attr]) === want) {
-      var k = values[a][cfg.member]; if (k) ids[k] = true;
+    if (ownerOf(values[a]) === want) {
+      var k = values[a][memberIdx]; if (k) ids[k] = true;
     }
   }
   for (var b = 1; b < values.length; b++) {
-    var k2 = values[b][cfg.member];
+    var k2 = values[b][memberIdx];
     if (k2 && ids[k2]) out.push(values[b].slice(0, width));
   }
   return out;
