@@ -63,7 +63,12 @@ var TABS = [
   'Channel Map'
 ];
 
-var TOKENS = ['SET-IN-DEPLOYED-EDITOR', 'SET-IN-DEPLOYED-EDITOR'];   // two live tokens (you + Ed); real values only in the deployed editor
+/* One token per person. Replace BOTH with real, DIFFERENT values in the deployed
+   editor; delete the second entry if Ed does not hold one. NEVER leave an empty
+   string in this array — doGet falls back to token='' when none is supplied, and
+   an '' entry would make that fallback a valid token, authorizing anyone with the
+   URL to the full company P&L. */
+var TOKENS = ['SET-IN-DEPLOYED-EDITOR-MICHAEL', 'SET-IN-DEPLOYED-EDITOR-ED'];
 
 function doGet(e) {
   var out = {};
