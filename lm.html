@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="lm-view.css?v=44">
+<link rel="stylesheet" href="lm-view.css?v=45">
 <style>
 /* brand tokens — identical to the owner deck so colors/typography match exactly */
 :root{
@@ -78,9 +78,9 @@ h3{font-family:Sora;font-weight:700}
   <main id="view"></main>
 </div>
 
-<script src="lm-engine.js?v=44"></script>
-<script src="lm-gamify.js?v=44"></script>
-<script src="lm-view.js?v=44"></script>
+<script src="lm-engine.js?v=45"></script>
+<script src="lm-gamify.js?v=45"></script>
+<script src="lm-view.js?v=45"></script>
 <script>
 /* Jordan's host shell. Data is PRE-SCOPED by Code-LM.gs (server-side); this
    client only fetches → buildModel → renders the shared LM view. No RAW, so
@@ -92,7 +92,10 @@ h3{font-family:Sora;font-weight:700}
   function mk(id,conf){if(charts[id])charts[id].destroy();var el=$(id);if(el&&window.Chart)charts[id]=new Chart(el,conf);}
   function setDot(s,msg){var d=$('dot');if(d)d.className='dot '+(s==='ok'?'ok':s==='err'?'err':'load');var f=$('fresh');if(f)f.textContent=msg;}
 
-  function readHash(){var h=new URLSearchParams(location.hash.slice(1));if(h.get('e'))cfg.url=h.get('e');if(h.get('t'))cfg.tok=h.get('t');cfg.role=h.get('r')||cfg.role||'lm';if(h.get('lens'))route.lens=h.get('lens');route.metric=h.get('m')||null;}
+  function readHash(){var h=new URLSearchParams(location.hash.slice(1));if(h.get('e'))cfg.url=h.get('e');if(h.get('t'))cfg.tok=h.get('t');cfg.role=h.get('r')||cfg.role||'lm';if(h.get('lens'))route.lens=h.get('lens');route.metric=h.get('m')||null;
+    /* #flag=<item_key>&type=<item_type>&owner=<Team name>&date=<memo_date> — the email's flag link. The hash only PREFILLS
+       the form (owner is a display hint); the flag's item_owner is always M.person, the identity the token resolved to. */
+    if(h.get('flag')){LM_FLAG_CTX={item_type:h.get('type')||'task',item_key:h.get('flag'),memo_date:h.get('date')||'',owner_hint:h.get('owner')||'',label:''};route.metric='tasks';}}
   function writeHash(){var h=new URLSearchParams();if(cfg.url)h.set('e',cfg.url);if(cfg.tok)h.set('t',cfg.tok);h.set('r',cfg.role);h.set('lens',route.lens);if(route.metric)h.set('m',route.metric);try{history.replaceState(null,'','#'+h.toString());}catch(e){}}
   function save(){try{localStorage.setItem('clt_lm',JSON.stringify({url:cfg.url,tok:cfg.tok}));}catch(e){}}
   function loadCfg(){try{var s=localStorage.getItem('clt_lm');if(s){var o=JSON.parse(s);cfg.url=cfg.url||o.url||'';cfg.tok=cfg.tok||o.tok||'';}}catch(e){}}
@@ -104,7 +107,7 @@ h3{font-family:Sora;font-weight:700}
     if(!M)return;
     var person=route.person||M.person||'', lens=route.lens||'week', metric=route.metric||'', team=[person];
     var html;
-    try{html=metric==='focus'?lmFocusView(M,person):metric==='deals'?lmDealsView(M,person,lens):LM_EARN[metric]?lmEarnView(M,person,lens,metric):(metric?lmDetail(M,person,lens,metric):lmHome(M,person,lens,team));}
+    try{html=metric==='tasks'?lmTasksView(M,person):metric==='focus'?lmFocusView(M,person):metric==='deals'?lmDealsView(M,person,lens):LM_EARN[metric]?lmEarnView(M,person,lens,metric):(metric?lmDetail(M,person,lens,metric):lmHome(M,person,lens,team));}
     catch(err){html='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-coach"><div class="lm-d-h">RENDER ERROR (tap to go back)</div><p>'+String((err&&err.message)||err)+'</p></div>';}
     $('view').innerHTML=html;
     lmChartMount('lmchart',M,lens,metric,{mk:mk,css:css});
@@ -116,6 +119,7 @@ h3{font-family:Sora;font-weight:700}
     fetch(u,{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
       if(!j||!j.ok)throw new Error((j&&j.error)||'bad payload');
       M=window.LMGamify.gamify(window.LMEngine.buildModel(j));
+      M.tasks=lmTasksParse(j.tabs);          // tabs.Tasks / tabs.Review, already scoped by Code-LM.gs; null tab → present:false
       route.person=M.person||route.person||'';
       $('setup').style.display='none';$('app').style.display='';
       setDot('ok','live · '+new Date().toLocaleTimeString());
@@ -128,7 +132,18 @@ h3{font-family:Sora;font-weight:700}
 
   window.LMApp={
     connect:function(){cfg.url=$('inUrl').value.trim();cfg.tok=$('inTok').value.trim();if(!cfg.url||!cfg.tok){$('setupErr').textContent='Enter both the /exec URL and the token.';return;}save();writeHash();load();},
-    refresh:function(){if(cfg.url&&cfg.tok)load();}
+    refresh:function(){if(cfg.url&&cfg.tok)load();},
+    /* Tasks & Review writes (apps-script/TASKS.md). Body is a JSON string sent as text/plain so the browser skips the
+       CORS preflight; Apps Script answers with a redirect, so follow it. On ok the whole payload is re-fetched. */
+    post:function(action,fields){
+      if(!cfg.url||!cfg.tok)return Promise.resolve({ok:false,error:'not connected'});
+      var body=Object.assign({token:cfg.tok,action:action},fields||{});
+      return fetch(cfg.url,{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'},redirect:'follow'})
+        .then(function(r){return r.json();})
+        .then(function(j){if(j&&j.ok)load();return j||{ok:false,error:'bad payload'};})
+        .catch(function(e){return {ok:false,error:String((e&&e.message)||e)};});
+    },
+    showTasks:function(){route.metric='tasks';writeHash();render();}
   };
 
   readHash();loadCfg();

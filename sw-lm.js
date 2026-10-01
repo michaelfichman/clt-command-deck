@@ -7,8 +7,8 @@
    asset WITHOUT bumping V is served stale from the same bucket forever. This name
    sat at v23 while assets reached v44. Bump BOTH on every release — the owner
    worker (sw.js) already does, which is why it never drifted. */
-const CACHE = 'clt-lm-v44';
-const V = '44';
+const CACHE = 'clt-lm-v45';
+const V = '45';
 const SHELL = ['./lm.html', './lm-view.js?v=' + V, './lm-view.css?v=' + V, './lm-engine.js?v=' + V, './lm-gamify.js?v=' + V, './manifest-lm.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

@@ -66,7 +66,7 @@ if(rc.estimated)h+='<div class="lm-reach-row sub"><span>connects on estimated ba
 if(rc.inbound.att||rc.cold.att){h+='<div class="lm-reach-row sub"><span>· inbound leads reached</span><b>'+rc.inbound.con+' / '+rc.inbound.att+' ('+pct(rc.inbound.con,rc.inbound.att)+')</b></div>';h+='<div class="lm-reach-row sub"><span>· cold list (MLS) reached</span><b>'+rc.cold.con+' / '+rc.cold.att+' ('+pct(rc.cold.con,rc.cold.att)+')</b></div>';}
 if(rc.never.length)h+='<div class="lm-reach-never"><span>Attempted, never connected ('+rc.never.length+') — coaching targets:</span> '+rc.never.slice(0,12).join(', ')+(rc.never.length>12?' +'+(rc.never.length-12)+' more':'')+'</div>';
 h+='<div class="lm-reach-never">Reach depends on lead mix (inbound answers; cold lists screen calls) and young leads connect late — diagnose, don\'t race it.</div></div>';return h;}
-function lmHome(M,person,lens,team){return '<div class="lm-head"><div><p class="eyebrow">LM Scoreboard</p><h1>'+person+'</h1></div>'+lmPicker(person,team)+'</div><div class="lm-clockbar">this device&rsquo;s clock → <span id="lm-clock">'+lmNowLbl()+'</span></div>'+lmLensBar(person,lens)+lmComp(M,person,lens)+'<section class="lm-hero">'+lmStreakHL(M,lens)+lmPaceDay(M)+'</section><div class="sec-h"><h2>Scoreboard</h2><span class="tag">'+LM_LBL[lens]+' · tap a tile</span></div><section class="lm-tiles">'+LM_TILES.map(t=>lmTile(M,person,lens,t)).join('')+'</section><button class="lm-deals-btn focusbtn" onclick="lmGo(\''+person+'\',\''+lens+'\',\'focus\')">💰 Make More Money — your earning levers →</button><button class="lm-deals-btn" onclick="lmGo(\''+person+'\',\''+lens+'\',\'deals\')">⊞ Deals &amp; Pipeline — '+lmMoney(M.comp.totalOpportunity)+' in play →</button><div class="lm-lb">Solo · self-competition. Head-to-head ranking activates when a 2nd LM joins.</div>';}
+function lmHome(M,person,lens,team){return '<div class="lm-head"><div><p class="eyebrow">LM Scoreboard</p><h1>'+person+'</h1></div>'+lmPicker(person,team)+'</div><div class="lm-clockbar">this device&rsquo;s clock → <span id="lm-clock">'+lmNowLbl()+'</span></div>'+lmLensBar(person,lens)+lmComp(M,person,lens)+'<section class="lm-hero">'+lmStreakHL(M,lens)+lmPaceDay(M)+'</section><div class="sec-h"><h2>Scoreboard</h2><span class="tag">'+LM_LBL[lens]+' · tap a tile</span></div><section class="lm-tiles">'+LM_TILES.map(t=>lmTile(M,person,lens,t)).join('')+'</section>'+lmTasksBtn(M,person,lens)+'<button class="lm-deals-btn focusbtn" onclick="lmGo(\''+person+'\',\''+lens+'\',\'focus\')">💰 Make More Money — your earning levers →</button><button class="lm-deals-btn" onclick="lmGo(\''+person+'\',\''+lens+'\',\'deals\')">⊞ Deals &amp; Pipeline — '+lmMoney(M.comp.totalOpportunity)+' in play →</button><div class="lm-lb">Solo · self-competition. Head-to-head ranking activates when a 2nd LM joins.</div>';}
 function lmDetail(M,person,lens,key){const t=lmTileDef(key),lm=M.lenses[lens][key],g=lm.game;let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-head"><div><p class="eyebrow">'+(lens==='today'?lmRel(lm.anchorDate):LM_LBL[lens])+'</p><h1>'+t.label+'</h1></div>'+lmLensBar(person,lens,key)+'</div><div class="lm-big '+lmPaceCls(lm.paceState)+'">'+LM_FMT[t.fmt](lm.current)+'</div><div class="lm-cmp">'+lmDelta(lm.comparePct,t.low)+' vs '+LM_PRIOR[lens]+' ('+(lm.comparisonEst?'~':'')+LM_FMT[t.fmt](lm.comparison)+(lm.comparisonEst?' pace':'')+')</div>'+lmBars(lm,t)+(LM_CALLKEYS[key]?lmCallLadder(M,lens,key):'')+(key==='speed'?lmSpeedBySource(lm,t):'')+(key==='reached'?lmReachPanel(M,lens):'');if(g){h+='<div class="lm-gcards">';if(g.streak)h+='<div class="lm-gc"><div class="lm-gl">Streak</div><div class="lm-gv">'+g.streak.current+'</div><div class="lm-gs">best '+g.streak.best+' '+LM_UNIT[lens]+'s</div></div>';if(g.pr&&g.pr.best)h+='<div class="lm-gc"><div class="lm-gl">Personal record</div><div class="lm-gv">'+LM_FMT[t.fmt](g.pr.best.value)+'</div><div class="lm-gs">'+g.pr.best.label+(g.pr.toTie?' · '+LM_FMT[t.fmt](g.pr.toTie)+' to tie':(g.pr.isRecord?' · NEW 🎉':''))+'</div></div>';if(g.paceToBeat&&g.paceToBeat.remaining!=null&&g.paceToBeat.daysLeft>0)h+='<div class="lm-gc"><div class="lm-gl">Pace to beat '+g.paceToBeat.basis+'</div><div class="lm-gv">'+(Math.round(g.paceToBeat.perDayNeeded*10)/10)+'/day</div><div class="lm-gs">'+LM_FMT[t.fmt](g.paceToBeat.remaining)+' over '+g.paceToBeat.daysLeft+'d</div></div>';h+='</div>';}h+='<div class="card chart-card"><h3>'+t.label+' · '+LM_LBL[lens]+'</h3><p class="sub">'+(RATIO2[key]?'two lines = the counts behind the % (e.g. showed vs booked)':'solid = you · dashed = your avg'+(g&&g.bars&&g.bars.target!=null?' · dotted = target':''))+'</p><div class="chart-wrap" onclick="lmFsOpen()"><canvas id="lmchart"></canvas><span class="chart-expand">⤢ tap to expand</span></div></div><div class="lm-diag"><div class="lm-d-h">READOUT</div>'+lmDiag(lm,t,lens).map(x=>'<p>'+x+'</p>').join('')+'</div>';h+=lmCoachBlock(M,key)+lmRecList(M,key,lens);return h;}
 /* ── records, dual-line ratios, coaching, deals view ── */
 function inWin(d,w){return !!(d&&d.getTime()>=w.start.getTime()&&d.getTime()<=w.end.getTime());}
@@ -270,7 +270,7 @@ function lmFsDraw(lens){if(!LM_FS_CTX)return;const M=LM_FS_CTX.M,metric=LM_FS_CT
 }
 function lmFsOpen(){if(!LM_FS_CTX)return;var host=document.getElementById('lm-fs');if(!host){host=document.createElement('div');host.id='lm-fs';host.className='lm-fs';document.body.appendChild(host);}try{document.documentElement.classList.add('lm-fs-on');}catch(e){}lmFsDraw(LM_FS_CTX.lens||'week');}
 function lmChartMount(cv,M,lens,metric,host){var mk=host.mk,css=host.css;try{
-  if(!metric||metric==='deals'||metric==='focus'||LM_EARN[metric])return;
+  if(!metric||metric==='deals'||metric==='focus'||metric==='tasks'||LM_EARN[metric])return;
   const lm=M.lenses[lens][metric],t=lmTileDef(metric),g=lm.game,gl=css('--glow'),amb=css('--amber'),grn=css('--green'),labels=lm.trend.map(x=>x.label);
   if(cv==='lmchart')LM_FS_CTX={M:M,metric:metric,lens:lens};   // stash for the tap-to-fullscreen view
   const big=cv==='lmfschart', fs=big?13:9, pr=big?4:3;
@@ -311,3 +311,127 @@ function lmChartMount(cv,M,lens,metric,host){var mk=host.mk,css=host.css;try{
   if(tg!=null)ds.push({label:'🎯 Target',data:labels.map(()=>tg),borderColor:grn,borderDash:[2,3],pointRadius:0,borderWidth:big?2.4:1.4,fill:false});
   mk(cv,{type:'line',data:{labels:labels,datasets:ds},options:opt(unit)});
 }catch(e){}}
+/* ═══════════════════════════════════════════════════════════════
+   TASKS & REVIEW (Phase 1) — contract: apps-script/TASKS.md
+   Shared by lm.html (the LM app: lmTasksView + the home button) and
+   index.html (the owner deck reuses lmTasksParse / lmTaskBuckets).
+   The server scopes the rows; the client filters AGAIN (defensive):
+   an LM never renders a visibility=owner row or another person's row.
+   Writes go through the host: window.LMApp.post(action, fields) —
+   fetch POST, text/plain body, redirect:'follow', then reload.
+   ═══════════════════════════════════════════════════════════════ */
+const LM_TASK_KINDS=['call-seller','text-seller','deliver-number','approve','decide','assign','enforce-lm-law','sit-in','check-in','escalation','walkthrough','follow-up','move-stage','fix-record','offer-owed','counter-owed','coaching','next-step','cadence','self'];
+const LM_FLAG_REASONS=[['not-mine','Not mine'],['already-done','Already done'],['wrong-ask','Wrong ask'],['wrong-lead','Wrong lead'],['wrong-fact','Wrong fact'],['wrong-category','Wrong category'],['score-disagree','I disagree with the score'],['voicemail-not-conversation','Voicemail, not a conversation'],['number-input-wrong','A number input is wrong'],['rule-wrong','The rule is wrong'],['other','Other']];
+const LM_FLAG_TYPES={task:1,text:1,call:1,deal:1,pulse:1,tracker:1};
+const lmEsc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* a JS string literal safe inside a double-quoted onclick attribute */
+const lmJsq=s=>"'"+String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,'\\n').replace(/</g,'\\x3c').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+"'";
+const lmDomId=s=>'lmt-'+String(s==null?'':s).replace(/[^A-Za-z0-9_-]/g,'_');
+const lmPad2=n=>(n<10?'0':'')+n;
+const lmDayStr=d=>d.getFullYear()+'-'+lmPad2(d.getMonth()+1)+'-'+lmPad2(d.getDate());   // device-local YYYY-MM-DD
+/* the calendar day of a cell: 'YYYY-MM-DD' as-is; an ISO datetime → the device-local day; else '' */
+function lmDayOf(v){const s=String(v==null?'':v).trim();if(!s)return '';if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const d=new Date(s);return isNaN(d)?'':lmDayStr(d);}
+/* epoch ms of a REAL datetime only (a date-only cell Sheets coerced to local midnight is not a time) */
+function lmMsOf(v){const s=String(v==null?'':v).trim();if(!s||/^\d{4}-\d{2}-\d{2}$/.test(s))return NaN;const d=new Date(s);if(isNaN(d)||(d.getHours()===0&&d.getMinutes()===0&&d.getSeconds()===0))return NaN;return d.getTime();}
+/* header row + rows → objects keyed by header name (one parser for every tab of this shape) */
+function lmTabObjs(tab){if(!Array.isArray(tab)||!tab.length)return [];const h=(tab[0]||[]).map(x=>String(x==null?'':x).trim()),out=[];for(let i=1;i<tab.length;i++){const r=tab[i]||[],o={};for(let j=0;j<h.length;j++)if(h[j])o[h[j]]=r[j]==null?'':r[j];out.push(o);}return out;}
+/* tabs.Tasks / tabs.Review → {present, tasks, flags}. present=false when the endpoint sent no Tasks tab (null). */
+function lmTasksParse(tabs){tabs=tabs||{};const present=Array.isArray(tabs.Tasks);
+  const tasks=present?lmTabObjs(tabs.Tasks).map(t=>{['task_id','owner','visibility','status','kind','source','lead','ask','why','due','date','note','done_at','done_by','snoozed_until','ghl_url','contact_id','opp_id','created_by'].forEach(k=>t[k]=String(t[k]==null?'':t[k]).trim());t.priority=(+t.priority>=1&&+t.priority<=3)?+t.priority:2;return t;}).filter(t=>t.task_id):[];
+  const flags=Array.isArray(tabs.Review)?lmTabObjs(tabs.Review).map(f=>{Object.keys(f).forEach(k=>f[k]=String(f[k]==null?'':f[k]).trim());return f;}).filter(f=>f.flag_id):[];
+  return {present:present,reviewPresent:Array.isArray(tabs.Review),tasks:tasks,flags:flags};}
+/* the LM's own rows — and never a private (visibility=owner) row, whatever the payload says */
+const lmTasksMine=(T,person)=>(T&&T.tasks||[]).filter(t=>t.owner===person&&t.visibility!=='owner');
+const lmFlagsMine=(T,person)=>(T&&T.flags||[]).filter(f=>f.from===person);
+/* Overdue (due before today) · Now (priority 1, or due within the hour) · Today · Later (snoozed / priority 3 / future) · Done today */
+function lmTaskBuckets(tasks,now){now=now||new Date();const today=lmDayStr(now),nowMs=now.getTime(),B={overdue:[],now:[],today:[],later:[],done:[]};
+  (tasks||[]).forEach(t=>{let st=t.status;
+    if(st==='snoozed'){const su=lmMsOf(t.snoozed_until);if(!isNaN(su)&&su<=nowMs)st='open';else{B.later.push(t);return;}}
+    if(st==='open'){const day=lmDayOf(t.due),ms=lmMsOf(t.due);
+      if(day&&day<today)B.overdue.push(t);
+      else if(t.priority===1||(!isNaN(ms)&&ms<=nowMs+3600e3))B.now.push(t);
+      else if(t.priority===3||(day&&day>today))B.later.push(t);
+      else B.today.push(t);
+      return;}
+    if(st==='done'&&lmDayOf(t.done_at)===today)B.done.push(t);});
+  const byPri=(a,b)=>(a.priority-b.priority)||String(a.due).localeCompare(String(b.due));
+  Object.keys(B).forEach(k=>B[k].sort(byPri));
+  B.open=B.overdue.length+B.now.length+B.today.length+B.later.filter(t=>t.status==='open').length;
+  return B;}
+/* home button: ✓ Today — <open> open, <overdue> overdue → (hidden when the endpoint sent no Tasks tab) */
+function lmTasksBtn(M,person,lens){const T=M&&M.tasks;if(!T||!T.present)return '';const B=lmTaskBuckets(lmTasksMine(T,person));
+  return '<button class="lm-deals-btn tasksbtn'+(B.overdue.length?' late':'')+'" onclick="lmGo(\''+person+'\',\''+lens+'\',\'tasks\')">✓ Today — '+B.open+' open, '+B.overdue.length+' overdue →</button>';}
+function lmTaskDueLbl(t,today){const day=lmDayOf(t.due),ms=lmMsOf(t.due);let s='';
+  if(!isNaN(ms)){const d=new Date(ms);let h=d.getHours();const ap=h<12?'AM':'PM';h=h%12||12;s=(day===today?'':day+' ')+h+':'+lmPad2(d.getMinutes())+' '+ap;}
+  else if(day)s=day===today?'today':day;
+  if(t.status==='snoozed'){const su=lmMsOf(t.snoozed_until);if(!isNaN(su)){const d=new Date(su);let h=d.getHours();const ap=h<12?'AM':'PM';h=h%12||12;s='⏰ '+(lmDayStr(d)===today?'':lmDayStr(d)+' ')+h+':'+lmPad2(d.getMinutes())+' '+ap;}else s='⏰ snoozed';}
+  if(!s)return '';return '<span class="lm-task-due'+(day&&day<today?' late':'')+(t.priority===1?' p1':'')+'">'+lmEsc(s)+(t.priority===1?' · NOW':'')+'</span>';}
+function lmTaskRow(t,today,readOnly){const id=lmDomId(t.task_id),q=lmJsq(t.task_id);
+  const lead=t.lead?(t.ghl_url?'<a class="lm-task-lead" href="'+lmEsc(t.ghl_url)+'" target="_blank" rel="noopener">'+lmEsc(t.lead)+'</a>':'<span class="lm-task-lead">'+lmEsc(t.lead)+'</span>'):'';
+  let h='<div class="lm-task'+(t.status==='snoozed'?' snoozed':'')+'" id="'+id+'"><div class="lm-task-meta">'+(t.kind?'<span class="lm-task-kind">'+lmEsc(t.kind)+'</span>':'')+lead+lmTaskDueLbl(t,today)+'</div>'
+    +'<div class="lm-task-ask">'+lmEsc(t.ask)+'</div>'+(t.why?'<div class="lm-task-why">'+lmEsc(t.why)+'</div>':'')+(t.note?'<div class="lm-task-note">✎ '+lmEsc(t.note)+'</div>':'');
+  if(readOnly)return h+'</div>';
+  h+='<div class="lm-task-acts">'
+    +'<button type="button" class="lm-tbtn done" onclick="lmTaskDone('+q+')" aria-label="Mark done">✓ done</button>'
+    +'<button type="button" class="lm-tbtn" onclick="lmTaskToggle(\''+id+'-snz\')" aria-label="Snooze: show options">⏰ later</button>'
+    +'<button type="button" class="lm-tbtn" onclick="lmTaskToggle(\''+id+'-note\')" aria-label="Add a note">✎ note</button>'
+    +'<button type="button" class="lm-tbtn" onclick="lmFlagOpen({item_type:\'task\',item_key:'+lmJsq('task:'+t.task_id)+',memo_date:'+lmJsq(t.date)+',label:'+lmJsq(t.ask)+'})" aria-label="Flag this task for Michael">⚑ flag</button></div>'
+    +'<div class="lm-task-form" id="'+id+'-snz" hidden><button type="button" class="lm-tbtn" onclick="lmTaskSnooze('+q+',\'2h\')">+2 hours</button><button type="button" class="lm-tbtn" onclick="lmTaskSnooze('+q+',\'tomorrow\')">Tomorrow 8:30 AM</button></div>'
+    +'<div class="lm-task-form" id="'+id+'-note" hidden><textarea id="'+id+'-note-in" rows="2" placeholder="Note…" aria-label="Note">'+lmEsc(t.note)+'</textarea><button type="button" class="lm-tbtn done" onclick="lmTaskNote('+q+',\''+id+'\','+lmJsq(t.status)+','+lmJsq(t.snoozed_until)+')">Save note</button></div>'
+    +'<div class="lm-task-err" id="'+id+'-err" role="alert"></div></div>';
+  return h;}
+function lmTaskSection(title,rows,cls,today){if(!rows.length)return '';return '<div class="lm-tsec '+(cls||'')+'"><div class="lm-tsec-h"><span>'+title+'</span><span>'+rows.length+'</span></div>'+rows.map(t=>lmTaskRow(t,today,false)).join('')+'</div>';}
+function lmFlagFormHtml(c){if(!c)return '';const what=(c.item_type||'item')+' · '+(c.item_key||'');
+  return '<div class="lm-flag-form card" id="lm-flag-form"><div class="lm-d-h">⚑ FLAG FOR MICHAEL</div><div class="lm-flag-what">'+lmEsc(what)+(c.label?' — '+lmEsc(c.label):'')+(c.memo_date?' <span class="lm-flag-date">memo '+lmEsc(c.memo_date)+'</span>':'')+'</div>'
+    +'<label class="lm-flbl" for="lm-flag-reason">Reason</label><select id="lm-flag-reason" class="lm-sel">'+LM_FLAG_REASONS.map(r=>'<option value="'+r[0]+'"'+(c.reason===r[0]?' selected':'')+'>'+r[1]+'</option>').join('')+'</select>'
+    +'<label class="lm-flbl" for="lm-flag-note">What happened (required)</label><textarea id="lm-flag-note" rows="3" placeholder="In your words…"></textarea>'
+    +'<label class="lm-flbl" for="lm-flag-evidence">Evidence (optional) — mm:ss of the call, or a link</label><input id="lm-flag-evidence" class="lm-in" placeholder="e.g. 03:12">'
+    +'<div class="lm-task-acts"><button type="button" class="lm-tbtn done" onclick="lmFlagSubmit()">Send flag</button><button type="button" class="lm-tbtn" onclick="lmFlagCancel()">Cancel</button></div><div class="lm-task-err" id="lm-flag-form-err" role="alert"></div></div>';}
+function lmFlagsBlock(flags){if(!flags.length)return '';const rows=flags.slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).slice(0,20);
+  return '<div class="lm-reclist lm-flags"><div class="lm-rec-h">My flags ('+flags.length+')</div>'+rows.map(f=>'<div class="lm-flag"><div class="lm-flag-k">'+lmEsc(f.item_type)+' · '+lmEsc(f.item_key)+(f.memo_date?' · memo '+lmEsc(f.memo_date):'')+'<span class="lm-pill '+lmEsc(f.status||'pending')+'">'+lmEsc(f.status||'pending')+'</span></div><div>'+lmEsc(f.reason)+(f.note?' — '+lmEsc(f.note):'')+'</div>'+(f.decision_note?'<div class="lm-flag-dec"><b>MICHAEL</b> '+lmEsc(f.decision_note)+'</div>':'')+'</div>').join('')+'</div>';}
+/* the Tasks route. M.tasks = lmTasksParse(payload.tabs), attached by the host after buildModel. */
+function lmTasksView(M,person){const T=M&&M.tasks,today=lmDayStr(new Date());
+  let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\'week\',\'\')">‹ Scoreboard</button><div class="lm-head"><div><p class="eyebrow">Today · '+lmEsc(today)+'</p><h1>Your tasks</h1></div></div>';
+  if(!T||!T.present)return h+'<div class="lm-coach"><div class="lm-d-h">TASKS NOT CONNECTED</div><p>The endpoint did not send a Tasks tab. Ask Michael to redeploy the LM endpoint with the Tasks and Review tabs.</p></div>';
+  if(LM_FLAG_CTX)LM_FLAG_CTX.person=M.person||person;     // the identity the token resolved to — the ONLY item_owner a flag ever carries
+  h+=lmFlagFormHtml(LM_FLAG_CTX);
+  const B=lmTaskBuckets(lmTasksMine(T,person));
+  h+=lmTaskSection('Overdue',B.overdue,'red',today)+lmTaskSection('Now',B.now,'now',today)+lmTaskSection('Today',B.today,'',today)+lmTaskSection('Later',B.later,'dim',today);
+  if(!B.overdue.length&&!B.now.length&&!B.today.length&&!B.later.length)h+='<div class="lm-tsec"><div class="lm-rec none">All clear — nothing open right now.</div></div>';
+  if(B.done.length)h+='<details class="lm-tsec dim"><summary>Done today · '+B.done.length+'</summary>'+B.done.map(t=>lmTaskRow(t,today,true)).join('')+'</details>';
+  h+='<details class="lm-tsec lm-add" id="lm-add"><summary>+ Add a task for yourself</summary><div class="lm-task-form"><textarea id="lm-add-ask" rows="2" placeholder="What needs doing?" aria-label="Task"></textarea>'
+    +'<label class="lm-flbl" for="lm-add-due">Due</label><input id="lm-add-due" class="lm-in" type="date" value="'+today+'"><label class="lm-flbl" for="lm-add-pri">Priority</label><select id="lm-add-pri" class="lm-sel"><option value="1">1 · now</option><option value="2" selected>2 · today</option><option value="3">3 · this week</option></select>'
+    +'<button type="button" class="lm-tbtn done" onclick="lmTaskAdd()">Add task</button></div><div class="lm-task-err" id="lm-add-err" role="alert"></div></details>';
+  h+=lmFlagsBlock(lmFlagsMine(T,person));
+  return h;}
+/* ── actions: optimistic UI, inline errors, host does the POST + reload ── */
+var LM_FLAG_CTX=null;   // {item_type,item_key,memo_date,label?,reason?,owner_hint?} — set by ⚑ or the #flag= deep link; `person` is stamped at render
+function lmTasksHost(){return (typeof window!=='undefined'&&window.LMApp&&typeof window.LMApp.post==='function')?window.LMApp:null;}
+function lmEl(id){try{return document.getElementById(id);}catch(e){return null;}}
+function lmTaskToggle(id){const el=lmEl(id);if(!el)return;el.hidden=!el.hidden;}
+function lmTaskPost(action,fields,domId){const el=domId?lmEl(domId):null,err=domId?lmEl(domId+'-err'):null;if(err)err.textContent='';
+  const host=lmTasksHost();if(!host){if(err)err.textContent='Not connected — reload the app.';return Promise.resolve({ok:false,error:'no host'});}
+  if(el&&el.classList)el.classList.add('busy');
+  return host.post(action,fields).then(j=>{if(!j||!j.ok){if(el&&el.classList)el.classList.remove('busy');if(err)err.textContent='Could not save: '+((j&&j.error)||'error');}return j;})
+    .catch(e=>{if(el&&el.classList)el.classList.remove('busy');if(err)err.textContent='Could not save: '+String((e&&e.message)||e);return {ok:false,error:String((e&&e.message)||e)};});}
+function lmTaskDone(id){const d=lmDomId(id),el=lmEl(d);if(el&&el.classList)el.classList.add('lm-task-done');
+  return lmTaskPost('set_status',{task_id:id,status:'done'},d).then(j=>{if(!(j&&j.ok)&&el&&el.classList)el.classList.remove('lm-task-done');return j;});}
+function lmTaskSnooze(id,when){const d=new Date();if(when==='tomorrow'){d.setDate(d.getDate()+1);d.setHours(8,30,0,0);}else d.setTime(d.getTime()+7200e3);
+  const dom=lmDomId(id),el=lmEl(dom);if(el&&el.classList)el.classList.add('snoozed');
+  return lmTaskPost('set_status',{task_id:id,status:'snoozed',snoozed_until:d.toISOString()},dom);}
+function lmTaskNote(id,dom,status,snoozedUntil){const ta=lmEl(dom+'-note-in'),note=ta?String(ta.value||'').trim():'';const f={task_id:id,status:status==='snoozed'?'snoozed':'open',note:note};if(f.status==='snoozed')f.snoozed_until=snoozedUntil||'';
+  return lmTaskPost('set_status',f,dom);}
+function lmTaskAdd(){const ask=String((lmEl('lm-add-ask')||{}).value||'').trim(),due=String((lmEl('lm-add-due')||{}).value||'').trim(),pri=String((lmEl('lm-add-pri')||{}).value||'2');
+  if(!ask){const e=lmEl('lm-add-err');if(e)e.textContent='Write the task first.';return Promise.resolve({ok:false,error:'ask required'});}
+  return lmTaskPost('add_task',{ask:ask,due:due,priority:pri},'lm-add');}
+/* ⚑ — from a task row, or from the #flag=<item_key>&type=&owner=&date= deep link the email carries */
+function lmFlagOpen(ctx){LM_FLAG_CTX=ctx?{item_type:LM_FLAG_TYPES[ctx.item_type]?ctx.item_type:'task',item_key:String(ctx.item_key||''),memo_date:String(ctx.memo_date||''),label:ctx.label||'',reason:ctx.reason||'',owner_hint:ctx.owner_hint||''}:null;
+  const host=lmTasksHost();if(host&&typeof host.showTasks==='function')host.showTasks();else if(typeof lmGo==='function')lmGo('','','tasks');
+  try{setTimeout(function(){const f=lmEl('lm-flag-form');if(f&&f.scrollIntoView)f.scrollIntoView({block:'start'});},0);}catch(e){}}
+function lmFlagCancel(){LM_FLAG_CTX=null;const host=lmTasksHost();if(host&&typeof host.showTasks==='function')host.showTasks();else if(typeof lmGo==='function')lmGo('','','tasks');}
+function lmFlagSubmit(){const c=LM_FLAG_CTX;if(!c)return Promise.resolve({ok:false,error:'no flag'});
+  const reason=String((lmEl('lm-flag-reason')||{}).value||'other'),note=String((lmEl('lm-flag-note')||{}).value||'').trim(),evidence=String((lmEl('lm-flag-evidence')||{}).value||'').trim();
+  if(!note){const e=lmEl('lm-flag-form-err');if(e)e.textContent='Say what happened — Michael reads this.';return Promise.resolve({ok:false,error:'note required'});}
+  /* item_owner is ALWAYS the identity the token resolved to (M.person) — never the hash's owner, which only prefills. */
+  const fields={item_type:c.item_type,item_key:c.item_key,item_owner:c.person||'',memo_date:c.memo_date||'',reason:reason,note:note,evidence:evidence};
+  return lmTaskPost('flag',fields,'lm-flag-form').then(j=>{if(j&&j.ok)LM_FLAG_CTX=null;return j;});}
