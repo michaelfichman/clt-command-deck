@@ -1058,6 +1058,9 @@ VIEWS.lm=function(){
 function mk(id,conf){if(charts[id])charts[id].destroy();const el=$(id);if(el)charts[id]=new Chart(el,conf)}
 function paint(){
   if(!M)return;
+  /* the 60 s refresh repaints by innerHTML — on the tasks view that would wipe a decision note or
+     task being typed, so hold the repaint while a form field inside the view has focus. */
+  try{const ae=document.activeElement;if(route.v==='tasks'&&ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)&&$('view').contains(ae))return;}catch(e){}
   Object.values(charts).forEach(c=>c.destroy());charts={};
   Chart.defaults.color=css('--txt2');Chart.defaults.borderColor='rgba(122,176,230,.10)';
   Chart.defaults.font.family="'IBM Plex Mono',monospace";Chart.defaults.font.size=10;
