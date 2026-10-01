@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="lm-view.css?v=44">
+<link rel="stylesheet" href="lm-view.css?v=45">
 <style>
 /* ── CLT BUYERS BRAND × FUTURIST TERMINAL ──
    brand blue #0070B0 (from logo) → live spectrum #1B9DE2 → #3FD0FF on deep blue-black */
@@ -196,6 +196,25 @@ nav{position:fixed;left:0;right:0;bottom:0;z-index:70;background:rgba(7,14,26,.9
 footer{margin-top:46px;border-top:1px solid var(--line);padding-top:16px;font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3);
   display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 :focus-visible{outline:2px solid var(--glow);outline-offset:2px;border-radius:6px}
+
+/* tasks & review (owner) — rows reuse lm-view.css task classes; this is the deck-only layout */
+.tcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:14px;align-items:start}
+.tcol{background:linear-gradient(180deg,var(--raised),var(--card));border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.tcol.priv{border-color:rgba(242,182,90,.45)}
+.tcol-h{display:flex;justify-content:space-between;align-items:baseline;font-family:Sora;font-weight:700;font-size:14px;margin-bottom:4px;gap:8px}
+.tcol-h .n{font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3);font-weight:400} .tcol-h .n .late{color:var(--red)}
+.tcol .lm-rec.none{padding:6px 0}
+.tsel{width:auto;padding:5px 8px;font-family:'IBM Plex Mono';font-size:11px;min-height:34px}
+.rq{margin-top:14px;background:linear-gradient(180deg,#182435,var(--card));border:1px solid rgba(242,182,90,.5);border-radius:var(--r);padding:14px 16px}
+.rq-card{padding:10px 0;border-top:1px dashed var(--line)} .rq-card:first-of-type{border-top:0} .rq-card.busy{opacity:.55;pointer-events:none}
+.rq-h{font-size:12.5px;color:var(--txt2)} .rq-h b{color:var(--txt)}
+.rq-task{font-size:12.5px;color:var(--txt2);margin-top:3px;font-style:italic}
+.rq-note{font-size:13.5px;color:var(--txt);margin-top:4px;overflow-wrap:anywhere} .rq-ev{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--amber);margin-top:2px}
+.rq-form{display:grid;grid-template-columns:1fr;gap:6px;margin-top:8px;max-width:640px}
+.rq-done{padding:8px 0;border-top:1px dashed var(--line);font-size:12.5px;color:var(--txt2);overflow-wrap:anywhere} .rq-done[hidden]{display:none}
+.rq-done .dn{color:var(--txt);margin-top:2px} .rq-done .dn b{color:var(--glow);font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;margin-right:4px}
+.tfilter{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0} .tfilter .lm-in,.tfilter .lm-sel{width:auto;flex:1;min-width:140px}
+.tadd{margin-top:14px} .tadd .lm-task-form{max-width:640px} .tadd .chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--txt2);width:100%}
 </style>
 </head>
 <body>
@@ -233,12 +252,13 @@ footer{margin-top:46px;border-top:1px solid var(--line);padding-top:16px;font-fa
   <button data-v="channels"><span class="g">⇄</span>CAPITAL</button>
   <button data-v="pipeline"><span class="g">▣</span>PIPELINE</button>
   <button data-v="lm"><span class="g">⊞</span>LM</button>
+  <button data-v="tasks"><span class="g">✓</span>TASKS</button>
 </div></nav>
 
 <!-- LM Scoreboard engine (framework-free; validated by lm-engine.test/lm-gamify.test) -->
-<script src="lm-engine.js?v=44"></script>
-<script src="lm-gamify.js?v=44"></script>
-<script src="lm-view.js?v=44"></script>
+<script src="lm-engine.js?v=45"></script>
+<script src="lm-gamify.js?v=45"></script>
+<script src="lm-view.js?v=45"></script>
 
 <script>
 /* ═══════════ CONFIG ═══════════ */
@@ -353,6 +373,8 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 
 /* ═══════════ STATE / ROUTING ═══════════ */
 let cfg={url:'',tok:''}, route={v:'home',c:''}, M=null, RAW=null, charts={}, timer=null;
+/* who this token is (Code-owner.gs: role/person/approver). An old endpoint sends none → non-approver, nothing private shown. */
+let META={role:'',person:'',approver:false};
 var LS_KEY='cltDeckCfg';
 function saveCfg(){try{if(cfg.url&&cfg.tok)localStorage.setItem(LS_KEY,JSON.stringify({url:cfg.url,tok:cfg.tok}))}catch(e){}}
 function loadCfg(){try{const s=localStorage.getItem(LS_KEY);if(s){const o=JSON.parse(s);cfg.url=cfg.url||o.url||'';cfg.tok=cfg.tok||o.tok||''}}catch(e){}}
@@ -377,7 +399,7 @@ async function load(){
     const r=await fetch(cfg.url+(cfg.url.includes('?')?'&':'?')+'token='+encodeURIComponent(cfg.tok)+'&_cb='+Date.now(),{cache:'no-store'});
     const j=await r.json();
     if(!j.ok)throw new Error(j.error||'endpoint error');
-    RAW=j.tabs; M=model(j.tabs);
+    RAW=j.tabs; M=model(j.tabs); META={role:j.role||'',person:j.person||'',approver:j.approver===true};
     $('setup').hidden=true;$('view').hidden=false;$('nav').hidden=false;$('errBanner').style.display='none';
     paint();ticker();
     setDot('ok','LIVE '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
@@ -935,6 +957,85 @@ pace(m){return {html:`
     {s:'info',t:`Two levers move the requirement: <b>close rate</b> (raises yield per contract — see Funnel #1) and <b>lead volume</b> (raises contract count — see Capital for the cheapest scalable lead).`},
     {s:'info',t:`Closing the close-rate gap alone (${pct(m.conv.conClose)} → ${pct(m.targets.conClose,0)}) is worth ≈ <b class="m">${fmtK(m.gaps[0].fwd)}</b> on the live pipeline at zero marketing cost.`}])}
   `,mount(){}}},
+};
+
+/* ═══════════ TASKS & REVIEW (owner deck) — apps-script/TASKS.md ═══════════
+   Rows come from RAW.Tasks / RAW.Review, already scoped by Code-owner.gs; the
+   deck filters AGAIN on META.approver (never a private row or the review queue
+   for a non-approver, even if the payload carried them). Writes go through
+   post(action, fields) — the same shape as the LM app's LMApp.post. */
+async function post(action,fields){
+  if(!cfg.url||!cfg.tok)return {ok:false,error:'not connected'};
+  try{
+    const r=await fetch(cfg.url,{method:'POST',body:JSON.stringify(Object.assign({token:cfg.tok,action},fields||{})),headers:{'Content-Type':'text/plain;charset=utf-8'},redirect:'follow'});
+    const j=await r.json();
+    if(j&&j.ok)await load();            // re-fetch + paint on every successful write
+    return j||{ok:false,error:'bad payload'};
+  }catch(e){return {ok:false,error:String((e&&e.message)||e)};}
+}
+window.post=post;
+/* optimistic busy state + inline error on the element that asked */
+function deckTask(action,fields,domId){const el=domId?$(domId):null,err=domId?$(domId+'-err'):null;if(err)err.textContent='';if(el)el.classList.add('busy');
+  return post(action,fields).then(j=>{if(!j||!j.ok){if(el)el.classList.remove('busy');if(err)err.textContent='Could not save: '+((j&&j.error)||'error');}return j;});}
+function deckTaskNote(id,dom,status,snoozedUntil){const ta=$(dom+'-note-in'),note=ta?String(ta.value||'').trim():'';const f={task_id:id,status:status==='snoozed'?'snoozed':'open',note};if(f.status==='snoozed')f.snoozed_until=snoozedUntil||'';return deckTask('set_status',f,dom);}
+function deckTaskAdd(){const v=id=>String(($(id)||{}).value||'').trim();const ask=v('tadd-ask');const e=$('tadd-err');if(e)e.textContent='';
+  if(!ask){if(e)e.textContent='Write the task first.';return Promise.resolve({ok:false,error:'ask required'});}
+  const f={ask,owner:v('tadd-owner'),kind:v('tadd-kind')||'self',due:v('tadd-due'),priority:v('tadd-pri')||'2'};
+  const pv=$('tadd-private');if(META.approver&&pv&&pv.checked)f.visibility='owner';
+  return deckTask('add_task',f,'tadd');}
+function deckDecide(flagId,decision,dom){const v=id=>String(($(id)||{}).value||'').trim();const dn=v(dom+'-dn'),ap=v(dom+'-ap')||'none',pr=v(dom+'-pr'),e=$(dom+'-err');if(e)e.textContent='';
+  if(!dn){if(e)e.textContent='A decision note is required — it is shown back to the flagger.';return Promise.resolve({ok:false,error:'decision_note required'});}
+  if(ap==='pr'&&!pr){if(e)e.textContent='Paste the PR URL for applied_as = pr.';return Promise.resolve({ok:false,error:'pr url required'});}
+  return deckTask('decide',{flag_id:flagId,decision,decision_note:dn,applied_as:ap==='pr'?'pr:'+pr:ap},dom);}
+/* decided-flags filter: pure DOM, no repaint (keeps the input focused) */
+function deckFlagFilter(){const q=String(($('tflt-q')||{}).value||'').toLowerCase(),st=String(($('tflt-s')||{}).value||'all');
+  document.querySelectorAll('.rq-done').forEach(el=>{const hit=(!q||(el.dataset.q||'').indexOf(q)>-1)&&(st==='all'||el.dataset.s===st);el.hidden=!hit;});}
+const tasksNewest=(a,b)=>String(b.created_at).localeCompare(String(a.created_at));
+function deckTaskRow(t,people,today){const q=lmJsq(t.task_id),id=lmDomId(t.task_id);
+  const lead=t.lead?(t.ghl_url?`<a class="lm-task-lead" href="${esc(t.ghl_url)}" target="_blank" rel="noopener">${esc(t.lead)}</a>`:`<span class="lm-task-lead">${esc(t.lead)}</span>`):'';
+  return `<div class="lm-task${t.status==='snoozed'?' snoozed':''}" id="${id}"><div class="lm-task-meta">${t.kind?`<span class="lm-task-kind">${esc(t.kind)}</span>`:''}${lead}${lmTaskDueLbl(t,today)}</div>
+    <div class="lm-task-ask">${esc(t.ask)}</div>${t.why?`<div class="lm-task-why">${esc(t.why)}</div>`:''}${t.note?`<div class="lm-task-note">✎ ${esc(t.note)}</div>`:''}
+    <div class="lm-task-acts"><button type="button" class="lm-tbtn done" onclick="deckTask('set_status',{task_id:${q},status:'done'},'${id}')" aria-label="Mark done">✓ done</button><button type="button" class="lm-tbtn" onclick="deckTask('set_status',{task_id:${q},status:'skipped'},'${id}')" aria-label="Skip">⏭ skip</button><select class="lm-sel tsel" aria-label="Reassign" onchange="deckTask('assign',{task_id:${q},owner:this.value},'${id}')">${['',...people].map(p=>`<option value="${esc(p)}"${p===t.owner?' selected':''}>${p?'⇄ '+esc(p):'⇄ Unassigned'}</option>`).join('')}</select><button type="button" class="lm-tbtn" onclick="lmTaskToggle('${id}-note')" aria-label="Add a note">✎ note</button></div>
+    <div class="lm-task-form" id="${id}-note" hidden><textarea id="${id}-note-in" rows="2" aria-label="Note">${esc(t.note)}</textarea><button type="button" class="lm-tbtn done" onclick="deckTaskNote(${q},'${id}',${lmJsq(t.status)},${lmJsq(t.snoozed_until)})">Save note</button></div>
+    <div class="lm-task-err" id="${id}-err" role="alert"></div></div>`;}
+function deckTaskCol(title,rows,people,today,cls){const B=lmTaskBuckets(rows),live=[...B.overdue,...B.now,...B.today,...B.later];
+  const closed=rows.filter(t=>(t.status==='done'&&lmDayOf(t.done_at)===today)||(t.status==='skipped'&&lmDayOf(t.updated_at)===today));
+  return `<div class="tcol ${cls||''}"><div class="tcol-h"><span>${esc(title)}</span><span class="n">${live.length} open${B.overdue.length?` · <span class="late">${B.overdue.length} overdue</span>`:''}</span></div>
+    ${live.length?live.map(t=>deckTaskRow(t,people,today)).join(''):'<div class="lm-rec none">Nothing open.</div>'}
+    ${closed.length?`<details class="lm-tsec dim"><summary>Done / skipped today · ${closed.length}</summary>${closed.map(t=>lmTaskRow(t,today,true)).join('')}</details>`:''}</div>`;}
+function deckReviewCard(f,byId){const id=lmDomId('flag-'+f.flag_id),q=lmJsq(f.flag_id),task=f.item_type==='task'?byId[f.item_key.replace(/^task:/,'')]:null,first=String(f.from||'').split(' ')[0]||'the flagger';
+  return `<div class="rq-card" id="${id}"><div class="rq-h"><b>${esc(f.from)}</b> · ${esc(f.item_type)} · <span class="mono">${esc(f.item_key)}</span>${f.memo_date?' · memo '+esc(f.memo_date):''} · <span class="pill a">${esc(f.reason)}</span></div>
+    ${task?`<div class="rq-task">task: ${esc(task.ask)}${task.lead?' — '+esc(task.lead):''}</div>`:''}<div class="rq-note">${esc(f.note)}</div>${f.evidence?`<div class="rq-ev">evidence: ${esc(f.evidence)}</div>`:''}
+    <div class="rq-form"><input id="${id}-dn" class="lm-in" placeholder="Decision note (required) — shown back to ${esc(first)}" aria-label="Decision note">
+      <select id="${id}-ap" class="lm-sel" aria-label="Applied as"><option value="none">applied as: none</option><option value="fix-task">fix-task — creates the fix-it task for ${esc(f.item_owner||'the owner')}</option><option value="rescore">rescore</option><option value="pr">pr (URL below)</option><option value="reassigned">reassigned</option><option value="closed">closed</option></select>
+      <input id="${id}-pr" class="lm-in" placeholder="PR URL (only for pr)" aria-label="PR URL">
+      <div class="lm-task-acts"><button type="button" class="lm-tbtn done" onclick="deckDecide(${q},'accepted','${id}')">Accept</button><button type="button" class="lm-tbtn" onclick="deckDecide(${q},'declined','${id}')">Decline</button></div>
+      <div class="lm-task-err" id="${id}-err" role="alert"></div></div></div>`;}
+VIEWS.tasks=function(){
+  const T=lmTasksParse(RAW),appr=META.approver===true,today=lmDayStr(new Date());
+  if(!T.present)return {html:`<p class="eyebrow">Tasks</p><h1>Tasks</h1><p class="lede">The endpoint sent no Tasks tab — redeploy <span class="mono">Code-owner.gs</span> (see apps-script/TASKS.md) and create the <span class="mono">Tasks</span> and <span class="mono">Review</span> tabs in the KPI Staging workbook.</p>`,mount(){}};
+  const tasks=appr?T.tasks:T.tasks.filter(t=>t.visibility!=='owner');      // never a private row for a non-approver
+  const flags=appr?T.flags:[];                                               // the review queue exists for an approver only
+  const byId={};tasks.forEach(t=>byId[t.task_id]=t);
+  const pending=flags.filter(f=>f.status==='pending').sort(tasksNewest),decided=flags.filter(f=>f.status&&f.status!=='pending').sort(tasksNewest).slice(0,20);
+  const lms=lmTeam(),people=[...lms,...[...new Set(tasks.map(t=>t.owner).filter(Boolean))].filter(p=>!lms.includes(p))];
+  const cols=[];
+  if(appr)cols.push(deckTaskCol('Michael (private)',tasks.filter(t=>t.visibility==='owner'),people,today,'priv'));
+  people.forEach(p=>cols.push(deckTaskCol(p,tasks.filter(t=>t.owner===p&&t.visibility!=='owner'),people,today,'')));
+  cols.push(deckTaskCol('Unassigned',tasks.filter(t=>!t.owner&&t.visibility!=='owner'),people,today,''));
+  let h=`<p class="eyebrow">Tasks · ${esc(today)}${META.person?' · '+esc(META.person):''}</p><h1>✓ Tasks${appr&&pending.length?` <span style="color:var(--amber)">· ${pending.length} to review</span>`:''}</h1>`;
+  if(appr&&pending.length)h+=`<section class="rq"><div class="sec-h" style="margin-bottom:6px"><h2>Review queue</h2><span class="tag">${pending.length} pending · accept or decline, note required</span></div>${pending.map(f=>deckReviewCard(f,byId)).join('')}</section>`;
+  h+=`<details class="lm-tsec tadd" id="tadd"><summary>+ Add task</summary><div class="lm-task-form"><textarea id="tadd-ask" rows="2" placeholder="What needs doing?" aria-label="Task"></textarea>
+    <label class="lm-flbl" for="tadd-owner">Owner</label><select id="tadd-owner" class="lm-sel"><option value="">Unassigned</option>${people.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')}</select>
+    <label class="lm-flbl" for="tadd-kind">Kind</label><select id="tadd-kind" class="lm-sel">${LM_TASK_KINDS.map(k=>`<option value="${k}"${k==='self'?' selected':''}>${k}</option>`).join('')}</select>
+    <label class="lm-flbl" for="tadd-due">Due</label><input id="tadd-due" class="lm-in" type="date" value="${today}"><label class="lm-flbl" for="tadd-pri">Priority</label><select id="tadd-pri" class="lm-sel"><option value="1">1 · now</option><option value="2" selected>2 · today</option><option value="3">3 · this week</option></select>
+    ${appr?`<label class="chk"><input type="checkbox" id="tadd-private"> private (only I see it)</label>`:''}
+    <button type="button" class="lm-tbtn done" onclick="deckTaskAdd()">Add task</button></div><div class="lm-task-err" id="tadd-err" role="alert"></div></details>`;
+  h+=`<div class="tcols">${cols.join('')}</div>`;
+  if(appr&&decided.length)h+=`<section><div class="sec-h"><h2>Decided flags</h2><span class="tag">last ${decided.length}</span></div><div class="card">
+    <div class="tfilter"><input id="tflt-q" class="lm-in" placeholder="filter: person, reason, key, note…" aria-label="Filter decided flags" oninput="deckFlagFilter()"><select id="tflt-s" class="lm-sel" aria-label="Status" onchange="deckFlagFilter()"><option value="all">all</option><option value="accepted">accepted</option><option value="applied">applied</option><option value="declined">declined</option></select></div>
+    ${decided.map(f=>`<div class="rq-done" data-s="${esc(f.status)}" data-q="${esc([f.from,f.reason,f.item_key,f.note,f.decision_note].join(' ').toLowerCase())}"><b>${esc(f.from)}</b> · ${esc(f.item_type)} · <span class="mono">${esc(f.item_key)}</span> · ${esc(f.reason)} <span class="pill ${f.status==='declined'?'r':'g'}">${esc(f.status)}</span>${f.applied_as?` <span class="mono">${esc(f.applied_as)}</span>`:''}<div class="dn"><b>DECISION</b>${esc(f.decision_note)}</div></div>`).join('')}</div></section>`;
+  return {html:h,mount(){}};
 };
 
 /* ═══════════ PAINT ═══════════ */
