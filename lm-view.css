@@ -132,3 +132,37 @@ select.lm-person{cursor:pointer}
 .lm-reach-l i{font-style:normal;text-transform:none;letter-spacing:0;opacity:.9}
 .lm-reach-v{font-size:14.5px}
 .lm-reach-v b{font-variant-numeric:tabular-nums}
+
+/* ═══════════ TASKS & REVIEW (Phase 1) — apps-script/TASKS.md ═══════════ */
+.lm-deals-btn.tasksbtn{background:linear-gradient(180deg,#12303f,#0c192c);border-color:rgba(63,222,156,.45);color:var(--green)}
+.lm-deals-btn.tasksbtn.late{border-color:rgba(240,97,126,.6);color:var(--red)}
+.lm-tsec{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.lm-tsec-h{font-family:'IBM Plex Mono';font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--glow);margin-bottom:4px;display:flex;justify-content:space-between}
+.lm-tsec.red{border-color:rgba(240,97,126,.45)} .lm-tsec.red .lm-tsec-h{color:var(--red)}
+.lm-tsec.now .lm-tsec-h{color:var(--amber)}
+.lm-tsec.dim{opacity:.88}
+details.lm-tsec summary{cursor:pointer;list-style:none;font-family:'IBM Plex Mono';font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--txt3)}
+details.lm-tsec summary::-webkit-details-marker{display:none} details.lm-tsec[open] summary{color:var(--glow);margin-bottom:4px}
+.lm-task{padding:10px 0;border-top:1px dashed var(--line);transition:opacity .15s} .lm-tsec-h+.lm-task{border-top:0}
+.lm-task.busy{opacity:.55;pointer-events:none}
+.lm-task.lm-task-done .lm-task-ask{text-decoration:line-through;color:var(--txt3)} .lm-task.snoozed .lm-task-ask{color:var(--txt2)}
+.lm-task-meta{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-family:'IBM Plex Mono';font-size:9.5px;color:var(--txt3);margin-bottom:3px}
+.lm-task-kind{background:var(--glow-dim);color:var(--glow);border-radius:7px;padding:1px 7px;letter-spacing:.06em;text-transform:uppercase}
+.lm-task-lead{color:var(--txt);font-weight:600;text-decoration:none;font-family:Inter,system-ui,sans-serif;font-size:12.5px} a.lm-task-lead{border-bottom:1px dotted var(--line2)}
+.lm-task-due{margin-left:auto} .lm-task-due.late{color:var(--red)} .lm-task-due.p1{color:var(--amber)}
+.lm-task-ask{font-size:13.5px;color:var(--txt);line-height:1.45;overflow-wrap:anywhere}
+.lm-task-why{font-size:11.5px;color:var(--txt2);margin-top:2px;line-height:1.4;overflow-wrap:anywhere}
+.lm-task-note{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--amber);margin-top:3px;overflow-wrap:anywhere}
+.lm-task-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.lm-tbtn{background:var(--raised);border:1px solid var(--line2);color:var(--txt2);border-radius:9px;padding:6px 10px;font-family:'IBM Plex Mono';font-size:11px;cursor:pointer;min-height:34px}
+.lm-tbtn.done{color:var(--green);border-color:rgba(63,222,156,.4)} .lm-tbtn:active{transform:scale(.97)}
+.lm-task-form{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start} .lm-task-form[hidden]{display:none}
+.lm-task-form textarea,.lm-flag-form textarea,.lm-in,.lm-sel{width:100%;background:var(--surface);border:1px solid var(--line2);color:var(--txt);border-radius:9px;padding:9px 10px;font:inherit;font-size:13px}
+.lm-task-err{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--red);margin-top:4px}
+.lm-task-err:empty{display:none}
+.lm-flag-form{margin-top:12px;border-color:rgba(242,182,90,.55)} .lm-flag-what{font-size:12.5px;color:var(--txt2);margin-bottom:4px;overflow-wrap:anywhere} .lm-flag-date{font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3)}
+.lm-flbl{display:block;font-family:'IBM Plex Mono';font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3);margin:10px 0 4px;width:100%}
+.lm-flags .lm-flag{padding:8px 0;border-top:1px dashed var(--line);font-size:12.5px;color:var(--txt2);overflow-wrap:anywhere} .lm-flag-k{font-family:'IBM Plex Mono';font-size:10px;color:var(--txt3)}
+.lm-pill{display:inline-block;font-family:'IBM Plex Mono';font-size:9px;padding:1px 7px;border-radius:99px;letter-spacing:.06em;text-transform:uppercase;margin-left:6px;background:var(--glow-dim);color:var(--glow)}
+.lm-pill.pending{background:rgba(242,182,90,.14);color:var(--amber)} .lm-pill.accepted,.lm-pill.applied{background:rgba(63,222,156,.14);color:var(--green)} .lm-pill.declined{background:rgba(240,97,126,.14);color:var(--red)}
+.lm-flag-dec{margin-top:3px;color:var(--txt);font-size:12.5px} .lm-flag-dec b{color:var(--glow);font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;margin-right:4px}
