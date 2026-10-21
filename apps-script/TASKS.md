@@ -1,9 +1,9 @@
 # CLT Buyers — Tasks & Review (Phase 1 contract)
 
 Agreed with Michael 2026-10-01; amended 2026-10-21 (P1T: stable `step_in` / `next_action` ids,
-due-based expiry via `expire_rules`, the AM owns every number). One source of truth for the producer
-(cltbuyers-routines), the two Apps Script endpoints and the two decks (clt-command-deck). Change this
-file first, then code.
+due-based expiry via `expire_rules`, a refresh carries kind and visibility, the AM owns every number).
+One source of truth for the producer (cltbuyers-routines), the two Apps Script endpoints and the two
+decks (clt-command-deck). Change this file first, then code.
 
 ## Roles (decided)
 
@@ -47,11 +47,14 @@ Both endpoints already open this workbook. Two new tabs. Look columns up BY HEAD
 
 **task_id scheme** (no spaces; lowercase operator key = `jordan` / `andrew` / `michael`):
 
-- `t:michael:step_in:<kind>:<key>` — NO date (since 2026-10-21). key = the item's opp_id, else its contact_id, else
-  hash8 = first 8 hex of sha1 of the `what` text. A move re-emitted on a later night refreshes the SAME row.
+- `t:michael:step_in:<kind>:<key>` — NO date (since 2026-10-21). key = a lead id for the move — its opp_id or
+  contact_id (the producer keys a lead the same way every night) — else hash8 = first 8 hex of sha1 of the `what`
+  text. A move re-emitted on a later night refreshes the SAME row only while its key is a lead id: a hash8 key
+  changes whenever the wording does, and the old row then ages out through `expire_rules`.
 - `t:<date>:<op>:texts:<n>` — n = 1..3. Dated on purpose: "your three for today" expires the next night.
-- `t:<op>:next_action:<contact_id>:<hash8>` — NO date (since 2026-10-21); hash8 = first 8 hex of sha1 of the
-  `next_action` text. The same next step on the same lead refreshes the same row.
+- `t:<op>:next_action:<contact_id|->:<hash8>` — NO date (since 2026-10-21); `-` when the call card has no
+  contact; hash8 = first 8 hex of sha1 of the `next_action` text. The same next step, worded the same, on the same
+  lead refreshes the same row; a reworded one is a new row and the old one ages out through `expire_rules`.
 - `t:pulse:<opp_id>` — NO date: one row per lead while it sits at the front; expired by the producer when it leaves
 - `t:tracker:<kind>:<opp_id>` — NO date, same persistence rule
 - Rows written before 2026-10-21 carry the old dated `step_in` / `next_action` ids; nothing re-sends them, so they
@@ -107,10 +110,23 @@ inside `LockService.getScriptLock()` (wait 10 s). Every response is JSON `{ok:tr
 | `assign` | owner only | task_id, owner | reassign; sets updated_at |
 | `flag` | LM, owner | item_type, item_key, item_owner, memo_date?, reason, note, evidence? | LM: `from = person`, and `item_owner` must equal person; for item_type `task` the task's owner must also equal person. Appends a Review row, status `pending`. Returns flag_id. |
 | `decide` | approver only | flag_id, decision (`accepted`/`declined`), decision_note, applied_as? | Sets status, decision_note, decided_at, decided_by. If applied_as starts with `fix-task:` the server ALSO appends a task: owner = the flag's item_owner, kind `fix-record`, source `review`, ask = decision_note, task_id `t:review:<flag_id>`, and status becomes `applied`. |
-| `upsert_tasks` | ROUTINE_TOKEN (LM endpoint); approver (owner endpoint) | date, tasks: [row objects keyed by header name], expire_sources?: ["texts","pulse","tracker"], expire_rules?: [{source, due_before}] | For each task: if task_id exists → refresh ask, why, due, priority, lead, ghl_url, owner (NOT status/note/done_*), set updated_at (a row in status `expired` comes back `open`); else append with status `open`, created_at = now, created_by = `routine:call-coaching`. Then expiry, below. Returns `{appended, refreshed, reopened, expired, skipped, expired_by_rule, notes}`. |
+| `upsert_tasks` | ROUTINE_TOKEN (LM endpoint); approver (owner endpoint) | date, tasks: [row objects keyed by header name], expire_sources?: ["texts","pulse","tracker"], expire_rules?: [{source, due_before}] | For each task: if task_id exists → refresh ask, why, due, priority, lead, ghl_url, owner, and — on a producer row — kind and visibility (see *refresh*, below; NOT status/done_*, and note only as said there), set updated_at (a row in status `expired` comes back `open`); else append with status `open`, created_at = now, created_by = `routine:call-coaching`. Then expiry, below. Returns `{appended, refreshed, reopened, expired, skipped, expired_by_rule, notes}`. |
 
 Unknown action → `{ok:false,error:'unknown action'}`. Bad token → `{ok:false,error:'unauthorized'}`. An LM asking about
 another person's row → `{ok:false,error:'forbidden'}` and NOTHING about that row in the response.
+
+#### `upsert_tasks` refresh — owner, kind and visibility move together
+
+A producer row (`created_by` = `routine:call-coaching`) that is sent again takes the batch's `kind` and
+`visibility` along with its owner, because the producer re-routes a stable id: since 2026-10-21 the 10/1 seed rows
+`t:tracker:deliver-number:<opp>` (Michael, `owner`) come back as the AM's (`team`), and a `t:pulse:<opp>` row moves
+from Michael's private `assign` to the lead's LM once the lead is assigned. Without this a row would read owner =
+Jordan with visibility `owner`, which no LM GET serves and the owner deck files under Michael's private column.
+
+- `visibility` is normalised exactly as on append (`owner` → `owner`, anything else → `team`); an absent or empty
+  `visibility` / `kind` leaves the cell as it is.
+- A row that goes `owner` → `team` has its `note` cleared: a private note Michael wrote never reaches an LM.
+- A row a person created (`t:self:…`, `t:review:…`, `created_by` = a Team-tab name) keeps its kind and visibility.
 
 #### `upsert_tasks` expiry — two kinds, one pass
 
@@ -118,8 +134,8 @@ Only rows in status `open` or `snoozed` whose task_id is NOT in this batch are e
 updated_at = now). A row the producer sends is live by definition; done / skipped / already-expired rows are never
 touched. Each row is expired at most once and counted once.
 
-- **`expire_sources`** (unchanged): `["texts","pulse","tracker"]` — every such row of a listed source expires. For
-  sources whose ids say "this is the current set" (a dated `texts` id, one `pulse` / `tracker` row per lead).
+- **`expire_sources`** (unchanged): e.g. `["texts","pulse","tracker"]` — every such row of a listed source expires.
+  For sources whose ids say "this is the current set" (a dated `texts` id, one `pulse` / `tracker` row per lead).
 - **`expire_rules`** (2026-10-21): `[{"source":"step_in","due_before":"YYYY-MM-DD"}, {"source":"next_action","due_before":"YYYY-MM-DD"}]`
   — a row of that source expires only when ALSO `created_by` = `routine:call-coaching` (a producer row: a person's
   own task is never aged out) AND its `due`, read as a calendar day in the script time zone, is strictly before
@@ -152,8 +168,11 @@ before 2026-10-21 ignores `expire_rules` silently and answers without that field
 - Code-LM.gs: keep `LM_TOKENS` (token → Team-tab name). Add `var ROUTINE_TOKEN = 'SET-IN-DEPLOYED-EDITOR-ROUTINE';` —
   may call ONLY `upsert_tasks`; it is not in LM_TOKENS and gets no GET payload.
 - Code-owner.gs: `TOKENS` becomes an object token → Team-tab name: `{'SET-IN-DEPLOYED-EDITOR-MICHAEL': 'Michael Fichman',
-  'SET-IN-DEPLOYED-EDITOR-ED': 'Ed Peugh'}` and `var APPROVERS = ['Michael Fichman'];`. Keep accepting an array for
+  'SET-IN-DEPLOYED-EDITOR-ED': 'Edward Peugh'}` and `var APPROVERS = ['Michael Fichman'];`. Keep accepting an array for
   safety if someone pastes the old shape (treat every entry as a non-approver named 'owner').
+- The names are the Team-tab names, typed exactly. `Michael Fichman` is load-bearing: a typo silently drops approver
+  (no private rows, no review queue, `upsert_tasks` forbidden on the owner endpoint) — a GET must answer
+  `approver:true` for his token. Ed's (`Edward Peugh`, as the Team tab spells it; role Partner) only labels what he does.
 - Placeholders must stay DISTINCT (an object with duplicate keys silently collapses). Never commit a real token.
 
 ## Client behaviour
@@ -193,26 +212,31 @@ the seller through 6.2; Michael Fichman = owner (signs at 6.1, dispositions). (P
 
 | source | owner | visibility | kind | task_id |
 |---|---|---|---|---|
-| `team.json → comparison.step_in` items | Michael Fichman | owner | item.kind (default `decide`) | `t:michael:step_in:<kind>:<opp_id\|contact_id\|hash8>` |
+| `team.json → comparison.step_in` items | Michael Fichman | owner | item.kind (default `decide`) | `t:michael:step_in:<kind>:<lead id\|hash8>` |
 | … a legacy step_in of kind `deliver-number` | the AM | team | deliver-number | same scheme |
 | each memo's `texts` | that operator | team | coaching | `t:<date>:<op>:texts:<n>` |
-| each scored call's `next_action` | that operator | team | next-step | `t:<op>:next_action:<contact_id>:<hash8>` |
+| each scored call's `next_action` | that operator | team | next-step | `t:<op>:next_action:<contact_id\|->:<hash8>` |
 | pulse rows with flags | the lead's LM; unassigned → Michael (kind `assign`, visibility owner) | team | cadence / call-seller / decide / move-stage | `t:pulse:<opp_id>` (one row per lead; the ask lists every flag) |
-| tracker: offers with no number on file | the AM | team | deliver-number | `t:tracker:deliver-number:<opp_id>` |
+| tracker: offers with no number on file; a late 5.1 card whose number is on file but was never given | the AM | team | deliver-number | `t:tracker:deliver-number:<opp_id>` |
 | tracker: offer late (> offer_days) | the AM | team | follow-up | `t:tracker:<kind>:<opp_id>` |
 | tracker: contract late at 6.1 | Michael Fichman | owner | sign | `t:tracker:<kind>:<opp_id>` |
-| tracker: contract late at 6.2 | the AM | team | follow-up | `t:tracker:<kind>:<opp_id>` |
+| tracker: contract late at 6.2 | the AM | team | call-seller | `t:tracker:<kind>:<opp_id>` |
 | tracker: contract at 6.3 | — no task — | | | |
+| tracker: contract late in a stage the producer does not know | Michael Fichman | owner | check-in | `t:tracker:<kind>:<opp_id>` |
 | tracker: a 5.5 card more than 15 min in stage at run time ("contract did not draft: fix the missing fields") | the AM | team | fix-record | `t:tracker:<kind>:<opp_id>` |
 | tracker: dispo late | Michael Fichman | owner | follow-up | `t:tracker:<kind>:<opp_id>` |
 
 Rules: an LM without `deal_numbers` gets every ask/why passed through the memo's withholding backstop (`[number withheld]`);
 the AM (role `am`) and Michael's private rows keep every number. `due` = the run's "today" for texts/next_action/step_in
-(`by` parsed when it is a date), now for pulse priority-1 items. The producer POSTs `upsert_tasks` with
-`expire_sources: ["texts","pulse","tracker"]` and
+(`by` parsed when it is a date), now for pulse priority-1 items and the 5.5 fix-record. The producer POSTs `upsert_tasks` with
+`expire_sources: ["texts","pulse","tracker"]` — less `pulse` / `tracker` when that step produced no file this run (absence
+only means "gone" when the list was read; `texts` always) — and
 `expire_rules: [{"source":"step_in","due_before":<today − 7>}, {"source":"next_action","due_before":<today − 3>}]`
-(see *`upsert_tasks` expiry*). The first such post expires the 2026-10-01 seed rows (`texts` by source, `step_in` /
-`next_action` by cutoff) with no special case.
+(see *`upsert_tasks` expiry*). The first such post expires the 2026-10-01 seed rows whose due is past the cutoff
+(`texts` by source, `step_in` / `next_action` by cutoff) with no special case: 25 of the 28 on the live tab. Andrew's three
+seed next steps due 2026-10-29, 2026-11-03 and 2026-12-28 stay open until three days past that due (correct by the rule:
+a dated callback lives until then) — skip them from the owner deck if they are stale. The routine's re-routed rows keep
+their ids, so the refresh above is what hands the seed `deliver-number` rows to the AM.
 Secrets: `.secrets/lm_exec_url` (exists) + `.secrets/deck_routine_token` (new). Exit 0 ok · 2 config · 3 secret missing ·
 4 endpoint unreachable or `ok:false`. `--out` writes the batch for tests; `--post` sends it.
 

@@ -122,7 +122,7 @@ console.log('GET — owner endpoint');
 {
   const ow = endpoint('owner', fixture());
   const e = ow.GET(TOK.ed);
-  ok('Ed: role owner, person Ed Peugh, approver false', e.ok && e.role === 'owner' && e.person === 'Ed Peugh' && e.approver === false);
+  ok('Ed: role owner, person Edward Peugh (the Team-tab spelling), approver false', e.ok && e.role === 'owner' && e.person === 'Edward Peugh' && e.approver === false);
   ok('Ed: no private rows (t5, t6), everything else', ids(e.tabs.Tasks).indexOf('t5') === -1 && ids(e.tabs.Tasks).indexOf('t6') === -1 && ids(e.tabs.Tasks).length === 10);
   ok('Ed: Review is null', e.tabs.Review === null);
   ok('Ed: payload never mentions a private row', JSON.stringify(e).indexOf('PRIVATE') === -1);
@@ -198,7 +198,7 @@ console.log('POST — add_task');
   const mr = sheetObj(S2.Tasks, 'task_id', m.task_id);
   ok('approver add: private row allowed, owner "" (unassigned), source owner, kind/due/priority honored', m.ok && mr.visibility === 'owner' && mr.owner === '' && mr.source === 'owner' && mr.kind === 'decide' && mr.due === '2026-10-03' && mr.priority === 3);
   const e = ow.POST({ token: TOK.ed, action: 'add_task', ask: 'Ed asks Jordan', owner: J, visibility: 'owner' });
-  ok('non-approver add: visibility forced to team, owner any Team name, created_by Ed', e.ok && sheetObj(S2.Tasks, 'task_id', e.task_id).visibility === 'team' && sheetObj(S2.Tasks, 'task_id', e.task_id).owner === J && sheetObj(S2.Tasks, 'task_id', e.task_id).created_by === 'Ed Peugh');
+  ok('non-approver add: visibility forced to team, owner any Team name, created_by Ed', e.ok && sheetObj(S2.Tasks, 'task_id', e.task_id).visibility === 'team' && sheetObj(S2.Tasks, 'task_id', e.task_id).owner === J && sheetObj(S2.Tasks, 'task_id', e.task_id).created_by === 'Edward Peugh');
 }
 
 /* ═══ 5. assign ═══ */
@@ -232,7 +232,7 @@ console.log('POST — flag');
   ok('own task flag ok, evidence kept', r2.ok && sheetObj(S.Review, 'flag_id', r2.flag_id).evidence === '03:12');
   const S2 = fixture(), ow = endpoint('owner', S2);
   const r3 = ow.POST({ token: TOK.ed, action: 'flag', item_type: 'pulse', item_key: 'pulse:oppB', item_owner: A, reason: 'rule-wrong', note: 'Holding window is wrong here' });
-  ok('owner may flag another person\'s item; from = Ed Peugh', r3.ok && sheetObj(S2.Review, 'flag_id', r3.flag_id).from === 'Ed Peugh' && sheetObj(S2.Review, 'flag_id', r3.flag_id).item_owner === A);
+  ok('owner may flag another person\'s item; from = Edward Peugh', r3.ok && sheetObj(S2.Review, 'flag_id', r3.flag_id).from === 'Edward Peugh' && sheetObj(S2.Review, 'flag_id', r3.flag_id).item_owner === A);
 }
 
 /* ═══ 7. decide ═══ */
@@ -422,23 +422,87 @@ console.log('POST — upsert_tasks expire_rules validation (never throws)');
 console.log('POST — upsert_tasks: the first P1T post retires the 10/1 seed');
 {
   const RT = 'routine:call-coaching', seed = [TH];
+  const pad = n => (n < 10 ? '0' : '') + n, day = off => { const d = new Date(NOW); d.setDate(d.getDate() + off); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
   ['2026-10-01', '2026-10-02', '2026-10-03'].forEach((d, k) => {
     seed.push(trow({ ...base, task_id: `t:${d}:michael:step_in:decide:abcd000${k}`, owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', created_by: RT, date: d, due: d }));
     seed.push(trow({ ...base, task_id: `t:${d}:jordan:texts:${k + 1}`, owner: J, source: 'texts', kind: 'coaching', created_by: RT, date: d, due: d }));
     seed.push(trow({ ...base, task_id: `t:${d}:andrew:next_action:${k + 1}`, owner: A, source: 'next_action', kind: 'next-step', created_by: RT, date: d, due: d }));
   });
+  // the live tab's 10/1 seed also holds next steps dated weeks out (10/29, 11/3, 12/28): a dated callback, kept by the rule
+  seed.push(trow({ ...base, task_id: 't:2026-10-01:andrew:next_action:6', owner: A, source: 'next_action', kind: 'next-step', created_by: RT, date: '2026-10-01', due: day(5) }));
+  // ... and Michael's private "check that Jordan has priced" rows under the id the AM's task now reuses
+  seed.push(trow({ ...base, task_id: 't:tracker:deliver-number:opp9', owner: MF, visibility: 'owner', source: 'tracker', kind: 'deliver-number', created_by: RT,
+    ask: 'Check that Jordan has priced Seller Nine', note: 'PRIVATE: chase him on this', opp_id: 'opp9' }));
   const S = { Tasks: fakeSheet(seed) }, lm = endpoint('lm', S);
-  const pad = n => (n < 10 ? '0' : '') + n, day = off => { const d = new Date(NOW); d.setDate(d.getDate() + off); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
   const tonight = [
     { task_id: 't:michael:step_in:sign:opp77', owner: MF, visibility: 'owner', kind: 'sign', source: 'step_in', ask: 'Sign the 6.1 contract', due: day(0) },
     { task_id: `t:${day(0)}:jordan:texts:1`, owner: J, kind: 'coaching', source: 'texts', ask: 'Lead with the timeline', due: day(0) },
-    { task_id: 't:andrew:next_action:c42:1a2b3c4d', owner: A, kind: 'next-step', source: 'next_action', ask: 'Call back Thursday', due: day(2) }
+    { task_id: 't:andrew:next_action:c42:1a2b3c4d', owner: A, kind: 'next-step', source: 'next_action', ask: 'Call back Thursday', due: day(2) },
+    { task_id: 't:tracker:deliver-number:opp9', owner: J, visibility: 'team', kind: 'deliver-number', source: 'tracker', ask: 'Price Seller Nine and give the number live', due: day(0), priority: 1 }
   ];
   const r = lm.POST({ token: TOK.routine, action: 'upsert_tasks', date: day(0), tasks: tonight, expire_sources: ['texts', 'pulse', 'tracker'],
     expire_rules: [{ source: 'step_in', due_before: day(-7) }, { source: 'next_action', due_before: day(-3) }] });
   const seedStatus = S.Tasks._v.slice(1, 10).map(x => x[TH.indexOf('status')]);
   ok('all 9 seed rows (step_in / texts / next_action, due 10/1–10/3) expire with no special case', r.ok && seedStatus.every(s => s === 'expired') && r.expired === 9 && same(r.expired_by_rule, { step_in: 3, next_action: 3 }));
-  ok('tonight\'s three undated / dated ids appended open', r.appended === 3 && tonight.every(t => sheetObj(S.Tasks, 'task_id', t.task_id).status === 'open'));
+  ok('a seed next_action whose due is still ahead (today+5) stays open — it ages out 3 days past that due', sheetObj(S.Tasks, 'task_id', 't:2026-10-01:andrew:next_action:6').status === 'open');
+  ok('tonight\'s three undated / dated ids appended open, the seed deliver-number refreshed', r.appended === 3 && r.refreshed === 1 && tonight.every(t => sheetObj(S.Tasks, 'task_id', t.task_id).status === 'open'));
+  const dn = sheetObj(S.Tasks, 'task_id', 't:tracker:deliver-number:opp9'), gj = lm.GET(TOK.jordan);
+  ok('the seed deliver-number row is now Jordan\'s, team-visible, in his GET — and Michael\'s private note is gone', dn.owner === J && dn.visibility === 'team' && dn.note === '' &&
+    ids(gj.tabs.Tasks).indexOf('t:tracker:deliver-number:opp9') > -1 && JSON.stringify(gj).indexOf('PRIVATE') === -1);
+}
+
+console.log('POST — upsert_tasks: a refresh re-routes kind + visibility on producer rows (TASKS.md "upsert_tasks refresh")');
+{
+  const RT = 'routine:call-coaching';
+  const pr = o => trow({ ...base, created_by: RT, ...o });
+  const mk = () => ({ Tasks: fakeSheet([TH,
+    pr({ task_id: 't:tracker:deliver-number:oppR', owner: MF, visibility: 'owner', source: 'tracker', kind: 'deliver-number', ask: 'Check that Jordan has priced R', note: 'PRIVATE note on R', opp_id: 'oppR' }),
+    pr({ task_id: 't:tracker:deliver-number:oppS', owner: MF, visibility: 'owner', source: 'tracker', kind: 'deliver-number', ask: 'Check S', status: 'expired', opp_id: 'oppS' }),
+    pr({ task_id: 't:tracker:follow-up:oppQ', owner: J, visibility: 'team', source: 'tracker', kind: 'follow-up', ask: 'Follow up Q', note: 'Jordan note on Q', opp_id: 'oppQ' }),
+    pr({ task_id: 't:pulse:oppP', owner: MF, visibility: 'owner', source: 'pulse', kind: 'assign', ask: 'Assign P', opp_id: 'oppP' }),
+    pr({ task_id: 't:pulse:oppK', owner: A, visibility: 'team', source: 'pulse', kind: 'cadence', ask: 'K cadence', opp_id: 'oppK' }),
+    pr({ task_id: 't:michael:step_in:decide:oppV', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', ask: 'Decide V', note: 'PRIVATE V' }),
+    trow({ ...base, task_id: 't:self:1760000000000:ab12', owner: MF, visibility: 'owner', source: 'owner', kind: 'self', ask: 'PRIVATE own task', created_by: MF })
+  ]), Review: fixture().Review });
+  const batch = { date: '2026-10-21', expire_sources: ['texts', 'pulse', 'tracker'], tasks: [
+    { task_id: 't:tracker:deliver-number:oppR', owner: J, visibility: 'team', kind: 'deliver-number', source: 'tracker', ask: 'Price R and give the number live', priority: 1 },
+    { task_id: 't:tracker:deliver-number:oppS', owner: J, visibility: 'team', kind: 'deliver-number', source: 'tracker', ask: 'Price S' },
+    { task_id: 't:tracker:follow-up:oppQ', owner: MF, visibility: 'owner', kind: 'follow-up', source: 'tracker', ask: 'Dispo: Q' },
+    { task_id: 't:pulse:oppP', owner: A, visibility: 'team', kind: 'call-seller', source: 'pulse', ask: 'First call to P' },
+    { task_id: 't:pulse:oppK', owner: A, ask: 'K cadence, new ask' },                                        // no kind / visibility sent
+    { task_id: 't:michael:step_in:decide:oppV', owner: MF, visibility: '', kind: '', ask: 'Decide V again' }, // empty = not sent
+    { task_id: 't:self:1760000000000:ab12', owner: MF, visibility: 'team', kind: 'decide', ask: 'collision' }   // a person's row
+  ] };
+  for (const which of ['lm', 'owner']) {
+    const S = mk(), ep = endpoint(which, S), o = id => sheetObj(S.Tasks, 'task_id', id);
+    const r = ep.POST(Object.assign({ token: which === 'lm' ? TOK.routine : TOK.michael, action: 'upsert_tasks' }, batch));
+    ok(which + ': ok, 7 refreshed, 1 reopened, nothing expired', r.ok && r.refreshed === 7 && r.reopened === 1 && r.appended === 0 && r.expired === 0);
+    const R = o('t:tracker:deliver-number:oppR');
+    ok(which + ': Michael/owner seed row re-sent as Jordan/team → visibility team, owner Jordan, kind kept, private note cleared',
+      R.owner === J && R.visibility === 'team' && R.kind === 'deliver-number' && R.note === '' && R.ask === 'Price R and give the number live');
+    ok(which + ': an expired private row re-sent to the AM → open AND team', o('t:tracker:deliver-number:oppS').status === 'open' && o('t:tracker:deliver-number:oppS').visibility === 'team');
+    const Q = o('t:tracker:follow-up:oppQ');
+    ok(which + ': Jordan/team row re-sent as Michael/owner → visibility owner (team → owner keeps the note)', Q.owner === MF && Q.visibility === 'owner' && Q.note === 'Jordan note on Q');
+    const P = o('t:pulse:oppP');
+    ok(which + ': unassigned pulse (Michael/owner/assign) once assigned → Andrew/team/call-seller', P.owner === A && P.visibility === 'team' && P.kind === 'call-seller');
+    const K = o('t:pulse:oppK');
+    ok(which + ': kind / visibility not sent → cell untouched', K.kind === 'cadence' && K.visibility === 'team' && K.ask === 'K cadence, new ask');
+    const V = o('t:michael:step_in:decide:oppV');
+    ok(which + ': kind / visibility sent EMPTY → cell untouched, note kept', V.kind === 'decide' && V.visibility === 'owner' && V.note === 'PRIVATE V' && V.ask === 'Decide V again');
+    const H = o('t:self:1760000000000:ab12');
+    ok(which + ': a person-created row keeps its kind and visibility', H.kind === 'self' && H.visibility === 'owner');
+    if (which !== 'lm') continue;
+    const gj = ep.GET(TOK.jordan), ga = ep.GET(TOK.andrew);
+    ok('Jordan\'s GET now carries R and S, not Q (now private); no private text anywhere', ids(gj.tabs.Tasks).indexOf('t:tracker:deliver-number:oppR') > -1 &&
+      ids(gj.tabs.Tasks).indexOf('t:tracker:deliver-number:oppS') > -1 && ids(gj.tabs.Tasks).indexOf('t:tracker:follow-up:oppQ') === -1 && JSON.stringify(gj).indexOf('PRIVATE') === -1);
+    ok('Andrew\'s GET now carries the assigned pulse P', ids(ga.tabs.Tasks).indexOf('t:pulse:oppP') > -1 && JSON.stringify(ga).indexOf('PRIVATE') === -1);
+    const ed = endpoint('owner', S).GET(TOK.ed);
+    ok('Ed (non-approver) no longer sees Q, still never a private row', ids(ed.tabs.Tasks).indexOf('t:tracker:follow-up:oppQ') === -1 && JSON.stringify(ed).indexOf('PRIVATE') === -1);
+    const snap = JSON.stringify(S.Tasks._v.map(x => x.filter((_, i) => TH[i] !== 'updated_at')));
+    const r2 = ep.POST(Object.assign({ token: TOK.routine, action: 'upsert_tasks' }, batch));
+    ok('idempotent re-run: 7 refreshed, 0 reopened, every cell but updated_at unchanged', r2.ok && r2.refreshed === 7 && r2.reopened === 0 &&
+      JSON.stringify(S.Tasks._v.map(x => x.filter((_, i) => TH[i] !== 'updated_at'))) === snap);
+  }
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

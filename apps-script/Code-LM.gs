@@ -666,10 +666,20 @@ function tUpsert_(who, body, T, R, now) {
     seen[id] = true;
     var i = tFind_(T, 'task_id', id);
     if (i > -1) {
-      var patch = { updated_at: iso };
+      var cur = tObj_(T.header, T.rows[i]), patch = { updated_at: iso };
       ['ask', 'why', 'due', 'priority', 'lead', 'ghl_url', 'owner'].forEach(function (k) { if (t[k] != null) patch[k] = t[k]; });
+      // A PRODUCER row re-routed under its stable id takes the batch's kind and visibility along with the owner
+      // (TASKS.md, "upsert_tasks refresh"): a seed deliver-number row going Michael/owner -> AM/team must reach the
+      // AM's GET. A person's own row keeps both. owner -> team clears the note: a private note never reaches an LM.
+      if (tStr_(cur.created_by) === ROUTINE_CREATED_BY) {
+        if (tStr_(t.kind)) patch.kind = tStr_(t.kind);
+        if (tStr_(t.visibility)) {
+          patch.visibility = tStr_(t.visibility) === 'owner' ? 'owner' : 'team';
+          if (patch.visibility === 'team' && tStr_(cur.visibility) === 'owner') patch.note = '';
+        }
+      }
       // The one status the producer may touch: a row IT expired comes back to life when it is sent again.
-      if (tStr_(tObj_(T.header, T.rows[i]).status) === 'expired') { patch.status = 'open'; reopened++; }
+      if (tStr_(cur.status) === 'expired') { patch.status = 'open'; reopened++; }
       tPatch_(T, i, patch); refreshed++;
     } else {
       var obj = {};

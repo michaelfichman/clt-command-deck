@@ -73,7 +73,7 @@ const ct = name => 'tcol-h"><span>' + name + '</span>';   // a column title (a p
   ok('+ Add task: owner select (Unassigned + people), kind, due, priority, private toggle', v.indexOf('+ Add task') > -1 && v.indexOf('<option value="">Unassigned</option>') > -1 && v.indexOf('<option value="' + J + '">') > -1 && v.indexOf('id="tadd-kind"') > -1 && v.indexOf('id="tadd-due" class="lm-in" type="date" value="' + TODAY + '"') > -1 && v.indexOf('id="tadd-private"') > -1);
 
   console.log('NON-APPROVER (Ed) — even though RAW carries private rows and a Review tab');
-  META = { role: 'owner', person: 'Ed Peugh', approver: false };
+  META = { role: 'owner', person: 'Edward Peugh', approver: false };
   v = VIEWS.tasks().html;
   ok('no private column, private row nowhere, $40,000 nowhere', v.indexOf('Michael (private)') === -1 && v.indexOf('ASK-M-PRIVATE') === -1 && v.indexOf('$40,000') === -1);
   ok('no review queue, no decided list, no flag text', v.indexOf('Review queue') === -1 && v.indexOf('Decided flags') === -1 && v.indexOf('FLAG-1') === -1 && v.indexOf('to review') === -1);
@@ -110,7 +110,7 @@ const ct = name => 'tcol-h"><span>' + name + '</span>';   // a column title (a p
   $('tadd-ask').value = 'Call the title company'; $('tadd-owner').value = A; $('tadd-kind').value = 'follow-up'; $('tadd-due').value = TODAY; $('tadd-pri').value = '1'; $('tadd-private').checked = true;
   r = await deckTaskAdd(); p = calls.post[4];
   ok('+ Add task (approver, private checked) → add_task {ask, owner, kind, due, priority, visibility owner}', r.ok && p.body.action === 'add_task' && p.body.ask === 'Call the title company' && p.body.owner === A && p.body.kind === 'follow-up' && p.body.due === TODAY && p.body.priority === '1' && p.body.visibility === 'owner');
-  META = { role: 'owner', person: 'Ed Peugh', approver: false };
+  META = { role: 'owner', person: 'Edward Peugh', approver: false };
   r = await deckTaskAdd(); p = calls.post[5];
   ok('non-approver: the private flag is never sent even if the box were checked', r.ok && !('visibility' in p.body));
   $('tadd-ask').value = '';

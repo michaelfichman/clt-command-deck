@@ -19,8 +19,11 @@
  *  1. RE-INSERT the live token(s) from the deployed editor copy before
  *     pasting — this file will NOT work as committed (placeholder tokens).
  *     Keep the OBJECT shape: Michael's token -> 'Michael Fichman', Ed's token
- *     -> 'Ed Peugh'. Two DIFFERENT real values — an object with duplicate keys
- *     silently collapses to one entry. APPROVERS stays ['Michael Fichman'].
+ *     -> 'Edward Peugh' (the Team-tab spellings). Two DIFFERENT real values —
+ *     an object with duplicate keys silently collapses to one entry. APPROVERS
+ *     stays ['Michael Fichman']. 'Michael Fichman' must be EXACT: a typo
+ *     silently drops approver (no private rows, no review queue, upsert_tasks
+ *     forbidden) — verify a GET with his token answers approver:true.
  *  2. After pasting over the editor's Code.gs: SAVE (Cmd-S). An unsaved
  *     paste deploys nothing.
  *  3. Deploy -> Manage deployments -> pencil icon on the deployment whose
@@ -88,7 +91,7 @@ var TABS = [
    company P&L. (ownerWho_ also refuses an empty token outright.) */
 var TOKENS = {
   'SET-IN-DEPLOYED-EDITOR-MICHAEL': 'Michael Fichman',
-  'SET-IN-DEPLOYED-EDITOR-ED': 'Ed Peugh'
+  'SET-IN-DEPLOYED-EDITOR-ED': 'Edward Peugh'
 };
 /* Who may decide flags and see visibility=owner task rows. Team-tab names. */
 var APPROVERS = ['Michael Fichman'];
@@ -448,10 +451,20 @@ function tUpsert_(who, body, T, R, now) {
     seen[id] = true;
     var i = tFind_(T, 'task_id', id);
     if (i > -1) {
-      var patch = { updated_at: iso };
+      var cur = tObj_(T.header, T.rows[i]), patch = { updated_at: iso };
       ['ask', 'why', 'due', 'priority', 'lead', 'ghl_url', 'owner'].forEach(function (k) { if (t[k] != null) patch[k] = t[k]; });
+      // A PRODUCER row re-routed under its stable id takes the batch's kind and visibility along with the owner
+      // (TASKS.md, "upsert_tasks refresh"): a seed deliver-number row going Michael/owner -> AM/team must reach the
+      // AM's GET. A person's own row keeps both. owner -> team clears the note: a private note never reaches an LM.
+      if (tStr_(cur.created_by) === ROUTINE_CREATED_BY) {
+        if (tStr_(t.kind)) patch.kind = tStr_(t.kind);
+        if (tStr_(t.visibility)) {
+          patch.visibility = tStr_(t.visibility) === 'owner' ? 'owner' : 'team';
+          if (patch.visibility === 'team' && tStr_(cur.visibility) === 'owner') patch.note = '';
+        }
+      }
       // The one status the producer may touch: a row IT expired comes back to life when it is sent again.
-      if (tStr_(tObj_(T.header, T.rows[i]).status) === 'expired') { patch.status = 'open'; reopened++; }
+      if (tStr_(cur.status) === 'expired') { patch.status = 'open'; reopened++; }
       tPatch_(T, i, patch); refreshed++;
     } else {
       var obj = {};
