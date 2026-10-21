@@ -48,6 +48,13 @@ Follow the REDEPLOY CHECKLIST at the top of each `.gs` file. In short:
    - POST (any client; body is a JSON string, `Content-Type: text/plain`) with a bad
      token → `{"ok":false,"error":"unauthorized"}`; with an unknown action and a good
      token → `{"ok":false,"error":"unknown action"}`.
+   - `expire_rules` is live (2026-10-21): POST to the **LM** `/exec` with `ROUTINE_TOKEN`
+     (the owner `/exec`: Michael's token)
+     `{"token":"…","action":"upsert_tasks","date":"<today>","tasks":[],"expire_rules":[{"source":"probe","due_before":"x"}]}`
+     → `ok:true` with `"expired_by_rule":{}` and one `notes` line
+     (`expire_rules[0] ignored: unknown source "probe"`). It writes nothing (empty batch, no
+     `expire_sources`). An answer **without** `expired_by_rule` means the old version is
+     still serving — the nightly's `step_in` / `next_action` rows would then never expire.
 
 ## 3. Hand the routine its token
 
@@ -60,6 +67,11 @@ else — it is not in `LM_TOKENS`, so it gets no GET payload.
 3. In the routines repo write it to `.secrets/deck_routine_token` (next to the existing
    `.secrets/lm_exec_url`). `.secrets/` is gitignored there and lives only in the main
    checkout — never in this repo, never in a worktree, never in a commit.
+4. Expect the first nightly post after the redeploy to expire the 2026-10-01 seed rows
+   (`texts` via `expire_sources`; `step_in` / `next_action` via `expire_rules`, their due is
+   long past the cutoff). That is the design, not data loss — see TASKS.md, *`upsert_tasks`
+   expiry*. From then on a `step_in` stays live 7 days and a `next_action` 3 days past due
+   unless the nightly re-sends it.
 
 ## 4. Ship the clients
 

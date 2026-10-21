@@ -300,6 +300,145 @@ console.log('POST — upsert_tasks');
   const S3 = fixture(), lm3 = endpoint('lm', S3);
   const r4 = lm3.POST({ token: TOK.routine, action: 'upsert_tasks', date: '2026-10-01', tasks: [] });
   ok('empty batch with no expire_sources changes nothing', r4.ok && r4.appended === 0 && r4.expired === 0 && same(S3.Tasks._v, fixture().Tasks._v));
+  ok('no expire_rules sent → expired_by_rule {} and notes [] (fields always present)', same(r4.expired_by_rule, {}) && same(r4.notes, []) && same(r.expired_by_rule, {}) && same(r.notes, []));
+}
+
+/* ═══ 9. upsert_tasks — expire_rules (TASKS.md "upsert_tasks expiry", 2026-10-21) ═══ */
+console.log('POST — upsert_tasks expire_rules');
+{
+  const pad = n => (n < 10 ? '0' : '') + n;
+  const dayStr = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());   // the endpoint's day (no Utilities in node → local)
+  const day = off => { const d = new Date(NOW); d.setDate(d.getDate() + off); return dayStr(d); };
+  const at = (off, h, m) => { const d = new Date(NOW); d.setDate(d.getDate() + off); d.setHours(h, m || 0, 0, 0); return d; };
+  const RT = 'routine:call-coaching', OLD = ISO(NOW - 30 * D);
+  const pr = o => trow({ ...base, created_by: RT, created_at: OLD, updated_at: OLD, ...o });
+  function ruleFixture() {
+    return { Tasks: fakeSheet([TH,
+      pr({ task_id: 's_old', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-10) }),
+      pr({ task_id: 's_snz', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-8), status: 'snoozed', snoozed_until: ISO(NOW + D) }),
+      pr({ task_id: 's_edge', owner: MF, visibility: 'owner', source: 'step_in', kind: 'sign', due: day(-7) }),
+      pr({ task_id: 's_new', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-2) }),
+      pr({ task_id: 's_done', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-20), status: 'done', done_by: MF }),
+      pr({ task_id: 's_exp', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-20), status: 'expired' }),
+      pr({ task_id: 's_batch', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-20), ask: 'still live' }),
+      pr({ task_id: 's_human', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-30), created_by: MF }),
+      pr({ task_id: 's_dateobj', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: at(-8, 0) }),        // Sheets hands back a Date
+      pr({ task_id: 's_dateedge', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: at(-7, 0) }),       // midnight OF the cutoff day: not before it
+      pr({ task_id: 's_iso', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: at(-9, 23, 30).toISOString() }),
+      pr({ task_id: 's_blank', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: '' }),
+      pr({ task_id: 's_junk', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: 'soon' }),
+      pr({ task_id: 'n_old', owner: J, source: 'next_action', kind: 'next-step', due: day(-4) }),
+      pr({ task_id: 'n_edge', owner: J, source: 'next_action', kind: 'next-step', due: day(-3) }),
+      pr({ task_id: 'n_future', owner: A, source: 'next_action', kind: 'next-step', due: day(3) }),
+      pr({ task_id: 't:2026-10-01:jordan:next_action:2', owner: J, source: 'next_action', kind: 'next-step', due: '2026-10-01' }),
+      pr({ task_id: 'x_texts', owner: J, source: 'texts', kind: 'coaching', due: day(-1) }),
+      pr({ task_id: 'x_self', owner: J, source: 'self', kind: 'self', due: day(-40), created_by: J }),
+      pr({ task_id: 'x_review', owner: J, source: 'review', kind: 'fix-record', due: day(-40), created_by: MF })
+    ]), Review: fixture().Review };
+  }
+  const RULES = [{ source: 'step_in', due_before: day(-7) }, { source: 'next_action', due_before: day(-3) }];
+  const batch = { date: day(0), tasks: [{ task_id: 's_batch', owner: MF, ask: 'still live, re-sent tonight' }],
+    expire_sources: ['texts', 'pulse', 'tracker'], expire_rules: RULES };
+  const S = ruleFixture(), before = JSON.stringify(S.Tasks._v), lm = endpoint('lm', S);
+  const st = id => sheetObj(S.Tasks, 'task_id', id).status;
+  const r = lm.POST(Object.assign({ token: TOK.routine, action: 'upsert_tasks' }, batch));
+  if (!(r.ok && r.expired === 7)) console.log('   actual:', JSON.stringify(r));
+  ok('ok: expired 7 = 1 by source (texts) + 4 step_in + 2 next_action; refreshed 1', r.ok && r.expired === 7 && r.refreshed === 1 && r.appended === 0 && same(r.expired_by_rule, { step_in: 4, next_action: 2 }));
+  ok('step_in due before the cutoff → expired (open s_old, snoozed s_snz, Date cell s_dateobj, ISO datetime s_iso)', ['s_old', 's_snz', 's_dateobj', 's_iso'].every(id => st(id) === 'expired'));
+  ok('the cutoff is strict: due ON due_before stays open (string s_edge, Date at midnight s_dateedge)', st('s_edge') === 'open' && st('s_dateedge') === 'open');
+  ok('newer step_in stays open (s_new due today−2)', st('s_new') === 'open');
+  ok('a row in this batch is never expired, however old its due (s_batch refreshed, open)', st('s_batch') === 'open' && sheetObj(S.Tasks, 'task_id', 's_batch').ask === 'still live, re-sent tonight');
+  ok('done / already-expired rows untouched (status and updated_at)', st('s_done') === 'done' && st('s_exp') === 'expired' && sheetObj(S.Tasks, 'task_id', 's_exp').updated_at === OLD);
+  ok('only PRODUCER rows: a step_in row created by a person is kept (s_human)', st('s_human') === 'open');
+  ok('unreadable due → kept, and said so in notes', st('s_blank') === 'open' && st('s_junk') === 'open' && same(r.notes, ['step_in: kept 2 live producer row(s) whose due is unreadable']));
+  ok('next_action: due before today−3 expired (n_old, the dated 10/1 seed id); on the cutoff and future kept', st('n_old') === 'expired' && st('t:2026-10-01:jordan:next_action:2') === 'expired' && st('n_edge') === 'open' && st('n_future') === 'open');
+  ok('expire_sources still applies alongside (texts row not in the batch → expired)', st('x_texts') === 'expired');
+  ok('people\'s own rows never aged out (self, review)', st('x_self') === 'open' && st('x_review') === 'open');
+  ok('an expired row gets updated_at = now', sheetObj(S.Tasks, 'task_id', 's_old').updated_at !== OLD && /T/.test(sheetObj(S.Tasks, 'task_id', 's_old').updated_at));
+  const after = JSON.parse(before), keep = ['s_edge', 's_new', 's_human', 's_dateedge', 's_blank', 's_junk', 'n_edge', 'n_future', 'x_self', 'x_review', 's_done'];
+  ok('kept rows are byte-identical to before (no stray write)', keep.every(id => { const i = after.findIndex(x => x[0] === id); return i > 0 && same(S.Tasks._v[i], after[i]); }));
+  const r2 = lm.POST(Object.assign({ token: TOK.routine, action: 'upsert_tasks' }, batch));
+  ok('idempotent re-run: expired 0, by rule 0 / 0', r2.ok && r2.expired === 0 && same(r2.expired_by_rule, { step_in: 0, next_action: 0 }));
+  const r3 = lm.POST({ token: TOK.routine, action: 'upsert_tasks', date: day(0), tasks: [{ task_id: 's_old', owner: MF, ask: 'the move is back', due: day(0) }], expire_rules: RULES });
+  ok('a stable id re-emitted after it aged out refreshes the SAME row and reopens it', r3.ok && r3.reopened === 1 && r3.appended === 0 && st('s_old') === 'open' && sheetObj(S.Tasks, 'task_id', 's_old').due === day(0));
+  const S2 = ruleFixture(), ow = endpoint('owner', S2);
+  const r4 = ow.POST(Object.assign({ token: TOK.michael, action: 'upsert_tasks' }, batch));
+  ok('owner endpoint (approver) applies the same rules', r4.ok && r4.expired === 7 && same(r4.expired_by_rule, { step_in: 4, next_action: 2 }));
+}
+
+console.log('POST — upsert_tasks expire_rules validation (never throws)');
+{
+  const pad = n => (n < 10 ? '0' : '') + n;
+  const day = off => { const d = new Date(NOW); d.setDate(d.getDate() + off); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  const RT = 'routine:call-coaching';
+  const mk = () => ({ Tasks: fakeSheet([TH,
+    trow({ ...base, task_id: 'a', owner: MF, visibility: 'owner', source: 'step_in', created_by: RT, due: day(-30) }),
+    trow({ ...base, task_id: 'a2', owner: MF, visibility: 'owner', source: 'step_in', created_by: RT, due: day(-3) }),
+    trow({ ...base, task_id: 'b', owner: J, source: 'next_action', created_by: RT, due: day(-30) }),
+    trow({ ...base, task_id: 'c', owner: J, source: 'pulse', created_by: RT, due: day(-30) })]) });
+  const U = (S, extra) => endpoint('lm', S).POST(Object.assign({ token: TOK.routine, action: 'upsert_tasks', date: day(0), tasks: [] }, extra));
+  const S = mk();
+  const r = U(S, { expire_sources: ['pulse'], expire_rules: [
+    { source: 'step_in', due_before: day(-7) },          // 0 valid
+    'nope',                                              // 1
+    ['step_in', day(-7)],                                // 2
+    null,                                                // 3
+    { due_before: day(-7) },                             // 4
+    { source: 'self', due_before: day(-7) },             // 5 a person's source
+    { source: 'constructor', due_before: day(-7) },      // 6 never resolved through the prototype
+    { source: 'pulse', due_before: day(-7) },            // 7 already in expire_sources
+    { source: 'step_in', due_before: day(-1) },          // 8 duplicate: the first valid rule wins
+    { source: 'next_action', due_before: '2026-02-30' }, // 9 not a real date
+    { source: 'next_action', due_before: '10/18/2026' }, // 10
+    { source: 'next_action', due_before: 20261018 },     // 11
+    { source: 'next_action', due_before: day(1) },       // 12 after today: would expire live tasks
+    { source: 'Step_In', due_before: day(-7) },          // 13 exact, lowercase
+    { source: 'next_action', due_before: day(0) }        // 14 valid (today is allowed): first VALID next_action rule
+  ] });
+  if (!r.ok) console.log('   actual:', JSON.stringify(r));
+  const why = i => (r.notes || []).find(n => n.indexOf('expire_rules[' + i + '] ignored: ') === 0) || '';
+  ok('mixed good + bad rules → still ok:true, the two good rules applied', r.ok && same(r.expired_by_rule, { step_in: 1, next_action: 1 }) && r.expired === 3);
+  ok('one note per ignored rule, indexed (13 notes)', Array.isArray(r.notes) && r.notes.length === 13);
+  ok('not an object: string, array, null', /not an object$/.test(why(1)) && /not an object$/.test(why(2)) && /not an object$/.test(why(3)));
+  ok('source required / unknown source (self, constructor, Step_In)', /source required$/.test(why(4)) && /unknown source "self"$/.test(why(5)) && /unknown source "constructor"$/.test(why(6)) && /unknown source "Step_In"$/.test(why(13)));
+  ok('a source already in expire_sources is refused', /pulse is already in expire_sources$/.test(why(7)));
+  ok('duplicate source: the first valid rule wins (cutoff stays today−7, so a2 due today−3 is kept)', /duplicate source step_in$/.test(why(8)) && sheetObj(S.Tasks, 'task_id', 'a2').status === 'open' && sheetObj(S.Tasks, 'task_id', 'a').status === 'expired');
+  ok('due_before must be a real YYYY-MM-DD (2026-02-30, 10/18/2026, a number)', [9, 10, 11].every(i => /due_before must be a YYYY-MM-DD date$/.test(why(i))));
+  ok('due_before after today refused', why(12).indexOf('is after today') > -1);
+  ok('pulse row expired by expire_sources, not by the refused rule', sheetObj(S.Tasks, 'task_id', 'c').status === 'expired');
+  const S2 = mk(), r2 = U(S2, { expire_rules: { source: 'step_in', due_before: day(-7) } });
+  ok('expire_rules not an array → ignored whole with one note, nothing expired', r2.ok && r2.expired === 0 && same(r2.expired_by_rule, {}) && same(r2.notes, ['expire_rules ignored: not an array']) && sheetObj(S2.Tasks, 'task_id', 'a').status === 'open');
+  const r3 = U(mk(), { expire_rules: 'step_in' });
+  ok('expire_rules a string → same', r3.ok && same(r3.notes, ['expire_rules ignored: not an array']));
+  const r4 = U(mk(), { expire_rules: null });
+  ok('expire_rules null → no rules, no note', r4.ok && same(r4.notes, []) && same(r4.expired_by_rule, {}));
+  const r5 = U(mk(), { expire_rules: [] });
+  ok('expire_rules [] → no rules, no note, nothing written', r5.ok && r5.expired === 0 && same(r5.notes, []));
+  const r6 = endpoint('lm', mk()).POST({ token: TOK.routine, action: 'upsert_tasks', date: day(0), tasks: [], expire_rules: [{ source: 'bogus', due_before: 'x' }] });
+  ok('the README §2 deploy probe (empty tasks + one bogus rule) answers ok with a note and writes nothing', r6.ok && r6.appended === 0 && r6.expired === 0 && Array.isArray(r6.notes) && r6.notes.length === 1 && same(r6.expired_by_rule, {}));
+  ok('LM token still forbidden for upsert_tasks, rules or not', same(endpoint('lm', mk()).POST({ token: TOK.jordan, action: 'upsert_tasks', tasks: [], expire_rules: [{ source: 'step_in', due_before: day(-7) }] }), { ok: false, error: 'forbidden' }));
+}
+
+console.log('POST — upsert_tasks: the first P1T post retires the 10/1 seed');
+{
+  const RT = 'routine:call-coaching', seed = [TH];
+  ['2026-10-01', '2026-10-02', '2026-10-03'].forEach((d, k) => {
+    seed.push(trow({ ...base, task_id: `t:${d}:michael:step_in:decide:abcd000${k}`, owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', created_by: RT, date: d, due: d }));
+    seed.push(trow({ ...base, task_id: `t:${d}:jordan:texts:${k + 1}`, owner: J, source: 'texts', kind: 'coaching', created_by: RT, date: d, due: d }));
+    seed.push(trow({ ...base, task_id: `t:${d}:andrew:next_action:${k + 1}`, owner: A, source: 'next_action', kind: 'next-step', created_by: RT, date: d, due: d }));
+  });
+  const S = { Tasks: fakeSheet(seed) }, lm = endpoint('lm', S);
+  const pad = n => (n < 10 ? '0' : '') + n, day = off => { const d = new Date(NOW); d.setDate(d.getDate() + off); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  const tonight = [
+    { task_id: 't:michael:step_in:sign:opp77', owner: MF, visibility: 'owner', kind: 'sign', source: 'step_in', ask: 'Sign the 6.1 contract', due: day(0) },
+    { task_id: `t:${day(0)}:jordan:texts:1`, owner: J, kind: 'coaching', source: 'texts', ask: 'Lead with the timeline', due: day(0) },
+    { task_id: 't:andrew:next_action:c42:1a2b3c4d', owner: A, kind: 'next-step', source: 'next_action', ask: 'Call back Thursday', due: day(2) }
+  ];
+  const r = lm.POST({ token: TOK.routine, action: 'upsert_tasks', date: day(0), tasks: tonight, expire_sources: ['texts', 'pulse', 'tracker'],
+    expire_rules: [{ source: 'step_in', due_before: day(-7) }, { source: 'next_action', due_before: day(-3) }] });
+  const seedStatus = S.Tasks._v.slice(1, 10).map(x => x[TH.indexOf('status')]);
+  ok('all 9 seed rows (step_in / texts / next_action, due 10/1–10/3) expire with no special case', r.ok && seedStatus.every(s => s === 'expired') && r.expired === 9 && same(r.expired_by_rule, { step_in: 3, next_action: 3 }));
+  ok('tonight\'s three undated / dated ids appended open', r.appended === 3 && tonight.every(t => sheetObj(S.Tasks, 'task_id', t.task_id).status === 'open'));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
