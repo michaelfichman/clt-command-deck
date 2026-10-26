@@ -122,7 +122,7 @@ console.log('GET — owner endpoint');
 {
   const ow = endpoint('owner', fixture());
   const e = ow.GET(TOK.ed);
-  ok('Ed: role owner, person Ed Peugh, approver false', e.ok && e.role === 'owner' && e.person === 'Ed Peugh' && e.approver === false);
+  ok('Ed: role owner, person Edward Peugh (the Team-tab spelling), approver false', e.ok && e.role === 'owner' && e.person === 'Edward Peugh' && e.approver === false);
   ok('Ed: no private rows (t5, t6), everything else', ids(e.tabs.Tasks).indexOf('t5') === -1 && ids(e.tabs.Tasks).indexOf('t6') === -1 && ids(e.tabs.Tasks).length === 10);
   ok('Ed: Review is null', e.tabs.Review === null);
   ok('Ed: payload never mentions a private row', JSON.stringify(e).indexOf('PRIVATE') === -1);
@@ -198,7 +198,7 @@ console.log('POST — add_task');
   const mr = sheetObj(S2.Tasks, 'task_id', m.task_id);
   ok('approver add: private row allowed, owner "" (unassigned), source owner, kind/due/priority honored', m.ok && mr.visibility === 'owner' && mr.owner === '' && mr.source === 'owner' && mr.kind === 'decide' && mr.due === '2026-10-03' && mr.priority === 3);
   const e = ow.POST({ token: TOK.ed, action: 'add_task', ask: 'Ed asks Jordan', owner: J, visibility: 'owner' });
-  ok('non-approver add: visibility forced to team, owner any Team name, created_by Ed', e.ok && sheetObj(S2.Tasks, 'task_id', e.task_id).visibility === 'team' && sheetObj(S2.Tasks, 'task_id', e.task_id).owner === J && sheetObj(S2.Tasks, 'task_id', e.task_id).created_by === 'Ed Peugh');
+  ok('non-approver add: visibility forced to team, owner any Team name, created_by Ed', e.ok && sheetObj(S2.Tasks, 'task_id', e.task_id).visibility === 'team' && sheetObj(S2.Tasks, 'task_id', e.task_id).owner === J && sheetObj(S2.Tasks, 'task_id', e.task_id).created_by === 'Edward Peugh');
 }
 
 /* ═══ 5. assign ═══ */
@@ -232,7 +232,7 @@ console.log('POST — flag');
   ok('own task flag ok, evidence kept', r2.ok && sheetObj(S.Review, 'flag_id', r2.flag_id).evidence === '03:12');
   const S2 = fixture(), ow = endpoint('owner', S2);
   const r3 = ow.POST({ token: TOK.ed, action: 'flag', item_type: 'pulse', item_key: 'pulse:oppB', item_owner: A, reason: 'rule-wrong', note: 'Holding window is wrong here' });
-  ok('owner may flag another person\'s item; from = Ed Peugh', r3.ok && sheetObj(S2.Review, 'flag_id', r3.flag_id).from === 'Ed Peugh' && sheetObj(S2.Review, 'flag_id', r3.flag_id).item_owner === A);
+  ok('owner may flag another person\'s item; from = Edward Peugh', r3.ok && sheetObj(S2.Review, 'flag_id', r3.flag_id).from === 'Edward Peugh' && sheetObj(S2.Review, 'flag_id', r3.flag_id).item_owner === A);
 }
 
 /* ═══ 7. decide ═══ */
@@ -300,6 +300,209 @@ console.log('POST — upsert_tasks');
   const S3 = fixture(), lm3 = endpoint('lm', S3);
   const r4 = lm3.POST({ token: TOK.routine, action: 'upsert_tasks', date: '2026-10-01', tasks: [] });
   ok('empty batch with no expire_sources changes nothing', r4.ok && r4.appended === 0 && r4.expired === 0 && same(S3.Tasks._v, fixture().Tasks._v));
+  ok('no expire_rules sent → expired_by_rule {} and notes [] (fields always present)', same(r4.expired_by_rule, {}) && same(r4.notes, []) && same(r.expired_by_rule, {}) && same(r.notes, []));
+}
+
+/* ═══ 9. upsert_tasks — expire_rules (TASKS.md "upsert_tasks expiry", 2026-10-21) ═══ */
+console.log('POST — upsert_tasks expire_rules');
+{
+  const pad = n => (n < 10 ? '0' : '') + n;
+  const dayStr = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());   // the endpoint's day (no Utilities in node → local)
+  const day = off => { const d = new Date(NOW); d.setDate(d.getDate() + off); return dayStr(d); };
+  const at = (off, h, m) => { const d = new Date(NOW); d.setDate(d.getDate() + off); d.setHours(h, m || 0, 0, 0); return d; };
+  const RT = 'routine:call-coaching', OLD = ISO(NOW - 30 * D);
+  const pr = o => trow({ ...base, created_by: RT, created_at: OLD, updated_at: OLD, ...o });
+  function ruleFixture() {
+    return { Tasks: fakeSheet([TH,
+      pr({ task_id: 's_old', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-10) }),
+      pr({ task_id: 's_snz', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-8), status: 'snoozed', snoozed_until: ISO(NOW + D) }),
+      pr({ task_id: 's_edge', owner: MF, visibility: 'owner', source: 'step_in', kind: 'sign', due: day(-7) }),
+      pr({ task_id: 's_new', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-2) }),
+      pr({ task_id: 's_done', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-20), status: 'done', done_by: MF }),
+      pr({ task_id: 's_exp', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-20), status: 'expired' }),
+      pr({ task_id: 's_batch', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-20), ask: 'still live' }),
+      pr({ task_id: 's_human', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: day(-30), created_by: MF }),
+      pr({ task_id: 's_dateobj', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: at(-8, 0) }),        // Sheets hands back a Date
+      pr({ task_id: 's_dateedge', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: at(-7, 0) }),       // midnight OF the cutoff day: not before it
+      pr({ task_id: 's_iso', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: at(-9, 23, 30).toISOString() }),
+      pr({ task_id: 's_blank', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: '' }),
+      pr({ task_id: 's_junk', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', due: 'soon' }),
+      pr({ task_id: 'n_old', owner: J, source: 'next_action', kind: 'next-step', due: day(-4) }),
+      pr({ task_id: 'n_edge', owner: J, source: 'next_action', kind: 'next-step', due: day(-3) }),
+      pr({ task_id: 'n_future', owner: A, source: 'next_action', kind: 'next-step', due: day(3) }),
+      pr({ task_id: 't:2026-10-01:jordan:next_action:2', owner: J, source: 'next_action', kind: 'next-step', due: '2026-10-01' }),
+      pr({ task_id: 'x_texts', owner: J, source: 'texts', kind: 'coaching', due: day(-1) }),
+      pr({ task_id: 'x_self', owner: J, source: 'self', kind: 'self', due: day(-40), created_by: J }),
+      pr({ task_id: 'x_review', owner: J, source: 'review', kind: 'fix-record', due: day(-40), created_by: MF })
+    ]), Review: fixture().Review };
+  }
+  const RULES = [{ source: 'step_in', due_before: day(-7) }, { source: 'next_action', due_before: day(-3) }];
+  const batch = { date: day(0), tasks: [{ task_id: 's_batch', owner: MF, ask: 'still live, re-sent tonight' }],
+    expire_sources: ['texts', 'pulse', 'tracker'], expire_rules: RULES };
+  const S = ruleFixture(), before = JSON.stringify(S.Tasks._v), lm = endpoint('lm', S);
+  const st = id => sheetObj(S.Tasks, 'task_id', id).status;
+  const r = lm.POST(Object.assign({ token: TOK.routine, action: 'upsert_tasks' }, batch));
+  if (!(r.ok && r.expired === 7)) console.log('   actual:', JSON.stringify(r));
+  ok('ok: expired 7 = 1 by source (texts) + 4 step_in + 2 next_action; refreshed 1', r.ok && r.expired === 7 && r.refreshed === 1 && r.appended === 0 && same(r.expired_by_rule, { step_in: 4, next_action: 2 }));
+  ok('step_in due before the cutoff → expired (open s_old, snoozed s_snz, Date cell s_dateobj, ISO datetime s_iso)', ['s_old', 's_snz', 's_dateobj', 's_iso'].every(id => st(id) === 'expired'));
+  ok('the cutoff is strict: due ON due_before stays open (string s_edge, Date at midnight s_dateedge)', st('s_edge') === 'open' && st('s_dateedge') === 'open');
+  ok('newer step_in stays open (s_new due today−2)', st('s_new') === 'open');
+  ok('a row in this batch is never expired, however old its due (s_batch refreshed, open)', st('s_batch') === 'open' && sheetObj(S.Tasks, 'task_id', 's_batch').ask === 'still live, re-sent tonight');
+  ok('done / already-expired rows untouched (status and updated_at)', st('s_done') === 'done' && st('s_exp') === 'expired' && sheetObj(S.Tasks, 'task_id', 's_exp').updated_at === OLD);
+  ok('only PRODUCER rows: a step_in row created by a person is kept (s_human)', st('s_human') === 'open');
+  ok('unreadable due → kept, and said so in notes', st('s_blank') === 'open' && st('s_junk') === 'open' && same(r.notes, ['step_in: kept 2 live producer row(s) whose due is unreadable']));
+  ok('next_action: due before today−3 expired (n_old, the dated 10/1 seed id); on the cutoff and future kept', st('n_old') === 'expired' && st('t:2026-10-01:jordan:next_action:2') === 'expired' && st('n_edge') === 'open' && st('n_future') === 'open');
+  ok('expire_sources still applies alongside (texts row not in the batch → expired)', st('x_texts') === 'expired');
+  ok('people\'s own rows never aged out (self, review)', st('x_self') === 'open' && st('x_review') === 'open');
+  ok('an expired row gets updated_at = now', sheetObj(S.Tasks, 'task_id', 's_old').updated_at !== OLD && /T/.test(sheetObj(S.Tasks, 'task_id', 's_old').updated_at));
+  const after = JSON.parse(before), keep = ['s_edge', 's_new', 's_human', 's_dateedge', 's_blank', 's_junk', 'n_edge', 'n_future', 'x_self', 'x_review', 's_done'];
+  ok('kept rows are byte-identical to before (no stray write)', keep.every(id => { const i = after.findIndex(x => x[0] === id); return i > 0 && same(S.Tasks._v[i], after[i]); }));
+  const r2 = lm.POST(Object.assign({ token: TOK.routine, action: 'upsert_tasks' }, batch));
+  ok('idempotent re-run: expired 0, by rule 0 / 0', r2.ok && r2.expired === 0 && same(r2.expired_by_rule, { step_in: 0, next_action: 0 }));
+  const r3 = lm.POST({ token: TOK.routine, action: 'upsert_tasks', date: day(0), tasks: [{ task_id: 's_old', owner: MF, ask: 'the move is back', due: day(0) }], expire_rules: RULES });
+  ok('a stable id re-emitted after it aged out refreshes the SAME row and reopens it', r3.ok && r3.reopened === 1 && r3.appended === 0 && st('s_old') === 'open' && sheetObj(S.Tasks, 'task_id', 's_old').due === day(0));
+  const S2 = ruleFixture(), ow = endpoint('owner', S2);
+  const r4 = ow.POST(Object.assign({ token: TOK.michael, action: 'upsert_tasks' }, batch));
+  ok('owner endpoint (approver) applies the same rules', r4.ok && r4.expired === 7 && same(r4.expired_by_rule, { step_in: 4, next_action: 2 }));
+}
+
+console.log('POST — upsert_tasks expire_rules validation (never throws)');
+{
+  const pad = n => (n < 10 ? '0' : '') + n;
+  const day = off => { const d = new Date(NOW); d.setDate(d.getDate() + off); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  const RT = 'routine:call-coaching';
+  const mk = () => ({ Tasks: fakeSheet([TH,
+    trow({ ...base, task_id: 'a', owner: MF, visibility: 'owner', source: 'step_in', created_by: RT, due: day(-30) }),
+    trow({ ...base, task_id: 'a2', owner: MF, visibility: 'owner', source: 'step_in', created_by: RT, due: day(-3) }),
+    trow({ ...base, task_id: 'b', owner: J, source: 'next_action', created_by: RT, due: day(-30) }),
+    trow({ ...base, task_id: 'c', owner: J, source: 'pulse', created_by: RT, due: day(-30) })]) });
+  const U = (S, extra) => endpoint('lm', S).POST(Object.assign({ token: TOK.routine, action: 'upsert_tasks', date: day(0), tasks: [] }, extra));
+  const S = mk();
+  const r = U(S, { expire_sources: ['pulse'], expire_rules: [
+    { source: 'step_in', due_before: day(-7) },          // 0 valid
+    'nope',                                              // 1
+    ['step_in', day(-7)],                                // 2
+    null,                                                // 3
+    { due_before: day(-7) },                             // 4
+    { source: 'self', due_before: day(-7) },             // 5 a person's source
+    { source: 'constructor', due_before: day(-7) },      // 6 never resolved through the prototype
+    { source: 'pulse', due_before: day(-7) },            // 7 already in expire_sources
+    { source: 'step_in', due_before: day(-1) },          // 8 duplicate: the first valid rule wins
+    { source: 'next_action', due_before: '2026-02-30' }, // 9 not a real date
+    { source: 'next_action', due_before: '10/18/2026' }, // 10
+    { source: 'next_action', due_before: 20261018 },     // 11
+    { source: 'next_action', due_before: day(1) },       // 12 after today: would expire live tasks
+    { source: 'Step_In', due_before: day(-7) },          // 13 exact, lowercase
+    { source: 'next_action', due_before: day(0) }        // 14 valid (today is allowed): first VALID next_action rule
+  ] });
+  if (!r.ok) console.log('   actual:', JSON.stringify(r));
+  const why = i => (r.notes || []).find(n => n.indexOf('expire_rules[' + i + '] ignored: ') === 0) || '';
+  ok('mixed good + bad rules → still ok:true, the two good rules applied', r.ok && same(r.expired_by_rule, { step_in: 1, next_action: 1 }) && r.expired === 3);
+  ok('one note per ignored rule, indexed (13 notes)', Array.isArray(r.notes) && r.notes.length === 13);
+  ok('not an object: string, array, null', /not an object$/.test(why(1)) && /not an object$/.test(why(2)) && /not an object$/.test(why(3)));
+  ok('source required / unknown source (self, constructor, Step_In)', /source required$/.test(why(4)) && /unknown source "self"$/.test(why(5)) && /unknown source "constructor"$/.test(why(6)) && /unknown source "Step_In"$/.test(why(13)));
+  ok('a source already in expire_sources is refused', /pulse is already in expire_sources$/.test(why(7)));
+  ok('duplicate source: the first valid rule wins (cutoff stays today−7, so a2 due today−3 is kept)', /duplicate source step_in$/.test(why(8)) && sheetObj(S.Tasks, 'task_id', 'a2').status === 'open' && sheetObj(S.Tasks, 'task_id', 'a').status === 'expired');
+  ok('due_before must be a real YYYY-MM-DD (2026-02-30, 10/18/2026, a number)', [9, 10, 11].every(i => /due_before must be a YYYY-MM-DD date$/.test(why(i))));
+  ok('due_before after today refused', why(12).indexOf('is after today') > -1);
+  ok('pulse row expired by expire_sources, not by the refused rule', sheetObj(S.Tasks, 'task_id', 'c').status === 'expired');
+  const S2 = mk(), r2 = U(S2, { expire_rules: { source: 'step_in', due_before: day(-7) } });
+  ok('expire_rules not an array → ignored whole with one note, nothing expired', r2.ok && r2.expired === 0 && same(r2.expired_by_rule, {}) && same(r2.notes, ['expire_rules ignored: not an array']) && sheetObj(S2.Tasks, 'task_id', 'a').status === 'open');
+  const r3 = U(mk(), { expire_rules: 'step_in' });
+  ok('expire_rules a string → same', r3.ok && same(r3.notes, ['expire_rules ignored: not an array']));
+  const r4 = U(mk(), { expire_rules: null });
+  ok('expire_rules null → no rules, no note', r4.ok && same(r4.notes, []) && same(r4.expired_by_rule, {}));
+  const r5 = U(mk(), { expire_rules: [] });
+  ok('expire_rules [] → no rules, no note, nothing written', r5.ok && r5.expired === 0 && same(r5.notes, []));
+  const r6 = endpoint('lm', mk()).POST({ token: TOK.routine, action: 'upsert_tasks', date: day(0), tasks: [], expire_rules: [{ source: 'bogus', due_before: 'x' }] });
+  ok('the README §2 deploy probe (empty tasks + one bogus rule) answers ok with a note and writes nothing', r6.ok && r6.appended === 0 && r6.expired === 0 && Array.isArray(r6.notes) && r6.notes.length === 1 && same(r6.expired_by_rule, {}));
+  ok('LM token still forbidden for upsert_tasks, rules or not', same(endpoint('lm', mk()).POST({ token: TOK.jordan, action: 'upsert_tasks', tasks: [], expire_rules: [{ source: 'step_in', due_before: day(-7) }] }), { ok: false, error: 'forbidden' }));
+}
+
+console.log('POST — upsert_tasks: the first P1T post retires the 10/1 seed');
+{
+  const RT = 'routine:call-coaching', seed = [TH];
+  const pad = n => (n < 10 ? '0' : '') + n, day = off => { const d = new Date(NOW); d.setDate(d.getDate() + off); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  ['2026-10-01', '2026-10-02', '2026-10-03'].forEach((d, k) => {
+    seed.push(trow({ ...base, task_id: `t:${d}:michael:step_in:decide:abcd000${k}`, owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', created_by: RT, date: d, due: d }));
+    seed.push(trow({ ...base, task_id: `t:${d}:jordan:texts:${k + 1}`, owner: J, source: 'texts', kind: 'coaching', created_by: RT, date: d, due: d }));
+    seed.push(trow({ ...base, task_id: `t:${d}:andrew:next_action:${k + 1}`, owner: A, source: 'next_action', kind: 'next-step', created_by: RT, date: d, due: d }));
+  });
+  // the live tab's 10/1 seed also holds next steps dated weeks out (10/29, 11/3, 12/28): a dated callback, kept by the rule
+  seed.push(trow({ ...base, task_id: 't:2026-10-01:andrew:next_action:6', owner: A, source: 'next_action', kind: 'next-step', created_by: RT, date: '2026-10-01', due: day(5) }));
+  // ... and Michael's private "check that Jordan has priced" rows under the id the AM's task now reuses
+  seed.push(trow({ ...base, task_id: 't:tracker:deliver-number:opp9', owner: MF, visibility: 'owner', source: 'tracker', kind: 'deliver-number', created_by: RT,
+    ask: 'Check that Jordan has priced Seller Nine', note: 'PRIVATE: chase him on this', opp_id: 'opp9' }));
+  const S = { Tasks: fakeSheet(seed) }, lm = endpoint('lm', S);
+  const tonight = [
+    { task_id: 't:michael:step_in:sign:opp77', owner: MF, visibility: 'owner', kind: 'sign', source: 'step_in', ask: 'Sign the 6.1 contract', due: day(0) },
+    { task_id: `t:${day(0)}:jordan:texts:1`, owner: J, kind: 'coaching', source: 'texts', ask: 'Lead with the timeline', due: day(0) },
+    { task_id: 't:andrew:next_action:c42:1a2b3c4d', owner: A, kind: 'next-step', source: 'next_action', ask: 'Call back Thursday', due: day(2) },
+    { task_id: 't:tracker:deliver-number:opp9', owner: J, visibility: 'team', kind: 'deliver-number', source: 'tracker', ask: 'Price Seller Nine and give the number live', due: day(0), priority: 1 }
+  ];
+  const r = lm.POST({ token: TOK.routine, action: 'upsert_tasks', date: day(0), tasks: tonight, expire_sources: ['texts', 'pulse', 'tracker'],
+    expire_rules: [{ source: 'step_in', due_before: day(-7) }, { source: 'next_action', due_before: day(-3) }] });
+  const seedStatus = S.Tasks._v.slice(1, 10).map(x => x[TH.indexOf('status')]);
+  ok('all 9 seed rows (step_in / texts / next_action, due 10/1–10/3) expire with no special case', r.ok && seedStatus.every(s => s === 'expired') && r.expired === 9 && same(r.expired_by_rule, { step_in: 3, next_action: 3 }));
+  ok('a seed next_action whose due is still ahead (today+5) stays open — it ages out 3 days past that due', sheetObj(S.Tasks, 'task_id', 't:2026-10-01:andrew:next_action:6').status === 'open');
+  ok('tonight\'s three undated / dated ids appended open, the seed deliver-number refreshed', r.appended === 3 && r.refreshed === 1 && tonight.every(t => sheetObj(S.Tasks, 'task_id', t.task_id).status === 'open'));
+  const dn = sheetObj(S.Tasks, 'task_id', 't:tracker:deliver-number:opp9'), gj = lm.GET(TOK.jordan);
+  ok('the seed deliver-number row is now Jordan\'s, team-visible, in his GET — and Michael\'s private note is gone', dn.owner === J && dn.visibility === 'team' && dn.note === '' &&
+    ids(gj.tabs.Tasks).indexOf('t:tracker:deliver-number:opp9') > -1 && JSON.stringify(gj).indexOf('PRIVATE') === -1);
+}
+
+console.log('POST — upsert_tasks: a refresh re-routes kind + visibility on producer rows (TASKS.md "upsert_tasks refresh")');
+{
+  const RT = 'routine:call-coaching';
+  const pr = o => trow({ ...base, created_by: RT, ...o });
+  const mk = () => ({ Tasks: fakeSheet([TH,
+    pr({ task_id: 't:tracker:deliver-number:oppR', owner: MF, visibility: 'owner', source: 'tracker', kind: 'deliver-number', ask: 'Check that Jordan has priced R', note: 'PRIVATE note on R', opp_id: 'oppR' }),
+    pr({ task_id: 't:tracker:deliver-number:oppS', owner: MF, visibility: 'owner', source: 'tracker', kind: 'deliver-number', ask: 'Check S', status: 'expired', opp_id: 'oppS' }),
+    pr({ task_id: 't:tracker:follow-up:oppQ', owner: J, visibility: 'team', source: 'tracker', kind: 'follow-up', ask: 'Follow up Q', note: 'Jordan note on Q', opp_id: 'oppQ' }),
+    pr({ task_id: 't:pulse:oppP', owner: MF, visibility: 'owner', source: 'pulse', kind: 'assign', ask: 'Assign P', opp_id: 'oppP' }),
+    pr({ task_id: 't:pulse:oppK', owner: A, visibility: 'team', source: 'pulse', kind: 'cadence', ask: 'K cadence', opp_id: 'oppK' }),
+    pr({ task_id: 't:michael:step_in:decide:oppV', owner: MF, visibility: 'owner', source: 'step_in', kind: 'decide', ask: 'Decide V', note: 'PRIVATE V' }),
+    trow({ ...base, task_id: 't:self:1760000000000:ab12', owner: MF, visibility: 'owner', source: 'owner', kind: 'self', ask: 'PRIVATE own task', created_by: MF })
+  ]), Review: fixture().Review });
+  const batch = { date: '2026-10-21', expire_sources: ['texts', 'pulse', 'tracker'], tasks: [
+    { task_id: 't:tracker:deliver-number:oppR', owner: J, visibility: 'team', kind: 'deliver-number', source: 'tracker', ask: 'Price R and give the number live', priority: 1 },
+    { task_id: 't:tracker:deliver-number:oppS', owner: J, visibility: 'team', kind: 'deliver-number', source: 'tracker', ask: 'Price S' },
+    { task_id: 't:tracker:follow-up:oppQ', owner: MF, visibility: 'owner', kind: 'follow-up', source: 'tracker', ask: 'Dispo: Q' },
+    { task_id: 't:pulse:oppP', owner: A, visibility: 'team', kind: 'call-seller', source: 'pulse', ask: 'First call to P' },
+    { task_id: 't:pulse:oppK', owner: A, ask: 'K cadence, new ask' },                                        // no kind / visibility sent
+    { task_id: 't:michael:step_in:decide:oppV', owner: MF, visibility: '', kind: '', ask: 'Decide V again' }, // empty = not sent
+    { task_id: 't:self:1760000000000:ab12', owner: MF, visibility: 'team', kind: 'decide', ask: 'collision' }   // a person's row
+  ] };
+  for (const which of ['lm', 'owner']) {
+    const S = mk(), ep = endpoint(which, S), o = id => sheetObj(S.Tasks, 'task_id', id);
+    const r = ep.POST(Object.assign({ token: which === 'lm' ? TOK.routine : TOK.michael, action: 'upsert_tasks' }, batch));
+    ok(which + ': ok, 7 refreshed, 1 reopened, nothing expired', r.ok && r.refreshed === 7 && r.reopened === 1 && r.appended === 0 && r.expired === 0);
+    const R = o('t:tracker:deliver-number:oppR');
+    ok(which + ': Michael/owner seed row re-sent as Jordan/team → visibility team, owner Jordan, kind kept, private note cleared',
+      R.owner === J && R.visibility === 'team' && R.kind === 'deliver-number' && R.note === '' && R.ask === 'Price R and give the number live');
+    ok(which + ': an expired private row re-sent to the AM → open AND team', o('t:tracker:deliver-number:oppS').status === 'open' && o('t:tracker:deliver-number:oppS').visibility === 'team');
+    const Q = o('t:tracker:follow-up:oppQ');
+    ok(which + ': Jordan/team row re-sent as Michael/owner → visibility owner (team → owner keeps the note)', Q.owner === MF && Q.visibility === 'owner' && Q.note === 'Jordan note on Q');
+    const P = o('t:pulse:oppP');
+    ok(which + ': unassigned pulse (Michael/owner/assign) once assigned → Andrew/team/call-seller', P.owner === A && P.visibility === 'team' && P.kind === 'call-seller');
+    const K = o('t:pulse:oppK');
+    ok(which + ': kind / visibility not sent → cell untouched', K.kind === 'cadence' && K.visibility === 'team' && K.ask === 'K cadence, new ask');
+    const V = o('t:michael:step_in:decide:oppV');
+    ok(which + ': kind / visibility sent EMPTY → cell untouched, note kept', V.kind === 'decide' && V.visibility === 'owner' && V.note === 'PRIVATE V' && V.ask === 'Decide V again');
+    const H = o('t:self:1760000000000:ab12');
+    ok(which + ': a person-created row keeps its kind and visibility', H.kind === 'self' && H.visibility === 'owner');
+    if (which !== 'lm') continue;
+    const gj = ep.GET(TOK.jordan), ga = ep.GET(TOK.andrew);
+    ok('Jordan\'s GET now carries R and S, not Q (now private); no private text anywhere', ids(gj.tabs.Tasks).indexOf('t:tracker:deliver-number:oppR') > -1 &&
+      ids(gj.tabs.Tasks).indexOf('t:tracker:deliver-number:oppS') > -1 && ids(gj.tabs.Tasks).indexOf('t:tracker:follow-up:oppQ') === -1 && JSON.stringify(gj).indexOf('PRIVATE') === -1);
+    ok('Andrew\'s GET now carries the assigned pulse P', ids(ga.tabs.Tasks).indexOf('t:pulse:oppP') > -1 && JSON.stringify(ga).indexOf('PRIVATE') === -1);
+    const ed = endpoint('owner', S).GET(TOK.ed);
+    ok('Ed (non-approver) no longer sees Q, still never a private row', ids(ed.tabs.Tasks).indexOf('t:tracker:follow-up:oppQ') === -1 && JSON.stringify(ed).indexOf('PRIVATE') === -1);
+    const snap = JSON.stringify(S.Tasks._v.map(x => x.filter((_, i) => TH[i] !== 'updated_at')));
+    const r2 = ep.POST(Object.assign({ token: TOK.routine, action: 'upsert_tasks' }, batch));
+    ok('idempotent re-run: 7 refreshed, 0 reopened, every cell but updated_at unchanged', r2.ok && r2.refreshed === 7 && r2.reopened === 0 &&
+      JSON.stringify(S.Tasks._v.map(x => x.filter((_, i) => TH[i] !== 'updated_at'))) === snap);
+  }
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

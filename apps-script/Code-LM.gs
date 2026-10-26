@@ -28,7 +28,9 @@
  *     never trust the deploy motion alone. (2026-07-27: a paste sat unsaved
  *     and a version bump hit the wrong deployment ID; the probe caught both.)
  *     For Tasks: a GET must carry `tasksAsOf`; a POST with a bad token must
- *     answer {"ok":false,"error":"unauthorized"}.
+ *     answer {"ok":false,"error":"unauthorized"}. For expire_rules (2026-10-21):
+ *     the ROUTINE_TOKEN probe in apps-script/README.md §2 step 6 must answer
+ *     with `expired_by_rule` and one `notes` line.
  *  5. The KPI Staging workbook must have tabs named exactly `Tasks` and
  *     `Review` with the header rows from apps-script/TASKS.md (row 1).
  *     Missing tab -> GET ships tabs.Tasks = null; POST answers
@@ -390,6 +392,7 @@ var TASK_SET_STATUSES = { open: 1, done: 1, snoozed: 1, skipped: 1 };   // 'expi
 var TASK_RECENT_DAYS = 14;                                                 // LM GET: closed rows ship this long
 var ROUTINE_CREATED_BY = 'routine:call-coaching';
 var GHL_CONTACT_URL = 'https://app.legacy-fusion.com/v2/location/8ZyuO8zm2zuGEdBfB70M/contacts/detail/';
+var TASK_PRODUCER_SOURCES = { step_in: 1, texts: 1, next_action: 1, pulse: 1, tracker: 1 };   // what the routine writes; an expire_rule may name only these
 var FLAG_ITEM_TYPES = { task: 1, text: 1, call: 1, deal: 1, pulse: 1, tracker: 1 };
 var FLAG_REASONS = { 'not-mine': 1, 'already-done': 1, 'wrong-ask': 1, 'wrong-lead': 1, 'wrong-fact': 1,
   'wrong-category': 1, 'score-disagree': 1, 'voicemail-not-conversation': 1, 'number-input-wrong': 1,
@@ -414,6 +417,19 @@ function tDay_(d) {
   }
   var z = function (n) { return (n < 10 ? '0' : '') + n; };
   return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+}
+/* a cell's calendar day 'YYYY-MM-DD' (script time zone), '' when unreadable. A bare 'YYYY-MM-DD' string is taken
+   as written — never re-parsed through UTC midnight, which lands on the previous day west of Greenwich. */
+function tDayOf_(v) {
+  if (typeof v === 'string') { var s = v.trim(); if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; if (!s) return ''; }
+  var ms = tMs_(v);
+  return isNaN(ms) ? '' : tDay_(new Date(ms));
+}
+/* true only for a real calendar date written exactly 'YYYY-MM-DD' (2026-02-30 is not one) */
+function tIsDay_(s) {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  var d = new Date(Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)));
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 function tRand4_() { return ('0000' + Math.floor(Math.random() * 65536).toString(16)).slice(-4); }
 function tPri_(v, dflt) { var n = parseInt(v, 10); return (n >= 1 && n <= 3) ? n : dflt; }
@@ -618,6 +634,28 @@ function tDecide_(who, body, T, R, now) {
   tPatch_(R, i, patch);
   return res;
 }
+/* body.expire_rules -> { rules: {source: 'YYYY-MM-DD'}, notes: [why each bad rule was ignored] }. Never throws:
+   a bad rule is dropped with a note and the good ones still apply (TASKS.md, "upsert_tasks expiry"). */
+function tExpireRules_(raw, expireSrc, today) {
+  var rules = {}, notes = [], own = Object.prototype.hasOwnProperty;
+  if (raw == null) return { rules: rules, notes: notes };
+  if (!Array.isArray(raw)) { notes.push('expire_rules ignored: not an array'); return { rules: rules, notes: notes }; }
+  raw.forEach(function (r, n) {
+    var why = '';
+    var src = (r && typeof r === 'object' && typeof r.source === 'string') ? r.source.trim() : '';
+    var cut = (r && typeof r === 'object' && typeof r.due_before === 'string') ? r.due_before.trim() : '';
+    if (!r || typeof r !== 'object' || Array.isArray(r)) why = 'not an object';
+    else if (!src) why = 'source required';
+    else if (!own.call(TASK_PRODUCER_SOURCES, src)) why = 'unknown source "' + src.slice(0, 40) + '"';
+    else if (expireSrc.indexOf(src) > -1) why = src + ' is already in expire_sources';
+    else if (own.call(rules, src)) why = 'duplicate source ' + src;
+    else if (!tIsDay_(cut)) why = 'due_before must be a YYYY-MM-DD date';
+    else if (cut > today) why = 'due_before ' + cut + ' is after today (' + today + ')';
+    if (why) notes.push('expire_rules[' + n + '] ignored: ' + why);
+    else rules[src] = cut;
+  });
+  return { rules: rules, notes: notes };
+}
 function tUpsert_(who, body, T, R, now) {
   var tasks = body.tasks, iso = now.toISOString();
   if (!Array.isArray(tasks)) return { ok: false, error: 'tasks required' };
@@ -628,10 +666,20 @@ function tUpsert_(who, body, T, R, now) {
     seen[id] = true;
     var i = tFind_(T, 'task_id', id);
     if (i > -1) {
-      var patch = { updated_at: iso };
+      var cur = tObj_(T.header, T.rows[i]), patch = { updated_at: iso };
       ['ask', 'why', 'due', 'priority', 'lead', 'ghl_url', 'owner'].forEach(function (k) { if (t[k] != null) patch[k] = t[k]; });
+      // A PRODUCER row re-routed under its stable id takes the batch's kind and visibility along with the owner
+      // (TASKS.md, "upsert_tasks refresh"): a seed deliver-number row going Michael/owner -> AM/team must reach the
+      // AM's GET. A person's own row keeps both. owner -> team clears the note: a private note never reaches an LM.
+      if (tStr_(cur.created_by) === ROUTINE_CREATED_BY) {
+        if (tStr_(t.kind)) patch.kind = tStr_(t.kind);
+        if (tStr_(t.visibility)) {
+          patch.visibility = tStr_(t.visibility) === 'owner' ? 'owner' : 'team';
+          if (patch.visibility === 'team' && tStr_(cur.visibility) === 'owner') patch.note = '';
+        }
+      }
       // The one status the producer may touch: a row IT expired comes back to life when it is sent again.
-      if (tStr_(tObj_(T.header, T.rows[i]).status) === 'expired') { patch.status = 'open'; reopened++; }
+      if (tStr_(cur.status) === 'expired') { patch.status = 'open'; reopened++; }
       tPatch_(T, i, patch); refreshed++;
     } else {
       var obj = {};
@@ -645,16 +693,27 @@ function tUpsert_(who, body, T, R, now) {
       T.appends.push(tRow_(T.header, obj)); appended++;
     }
   });
+  // Expiry, one pass. Only a live (open/snoozed) row NOT in this batch is ever expired, and at most once.
+  //  expire_sources: every such row of the source ("this batch is the current set": dated texts, one pulse/tracker row per lead).
+  //  expire_rules:   only a PRODUCER row of the source whose due day is before the rule's cutoff (undated step_in /
+  //                  next_action ids: a move not re-sent tonight stays live until it is old, never just because it was missed).
   var expireSrc = Array.isArray(body.expire_sources) ? body.expire_sources.map(tStr_) : [], expired = 0;
-  if (expireSrc.length) {
+  var er = tExpireRules_(body.expire_rules, expireSrc, tDay_(now)), ruleSrc = Object.keys(er.rules), byRule = {}, undated = {};
+  ruleSrc.forEach(function (s) { byRule[s] = 0; undated[s] = 0; });
+  if (expireSrc.length || ruleSrc.length) {
     for (var r = 0; r < T.rows.length; r++) {
-      var o = tObj_(T.header, T.rows[r]), st = tStr_(o.status);
-      if (expireSrc.indexOf(tStr_(o.source)) > -1 && (st === 'open' || st === 'snoozed') && !seen[tStr_(o.task_id)]) {
-        tPatch_(T, r, { status: 'expired', updated_at: iso }); expired++;
-      }
+      var o = tObj_(T.header, T.rows[r]), st = tStr_(o.status), src = tStr_(o.source);
+      if ((st !== 'open' && st !== 'snoozed') || seen[tStr_(o.task_id)]) continue;
+      if (expireSrc.indexOf(src) > -1) { tPatch_(T, r, { status: 'expired', updated_at: iso }); expired++; continue; }
+      if (ruleSrc.indexOf(src) < 0 || tStr_(o.created_by) !== ROUTINE_CREATED_BY) continue;
+      var due = tDayOf_(o.due);
+      if (!due) { undated[src]++; continue; }                            // unreadable due -> kept, and said so below
+      if (due < er.rules[src]) { tPatch_(T, r, { status: 'expired', updated_at: iso }); expired++; byRule[src]++; }
     }
   }
-  return { ok: true, appended: appended, refreshed: refreshed, reopened: reopened, expired: expired, skipped: skipped };
+  ruleSrc.forEach(function (s) { if (undated[s]) er.notes.push(s + ': kept ' + undated[s] + ' live producer row(s) whose due is unreadable'); });
+  return { ok: true, appended: appended, refreshed: refreshed, reopened: reopened, expired: expired, skipped: skipped,
+    expired_by_rule: byRule, notes: er.notes };
 }
 var TASK_ACTION_FN = { set_status: tSetStatus_, add_task: tAddTask_, assign: tAssign_, flag: tFlag_, decide: tDecide_, upsert_tasks: tUpsert_ };
 

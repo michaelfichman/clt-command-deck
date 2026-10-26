@@ -34,8 +34,10 @@ Follow the REDEPLOY CHECKLIST at the top of each `.gs` file. In short:
    - `Code-LM.gs`: both `LM_TOKENS` keys (Jordan, Andrew) **and** `ROUTINE_TOKEN` — a new
      long random string, different from every LM token (see §3).
    - `Code-owner.gs`: `TOKENS` is now an object `token → Team-tab name`:
-     `{'<Michael's token>': 'Michael Fichman', '<Ed's token>': 'Ed Peugh'}`. Two different
-     values. `APPROVERS` stays `['Michael Fichman']`. (The old array shape still
+     `{'<Michael's token>': 'Michael Fichman', '<Ed's token>': 'Edward Peugh'}` — the
+     Team-tab spellings. Two different values. `APPROVERS` stays `['Michael Fichman']`, and
+     `Michael Fichman` must be typed exactly: a typo silently drops approver (no review
+     queue, no private rows, `upsert_tasks` forbidden). (The old array shape still
      authenticates, but as a non-approver named `owner` — no review queue, no private rows.)
 4. Save (Cmd-S). An unsaved paste deploys nothing.
 5. Deploy → **Manage deployments** → pencil on the deployment whose `/exec` URL the app
@@ -44,10 +46,18 @@ Follow the REDEPLOY CHECKLIST at the top of each `.gs` file. In short:
    "Anyone".
 6. Verify the live `/exec` (never trust the deploy motion):
    - GET `…/exec?token=<yours>` → the JSON now carries `tasksAsOf` (owner: also
-     `role`, `person`, `approver`).
+     `role`, `person`, `approver` — Michael's token must answer `person: "Michael Fichman"`,
+     `approver: true`).
    - POST (any client; body is a JSON string, `Content-Type: text/plain`) with a bad
      token → `{"ok":false,"error":"unauthorized"}`; with an unknown action and a good
      token → `{"ok":false,"error":"unknown action"}`.
+   - `expire_rules` is live (2026-10-21): POST to the **LM** `/exec` with `ROUTINE_TOKEN`
+     (the owner `/exec`: Michael's token)
+     `{"token":"…","action":"upsert_tasks","date":"<today>","tasks":[],"expire_rules":[{"source":"probe","due_before":"x"}]}`
+     → `ok:true` with `"expired_by_rule":{}` and one `notes` line
+     (`expire_rules[0] ignored: unknown source "probe"`). It writes nothing (empty batch, no
+     `expire_sources`). An answer **without** `expired_by_rule` means the old version is
+     still serving — the nightly's `step_in` / `next_action` rows would then never expire.
 
 ## 3. Hand the routine its token
 
@@ -57,16 +67,28 @@ else — it is not in `LM_TOKENS`, so it gets no GET payload.
 
 1. Generate a long random string (e.g. `openssl rand -hex 24`).
 2. Paste it as `ROUTINE_TOKEN` in the deployed **LM** editor, save, new version (§2).
-3. In the routines repo write it to `.secrets/deck_routine_token` (next to the existing
-   `.secrets/lm_exec_url`). `.secrets/` is gitignored there and lives only in the main
-   checkout — never in this repo, never in a worktree, never in a commit.
+3. Write it, one line, to the routines repo's MAIN checkout only:
+   `~/Documents/GitHub/cltbuyers-routines/routines/call-coaching/.secrets/deck_routine_token`
+   (next to the existing `lm_exec_url`), then `chmod 600` it. `.secrets/` is gitignored there —
+   never in this repo, never in a worktree, never in a commit.
+4. Expect the first nightly post after the redeploy to expire the 2026-10-01 seed rows whose
+   due is past the cutoff (`texts` via `expire_sources`; `step_in` / `next_action` via
+   `expire_rules`): 25 of the 28 on the live tab. Andrew's three seed next steps due 10/29,
+   11/03 and 12/28 stay open until three days past that due — correct by the rule; skip them
+   from the owner deck if they are stale. That is the design, not data loss — see TASKS.md,
+   *`upsert_tasks` expiry*. From then on a `step_in` stays live 7 days and a `next_action`
+   3 days past due unless the nightly re-sends it. The same post re-routes the seed
+   `t:tracker:deliver-number:<opp>` rows (Michael, private) to the AM with visibility `team`
+   (TASKS.md, *`upsert_tasks` refresh*): Jordan's deck must show them that morning.
 
 ## 4. Ship the clients
 
 `lm.html`, `index.html`, `lm-view.js`, `lm-view.css` are served by GitHub Pages. Asset
 tags are at `?v=45` and both service workers (`sw-lm.js`, `sw.js`) use a `v45` cache name,
 so phones and the deck pick the release up on the next launch. Bump all of those together
-on every release (the cache sweep deletes any cache whose name differs).
+on every release that changes a client file (the cache sweep deletes any cache whose name
+differs). Skip this section when no client file changed — e.g. the 2026-10-21 `expire_rules`
+release touched only `apps-script/`.
 
 ## Tests (node, no network)
 
