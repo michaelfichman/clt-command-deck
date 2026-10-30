@@ -98,6 +98,8 @@
 
   // Trailing-average bar: mean over last N comparable periods (same point-in-period),
   // skipping periods entirely outside the data span (so pre-start zeros don't drag it).
+  // A null is an 'avg' period with no rows (a weekend day, an empty quarter): it has no reading, and
+  // counted as 0 it would pull a lower-is-better bar under a steady LM and read them red. Same rule as ratioLens.
   function trailingBar(points, asOf, lens, mode, N) {
     var span = dataSpan(points); if (!span.lo) return null;
     var vals = [];
@@ -105,16 +107,22 @@
       var w = lensWindow(shiftAsOf(asOf, lens, k), lens);
       if (w.end < span.lo || w.start > span.hi) continue; // period has no data coverage at all
       var v = aggIn(points, w, mode);
-      vals.push(v == null ? 0 : v);
+      if (v != null) vals.push(v);
     }
     if (!vals.length) return null;
     var s = 0; for (var j = 0; j < vals.length; j++) s += vals[j];
     return s / vals.length;
   }
 
-  function paceState(current, bar) {
-    if (bar == null || !isFinite(bar) || bar === 0) return 'none';
-    var r = current / bar;
+  /* Lower is better: speed-to-lead and Jordan's AM clocks (J1 hours 5.1→offer, J6-J8 cards stuck
+     or overdue, which land with the P4 scorecard). The one list: lm-gamify reads it too. */
+  var LOWER_IS_BETTER = { speed: true, j1: true, j6: true, j7: true, j8: true };
+  function lowerIsBetter(key) { return LOWER_IS_BETTER[String(key == null ? '' : key).toLowerCase()] === true; }
+
+  // `lower`: beating the bar means coming in UNDER it. No current value = no read, never a colour.
+  function paceState(current, bar, lower) {
+    if (bar == null || !isFinite(bar) || bar === 0 || current == null) return 'none';
+    var r = lower ? bar / current : current / bar;
     if (r >= 1.0) return 'ahead';   // green
     if (r >= 0.9) return 'on';      // amber
     return 'behind';                // red
@@ -165,7 +173,7 @@
   }
 
   /* ---------------- a flow/avg metric across one lens ---------------- */
-  function metricLens(points, asOf, lens, mode, N, lagged, spanLo) {
+  function metricLens(points, asOf, lens, mode, N, lagged, spanLo, key) {
     mode = mode || 'sum'; N = N || 4;
     var a = anchorFor(points, asOf, lens, lagged), at = a.asOf, nb = (lens === 'today') ? 14 : N;
     var cur = aggIn(points, lensWindow(at, lens), mode);
@@ -190,15 +198,20 @@
     var bar = trailingBar(points, at, lens, mode, nb);
     var buckets = trendBuckets(at, lens, spanLo).filter(function (b) { return !lo || b.end >= lo; }).map(function (b) { return { label: b.label, value: aggIn(points, b, mode) }; });
     var pct = (cmp == null || cmp === 0) ? null : ((cur - cmp) / cmp);
-    return { current: cur, comparison: cmp, comparisonEst: cmpEst, comparePct: pct, bar: bar, paceState: paceState(cur, bar), trend: buckets, anchorDate: a.anchorDate, lagged: a.lagged };
+    return { current: cur, comparison: cmp, comparisonEst: cmpEst, comparePct: pct, bar: bar, paceState: paceState(cur, bar, lowerIsBetter(key)), trend: buckets, anchorDate: a.anchorDate, lagged: a.lagged };
   }
 
   // Ratio metric (num/den) across one lens — show rate, lead→appt, appt→contract.
+  // Both sides come from ONE population (the caller's job: same role tag, same tab) and the rate
+  // never reads above 100%. A count can still outrun its base inside a window (the Showed lands a
+  // month after its Confirmed): `capped` says so, and each trend bucket carries its own num + den,
+  // so a chart of "the counts behind the %" can never show a different population from the rate.
   function ratioLens(numPts, denPts, asOf, lens, N, lagged, spanLo) {
     N = N || 4;
     var an = anchorFor(denPts, asOf, lens, lagged), at = an.asOf;
-    function ratio(w) { var d = aggIn(denPts, w, 'sum'); return d ? aggIn(numPts, w, 'sum') / d : null; }
-    var cur = ratio(lensWindow(at, lens));
+    function ratio(w) { var d = aggIn(denPts, w, 'sum'); return d ? Math.min(1, aggIn(numPts, w, 'sum') / d) : null; }
+    var cw = lensWindow(at, lens), cwDen = aggIn(denPts, cw, 'sum'), capped = cwDen > 0 && aggIn(numPts, cw, 'sum') > cwDen;
+    var cur = ratio(cw);
     var span = dataSpan(denPts);
     var lo = spanLo || span.lo;
     // ratios are scale-free: when the prior point-in-period predates the LM's
@@ -213,9 +226,9 @@
     var vals = [];
     if (span.lo) for (var k = 1; k <= N; k++) { var w = lensWindow(shiftAsOf(at, lens, k), lens); if (w.end < span.lo || w.start > span.hi) continue; var r = ratio(w); if (r != null) vals.push(r); }
     var bar = vals.length ? vals.reduce(function (a, b) { return a + b; }, 0) / vals.length : null;
-    var buckets = trendBuckets(at, lens, spanLo).filter(function (b) { return !lo || b.end >= lo; }).map(function (b) { return { label: b.label, value: ratio(b) }; });
+    var buckets = trendBuckets(at, lens, spanLo).filter(function (b) { return !lo || b.end >= lo; }).map(function (b) { return { label: b.label, value: ratio(b), num: aggIn(numPts, b, 'sum'), den: aggIn(denPts, b, 'sum') }; });
     var pct = (cmp == null || cmp === 0) ? null : ((cur - cmp) / cmp);
-    return { current: cur, comparison: cmp, comparisonEst: cmpEst, comparePct: pct, bar: bar, paceState: paceState(cur, bar), trend: buckets, anchorDate: an.anchorDate, lagged: an.lagged };
+    return { current: cur, comparison: cmp, comparisonEst: cmpEst, comparePct: pct, bar: bar, paceState: paceState(cur, bar), capped: capped, trend: buckets, anchorDate: an.anchorDate, lagged: an.lagged };
   }
 
   /* ---------------- parse the scoped payload ---------------- */
@@ -231,6 +244,17 @@
     };
   }
   function rowsOf(tab) { return (tab && tab.length > 1) ? tab.slice(1) : []; }
+
+  /* ROLE TAGS (D1). Code-LM.gs marks every deal row with a trailing `_as`: 'LM', 'AM', 'LM,AM', on
+     Closings also 'DM'. Blank = a RECORD row, someone else's on a contact the person holds a role
+     on (Michael logging a Declined): it resolves the deal's status and is never counted.
+     A tab with NO `_as` column is an endpoint from before D1, where every row was the LM's, so
+     the nightly and the phones read old and new payloads alike. Split on the comma, never ==. */
+  function tagsOf(r, col) {
+    if (col < 0) return ['LM'];
+    return String(r[col] == null ? '' : r[col]).split(',').map(function (s) { return s.trim().toUpperCase(); }).filter(Boolean);
+  }
+  function hasRole(row, role) { return (row.as || ['LM']).indexOf(role) > -1; }
 
   function parse(payload) {
     var T = payload.tabs || {};
@@ -255,31 +279,37 @@
     // Appointments
     var a = tab('Appointments'), ai = colIndexer(a[0]);
     var appts = rowsOf(a).map(function (r) {
-      return { conf: parseDate(r[ai('Confirmed Date')]), dispo: parseDate(r[ai('Disposition Date')]), outcome: String(r[ai('Outcome')] || '').trim(), contactId: r[ai('Contact ID')], name: r[ai('Contact Name')], property: r[ai('Property Address')] };
+      return { conf: parseDate(r[ai('Confirmed Date')]), dispo: parseDate(r[ai('Disposition Date')]), outcome: String(r[ai('Outcome')] || '').trim(), contactId: r[ai('Contact ID')], name: r[ai('Contact Name')], property: r[ai('Property Address')], as: tagsOf(r, ai('_as')) };
     });
 
     // Offers
     var o = tab('Offers'), oi = colIndexer(o[0]);
     var offers = rowsOf(o).map(function (r) {
-      return { made: parseDate(r[oi('Offer Made Date')]), dispo: parseDate(r[oi('Disposition Date')]), outcome: String(r[oi('Outcome')] || '').trim(), contactId: r[oi('Contact ID')], name: r[oi('Contact Name')], property: r[oi('Property Address')] };
+      return { made: parseDate(r[oi('Offer Made Date')]), dispo: parseDate(r[oi('Disposition Date')]), outcome: String(r[oi('Outcome')] || '').trim(), contactId: r[oi('Contact ID')], name: r[oi('Contact Name')], property: r[oi('Property Address')], as: tagsOf(r, oi('_as')) };
     });
 
     // Contracts
     var k = tab('Contracts'), ki = colIndexer(k[0]);
     var contracts = rowsOf(k).map(function (r) {
       var g = grossCell(r[ki('Gross Assignment Fee')]);
-      return { signed: parseDate(r[ki('Signed Date')]), dispo: parseDate(r[ki('Disposition Date')]), outcome: String(r[ki('Outcome')] || '').trim(), contactId: r[ki('Contact ID')], name: r[ki('Contact Name')], property: r[ki('Property Address')], gross: g.v, grossErr: g.err };
+      return { signed: parseDate(r[ki('Signed Date')]), dispo: parseDate(r[ki('Disposition Date')]), outcome: String(r[ki('Outcome')] || '').trim(), contactId: r[ki('Contact ID')], name: r[ki('Contact Name')], property: r[ki('Property Address')], gross: g.v, grossErr: g.err, as: tagsOf(r, ki('_as')) };
     });
 
     // Closings (live) — drives EARNED at actual revenue
     var cl = tab('Closings'), cli = colIndexer(cl[0]);
     var closings = rowsOf(cl).map(function (r) {
       var g = grossCell(r[cli('Gross Assignment Fee')]);
-      return { date: parseDate(r[cli('Closed')]), revenue: +String(r[cli('Revenue')] == null ? '' : r[cli('Revenue')]).replace(/[^0-9.\-]/g, '') || 0, contactId: String(r[cli('Contact ID')] || ''), name: String(r[cli('Contact Name')] || ''), gross: g.v, grossErr: g.err };
+      return { date: parseDate(r[cli('Closed')]), revenue: +String(r[cli('Revenue')] == null ? '' : r[cli('Revenue')]).replace(/[^0-9.\-]/g, '') || 0, contactId: String(r[cli('Contact ID')] || ''), name: String(r[cli('Contact Name')] || ''), gross: g.v, grossErr: g.err, as: tagsOf(r, cli('_as')) };
     }).filter(function (c) { return c.contactId || c.revenue; });
 
+    // Whose offers and contracts these are: the AM's where the Team tab gives the person AM (Jordan
+    // 'AM, LM'), else the LM's. Needs the tags: an old payload stays 'LM' whatever teamRole says.
+    var tagged = ai('_as') > -1 || oi('_as') > -1 || ki('_as') > -1;
+    var dealRole = (tagged && /\bAM\b/i.test(String(payload.teamRole || ''))) ? 'AM' : 'LM';
+
     return { calls: calls, leads: leads, appts: appts, offers: offers, contracts: contracts, closings: closings,
-      fees: payload.fees || {}, stages: payload.stages || {}, goals: payload.goals || {}, splitRate: payload.splitRate || 0.10, person: payload.person };
+      fees: payload.fees || {}, stages: payload.stages || {}, goals: payload.goals || {}, splitRate: payload.splitRate || 0.10, person: payload.person,
+      teamRole: String(payload.teamRole || ''), dealRole: dealRole, payPlanSet: payload.payPlanSet === true };
   }
 
   /* ---------------- opportunity resolution (latest status wins) ---------------- */
@@ -319,19 +349,34 @@
     var n = Number(s.replace(/[$,\s]/g, ''));
     return isFinite(n) ? { v: n, err: null } : { v: null, err: s };
   }
+  /* The contacts a tab makes the person the LM of: any row tagged LM. */
+  function lmContacts(rows) {
+    var mine = {};
+    rows.forEach(function (r) { if (r.contactId && hasRole(r, 'LM')) mine[r.contactId] = true; });
+    return mine;
+  }
+  /* MONEY FOLLOWS THE LM ROLE (D-5): an AM row adds no fee, no bucket, no offer. A deal is theirs
+     when any of its rows is tagged LM, and ALL its rows stay in: filtering rows by tag would drop
+     the Closed or Cancelled someone else logged, and the deal would change bucket.
+     The pay views are hidden behind payPlanSet (lm-view.js); the figures stay computed for that day. */
   function comp(ds) {
     var split = ds.splitRate, avgFee = +ds.goals.avgWholesaleFee || 0, stages = ds.stages || {};
-    var resC = resolveByContact(ds.contracts, ['dispo', 'signed']);
+    var lmDeals = lmContacts(ds.contracts), lmOffers = lmContacts(ds.offers);
+    var contracts = ds.contracts.filter(function (r) { return lmDeals[r.contactId]; });
+    var offers = ds.offers.filter(function (r) { return lmOffers[r.contactId]; });
+    var resC = resolveByContact(contracts, ['dispo', 'signed']);
     var earned = 0, earmarked = 0, projected = 0, earnedDeals = [], earmarkedDeals = [], projectedDeals = [], rateErrors = [];
     // Derived GROSS per contact, straight off the Contracts tab's computed column.
     var grossBy = {};
-    (ds.contracts || []).forEach(function (r) {
+    contracts.forEach(function (r) {
       if (!r.contactId) return;
       if (r.grossErr) grossBy[r.contactId] = { v: null, err: r.grossErr };
       else if (r.gross != null && grossBy[r.contactId] == null) grossBy[r.contactId] = { v: r.gross, err: null };
     });
     // EARNED — actual closed revenue from the LIVE Closings tab (×split on GROSS). Live on row-add.
+    // An AM or DM closing keeps its place in closedIds below and adds nothing here.
     (ds.closings || []).forEach(function (c) {
+      if (!hasRole(c, 'LM')) return;
       var rev = +c.revenue || 0; if (!rev && !c.contactId) return;
       if (c.grossErr) { rateErrors.push({ name: c.name || c.contactId, stage: 'closed', msg: c.grossErr }); return; }
       var base = (c.gross != null ? c.gross : rev);
@@ -356,7 +401,7 @@
     });
     // Open offers: latest offer status is "Made", and the contact is not already a contract.
     var contractIds = {}; ds.contracts.forEach(function (r) { if (r.contactId) contractIds[r.contactId] = true; });
-    var resO = resolveByContact(ds.offers, ['dispo', 'made']);
+    var resO = resolveByContact(offers, ['dispo', 'made']);
     var openOffers = [];
     Object.keys(resO).forEach(function (id) {
       if ((resO[id].row.outcome || '').toLowerCase() === 'made' && !contractIds[id]) openOffers.push({ name: resO[id].row.name, property: resO[id].row.property, contactId: id, est: avgFee * split });
@@ -386,10 +431,13 @@
       qualifying: ds.calls.map(function (c) { return { date: c.date, value: c.qual }; }),
       trueConnects: ds.calls.map(function (c) { return { date: c.date, value: c.tconn }; }),
       leads: ds.leads.map(function (l) { return { date: l.date, value: 1 }; }),
-      booked: ds.appts.filter(function (a) { return a.outcome.toLowerCase() === 'confirmed'; }).map(function (a) { return { date: a.conf, value: 1 }; }),
-      showed: ds.appts.filter(function (a) { return a.outcome.toLowerCase() === 'showed'; }).map(function (a) { return { date: a.dispo, value: 1 }; }),
-      offersMade: ds.offers.filter(function (o) { return o.outcome.toLowerCase() === 'made' && o.made; }).map(function (o) { return { date: o.made, value: 1 }; }),
-      signed: ds.contracts.filter(function (c) { return c.outcome.toLowerCase() === 'signed'; }).map(function (c) { return { date: c.signed, value: 1 }; }),
+      // COUNTED BY ROLE TAG, never by contact: booked and showed are the LM's, offers and contracts
+      // the AM's in the AM view. `dealShowed` is showed for the deal role: appt→contract's base.
+      booked: ds.appts.filter(function (a) { return hasRole(a, 'LM') && a.outcome.toLowerCase() === 'confirmed'; }).map(function (a) { return { date: a.conf, value: 1 }; }),
+      showed: ds.appts.filter(function (a) { return hasRole(a, 'LM') && a.outcome.toLowerCase() === 'showed'; }).map(function (a) { return { date: a.dispo, value: 1 }; }),
+      dealShowed: ds.appts.filter(function (a) { return hasRole(a, ds.dealRole) && a.outcome.toLowerCase() === 'showed'; }).map(function (a) { return { date: a.dispo, value: 1 }; }),
+      offersMade: ds.offers.filter(function (o) { return hasRole(o, ds.dealRole) && o.outcome.toLowerCase() === 'made' && o.made; }).map(function (o) { return { date: o.made, value: 1 }; }),
+      signed: ds.contracts.filter(function (c) { return hasRole(c, ds.dealRole) && c.outcome.toLowerCase() === 'signed'; }).map(function (c) { return { date: c.signed, value: 1 }; }),
       // Speed = first HUMAN touch (call OR SMS, source=app) when the synced
       // 'Speed First Touch (min)' column exists; falls back to the legacy
       // call-only 'Speed (Min)'. Blank cells are SKIPPED, never coerced to 0
@@ -407,6 +455,9 @@
 
     var speedRecs = (function () { var s = (payload.tabs['Speed to Lead'] || [['']]); var si = colIndexer(s[0]); var ci = si('Speed First Touch'); if (ci < 0) ci = si('Speed (Min)'); var chi = si('First Touch Channel'); var vi = si('Connected (Y/N)'), bi = si('Connect Basis'); return rowsOf(s).map(function (r) { var raw = String(r[ci] == null ? '' : r[ci]).replace(/,/g, '').trim(); return { date: parseDate(r[si('Lead Created At')]), name: r[si('Contact Name')], source: r[si('Lead Source')], channel: chi < 0 ? '' : (r[chi] || ''), conn: vi < 0 ? '' : (r[vi] || ''), basis: bi < 0 ? '' : (r[bi] || ''), speed: raw === '' ? null : +raw }; }).filter(function (x) { return x.date && x.speed != null && isFinite(x.speed); }); })();
     P.attemptedLeads = speedRecs.map(function (r) { return { date: r.date, value: 1 }; });
+    // Reached's base: every Speed row created in the window, touched or not. Its reaches come off
+    // the same rows, so it cannot pass 100%; over the Leads tab (another writer, another scope) it read 400%.
+    P.speedLeads = (function () { var s = (payload.tabs['Speed to Lead'] || [['']]); var si = colIndexer(s[0]); return rowsOf(s).map(function (r) { return { date: parseDate(r[si('Lead Created At')]), value: 1 }; }).filter(function (x) { return x.date; }); })();
     P.reachedLeads = speedRecs.filter(function (r) { return r.conn === 'Y'; }).map(function (r) { return { date: r.date, value: 1 }; });
 
     var lenses = {};
@@ -422,17 +473,17 @@
         connectRate: ratioLens(P.conversations, P.calls, asOf, lens, 4, true, LO),  // conversations ÷ dials (lagged)
         trueConnects: metricLens(P.trueConnects, asOf, lens, 'sum', 4, true, LO),   // REACH: two-speaker verified (diagnostic)
         trueConnectRate: ratioLens(P.trueConnects, P.calls, asOf, lens, 4, true, LO), // B: DIALING EFFICIENCY — true connects ÷ DIALS
-        reached: ratioLens(P.reachedLeads, P.leads, asOf, lens, 4, false, dataSpan(P.attemptedLeads).lo || LO),          // A: LEAD RESPONSE — reached ÷ NEW LEADS; axis starts at the funnel epoch (pre-funnel weeks would fake 0%)
+        reached: ratioLens(P.reachedLeads, P.speedLeads, asOf, lens, 4, false, dataSpan(P.attemptedLeads).lo || LO),     // A: LEAD RESPONSE — reached ÷ NEW LEADS on the Speed tab; axis starts at the funnel epoch (pre-funnel weeks would fake 0%)
         attemptConnect: ratioLens(P.reachedLeads, P.attemptedLeads, asOf, lens, 4, false, dataSpan(P.attemptedLeads).lo || LO), // C: reached ÷ ATTEMPTED leads
         leads: metricLens(P.leads, asOf, lens, 'sum', 4, false, LO),
         apptsBooked: metricLens(P.booked, asOf, lens, 'sum', 4, false, LO),
         apptsShowed: metricLens(P.showed, asOf, lens, 'sum', 4, false, LO),
         offersMade: metricLens(P.offersMade, asOf, lens, 'sum', 4, false, LO),
         contractsSigned: metricLens(P.signed, asOf, lens, 'sum', 4, false, LO),
-        speed: metricLens(P.speed, asOf, lens, 'avg', 4, false, LO),
+        speed: metricLens(P.speed, asOf, lens, 'avg', 4, false, LO, 'speed'),
         showRate: ratioLens(P.showed, P.booked, asOf, lens, 4, false, LO),     // showed ÷ booked
         leadToAppt: ratioLens(P.booked, P.leads, asOf, lens, 4, false, LO),    // booked ÷ leads
-        apptToContract: ratioLens(P.signed, P.showed, asOf, lens, 4, false, LO) // signed ÷ SHOWED (matches in-sheet)
+        apptToContract: ratioLens(P.signed, P.dealShowed, asOf, lens, 4, false, LO) // signed ÷ SHOWED (matches in-sheet), both by the deal role
       };
     });
 
@@ -452,7 +503,7 @@
         else never.push(r.name);
       });
       var newLeads = lenses[lens].leads.current || 0;
-      lenses[lens].reached.reach = { newLeads: newLeads, touched: att, connected: con,
+      lenses[lens].reached.reach = { newLeads: newLeads, speedLeads: aggIn(P.speedLeads, w, 'sum'), touched: att, connected: con,
         estimated: est, dials: lenses[lens].calls.current, trueConnects: lenses[lens].trueConnects.current,
         inbound: { att: ia, con: ic2 }, cold: { att: ca, con: cc2 }, never: never };
     });
@@ -487,12 +538,14 @@
     });
 
     return { person: ds.person, asOf: asOf, lenses: lenses, comp: comp(ds),
+      teamRole: ds.teamRole, dealRole: ds.dealRole, payPlanSet: ds.payPlanSet,
       series: P,                          // raw per-metric point series (Part 3 reads these)
       records: { leads: ds.leads, appts: ds.appts, offers: ds.offers, contracts: ds.contracts, speed: speedRecs },
       lmTargets: payload.lmTargets || [] };
   }
 
   var API = { buildModel: buildModel, parse: parse, metricLens: metricLens, ratioLens: ratioLens, lensWindow: lensWindow, priorWindow: priorWindow, shiftAsOf: shiftAsOf, trailingBar: trailingBar, parseDate: parseDate, comp: comp, LENSES: LENSES,
+    paceState: paceState, lowerIsBetter: lowerIsBetter, hasRole: hasRole,
     aggIn: aggIn, dataSpan: dataSpan, sod: sod, eod: eod, addDays: addDays, mondayOf: mondayOf, lastDay: lastDay, anchorFor: anchorFor, latestDay: latestDay };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.LMEngine = API;

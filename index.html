@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="lm-view.css?v=45">
+<link rel="stylesheet" href="lm-view.css?v=46">
 <style>
 /* ── CLT BUYERS BRAND × FUTURIST TERMINAL ──
    brand blue #0070B0 (from logo) → live spectrum #1B9DE2 → #3FD0FF on deep blue-black */
@@ -256,9 +256,9 @@ footer{margin-top:46px;border-top:1px solid var(--line);padding-top:16px;font-fa
 </div></nav>
 
 <!-- LM Scoreboard engine (framework-free; validated by lm-engine.test/lm-gamify.test) -->
-<script src="lm-engine.js?v=45"></script>
-<script src="lm-gamify.js?v=45"></script>
-<script src="lm-view.js?v=45"></script>
+<script src="lm-engine.js?v=46"></script>
+<script src="lm-gamify.js?v=46"></script>
+<script src="lm-view.js?v=46"></script>
 
 <script>
 /* ═══════════ CONFIG ═══════════ */
@@ -679,39 +679,52 @@ function insightsActivity(m){const out=[];
 /* ═══════════ LM SCOPER — browser twin of Code-LM.gs ═══════════
    Turns the raw owner tabs (RAW) into the exact LM-payload shape lm-engine
    consumes, scoped to one person. Mirrors Code-LM.gs line-for-line so the
-   in-deck numbers match Jordan's phone exactly. (In the owner app dollars are
-   allowed, but we still emit only the LM's own scoped data + their fees.) */
+   in-deck numbers match the phone exactly: same role tags, same blanked money,
+   same `teamRole` and `payPlanSet` (role-scoper-parity.test.js runs the two side by
+   side). Pay stays hidden here too (D-5), even though the owner may see dollars:
+   this view is the preview of what the person sees. */
 function scopeToLM(RAW, person){
+  const PAY_PLAN_SET=false;       // same switch as Code-LM.gs: flip the two together
+  const MONEY=/revenue|fee|gross|profit|cost/i;
   const norm=x=>String(x==null?'':x).trim().toLowerCase();
   const ix=(h,n)=>h.findIndex(c=>String(c).trim().toLowerCase()===n.toLowerCase());
   const nl=s=>String(s==null?'':s).toLowerCase().replace(/[^a-z0-9%$]/g,'');
   const want=norm(person);
+  const moneyCols=h=>h.reduce((o,c,i)=>{if(MONEY.test(String(c)))o.push(i);return o;},[]);
   // single-attribution tab: header + rows where attr col == person (optionally cap width)
   const single=(name,attr,cols)=>{const t=RAW[name];if(!t||!t.length)return null;const ai=ix(t[0],attr),w=cols||t[0].length;const o=[t[0].slice(0,w)];for(let i=1;i<t.length;i++)if(ai>-1&&norm(t[i][ai])===want)o.push(t[i].slice(0,w));return o;};
-  // deal tab: opportunity membership — all rows for any Contact ID this LM is attributed to
-  const member=(name,attr)=>{const t=RAW[name];if(!t||!t.length)return null;const ai=ix(t[0],attr),ci=ix(t[0],'Contact ID'),ids={};for(let i=1;i<t.length;i++)if(ai>-1&&norm(t[i][ai])===want){const k=t[i][ci];if(k)ids[k]=1;}const o=[t[0].slice()];for(let i=1;i<t.length;i++){const k=t[i][ci];if(k&&ids[k])o.push(t[i].slice());}return o;};
+  // deal tab: a row is the person's by Booker (LM) or AM, tagged `_as`; other rows on those contacts ride along with `_as` blank
+  // for the record lists, and money ships only on a deal they are the LM of
+  const roled=name=>{const t=RAW[name];if(!t||!t.length)return null;const h=t[0],bi=ix(h,'Booker (LM)'),ai=ix(h,'AM'),ci=ix(h,'Contact ID'),ids={},lmIds={},tags=[],money=moneyCols(h),o=[h.concat(['_as'])];
+    for(let i=1;i<t.length;i++){const lm=bi>-1&&norm(t[i][bi])===want,am=ai>-1&&norm(t[i][ai])===want,k=t[i][ci];tags[i]=lm&&am?'LM,AM':lm?'LM':am?'AM':'';if(k&&tags[i])ids[k]=1;if(k&&lm)lmIds[k]=1;}
+    for(let i=1;i<t.length;i++){const k=t[i][ci];if(!tags[i]&&!(k&&ids[k]))continue;const r=t[i].slice();if(!(k&&lmIds[k])&&tags[i].indexOf('LM')<0)money.forEach(c=>{r[c]='';});r.push(tags[i]);o.push(r);}
+    return o;};
   const tabs={
     'Leads':single('Leads','Assigned User'),
-    'Appointments':member('Appointments','Booker (LM)'),
-    'Offers':member('Offers','Booker (LM)'),
-    'Contracts':member('Contracts','Booker (LM)'),
+    'Appointments':roled('Appointments'),
+    'Offers':roled('Offers'),
+    'Contracts':roled('Contracts'),
     'Calls':single('Calls','User'),
     'Speed to Lead':single('Speed to Lead','Assigned User',25),
-    'Team':(()=>{const t=RAW['Team'];if(!t||!t.length)return null;const ri=ix(t[0],'Role'),o=[t[0].slice()];for(let i=1;i<t.length;i++)if(String(t[i][ri]||'').toUpperCase().includes('LM'))o.push(t[i].slice());return o;})()
+    'Team':(()=>{const t=RAW['Team'];if(!t||!t.length)return null;const ri=ix(t[0],'Role'),o=[t[0].slice()];if(ri<0)return o;for(let i=1;i<t.length;i++)if(/\b(LM|AM)\b/.test(String(t[i][ri]||'').toUpperCase()))o.push(t[i].slice());return o;})()
   };
-  // fees: Pipeline Y:Z stash, ONLY this LM's own Contract contacts
+  // the person's Team-tab Role, as written
+  let teamRole='';{const t=tabs['Team'];if(t&&t.length>1){const ni=ix(t[0],'Name'),ri=ix(t[0],'Role');for(let i=1;i<t.length;i++)if(ni>-1&&ri>-1&&norm(t[i][ni])===want){teamRole=String(t[i][ri]||'').trim();break;}}}
+  // the deals this person is the LM of: their Contracts rows tagged LM. The one definition of "mine" for money
   const fees={},stages={},mine={},c=tabs['Contracts'];
-  if(c&&c.length>1){const ci=ix(c[0],'Contact ID');for(let i=1;i<c.length;i++){const x=c[i][ci];if(x)mine[x]=1;}}
-  // Closings: this LM's own deal contacts (live → drives Earned at real revenue)
-  {const CL=RAW['Closings'];if(CL&&CL.length){const cci=ix(CL[0],'Contact ID'),o=[CL[0].slice()];for(let i=1;i<CL.length;i++){const k=CL[i][cci];if(k&&mine[k])o.push(CL[i].slice());}tabs['Closings']=o;}}
+  if(c&&c.length>1){const ci=ix(c[0],'Contact ID'),as=c[0].indexOf('_as');for(let i=1;i<c.length;i++){const x=c[i][ci];if(x&&String(c[i][as]).split(',').indexOf('LM')>-1)mine[x]=1;}}
+  // Closings: by the role columns, tagged `_as`; money only on an LM row
+  {const CL=RAW['Closings'];tabs['Closings']=null;if(CL&&CL.length){const h=CL[0],cci=ix(h,'Contact ID'),bi=ix(h,'Booker (LM)'),ai=ix(h,'AM'),di=ix(h,'DM'),money=moneyCols(h),o=[h.concat(['_as'])],has=(r,i)=>i>-1&&norm(r[i])===want;
+    for(let i=1;i<CL.length;i++){const k=cci>-1?CL[i][cci]:'',lm=has(CL[i],bi)||(!!k&&mine[k]===1),tag=(lm?['LM']:[]).concat(has(CL[i],ai)?['AM']:[],has(CL[i],di)?['DM']:[]).join(',');if(!tag)continue;const r=CL[i].slice();if(!lm)money.forEach(m=>{r[m]='';});r.push(tag);o.push(r);}
+    tabs['Closings']=o;}}
   const P=RAW['Pipeline'];
   if(P&&P.length>1)for(let i=1;i<P.length;i++){const cid=P[i][24],fee=P[i][25];if(cid&&mine[cid]){fees[cid]=(typeof fee==='number'?fee:Number(fee)||0);stages[cid]=P[i][23]||'';}} // X=idx23 dispo stage, Y=idx24 contactId, Z=idx25 fee
   // curated goals (allow-list; never revenue/profit/cost)
   const GA={'averagewholesaleprofitperdeal$':'avgWholesaleFee','leadappointment%':'leadToAppt','appointmentcontract%':'apptToContract','offercontract%':'offerToContract','contractclose%':'contractToClose','overallleadclose%':'leadToClose','leadappointment':'velLeadToAppt','appointmentoffer':'velApptToOffer','offercontract':'velOfferToContract','contractclose':'velContractToClose','totalcycletime':'velTotalCycle'};
   const goals={},g=RAW['Goals & Assumptions']||[];for(let i=0;i<g.length;i++){const k=GA[nl(g[i][0])];if(k)goals[k]=g[i][1];}
-  // optional fixed targets
-  let lmTargets=[];const lt=RAW['LM Targets'];if(lt&&lt.length>1){const hd=lt[0];for(let i=1;i<lt.length;i++){const o={};for(let j=0;j<hd.length;j++)o[String(hd[j])]=lt[i][j];lmTargets.push(o);}}
-  return {ok:true,role:'lm',person,splitRate:0.10,tabs,fees,stages,goals,lmTargets};
+  // fixed targets: the person's rows plus blank-Person rows, as the phone gets them
+  let lmTargets=[];const lt=RAW['LM Targets'];if(lt&&lt.length>1){const hd=lt[0];for(let i=1;i<lt.length;i++){const o={};for(let j=0;j<hd.length;j++)o[String(hd[j])]=lt[i][j];if(Object.prototype.hasOwnProperty.call(o,'Person')&&(norm(o.Person)===''||norm(o.Person)===want))lmTargets.push(o);}}
+  return {ok:true,role:'lm',person,teamRole,payPlanSet:PAY_PLAN_SET,splitRate:PAY_PLAN_SET?0.10:null,tabs,fees,stages,goals,lmTargets};
 }
 
 /* ═══════════ VIEWS ═══════════ */
@@ -1040,7 +1053,7 @@ VIEWS.tasks=function(){
 
 /* ═══════════ PAINT ═══════════ */
 /* ═══════════ LM SCOREBOARD VIEW ═══════════ */
-function lmTeam(){const t=RAW&&RAW['Team'];if(!t)return [];const ri=t[0].findIndex(c=>String(c).toLowerCase().trim()==='role'),ni=t[0].findIndex(c=>String(c).toLowerCase().trim()==='name');const out=[];for(let i=1;i<t.length;i++)if(String(t[i][ri]||'').toUpperCase().includes('LM'))out.push(t[i][ni]);return out;}
+function lmTeam(){const t=RAW&&RAW['Team'];if(!t)return [];const ri=t[0].findIndex(c=>String(c).toLowerCase().trim()==='role'),ni=t[0].findIndex(c=>String(c).toLowerCase().trim()==='name');const out=[];for(let i=1;i<t.length;i++)if(/\b(LM|AM)\b/.test(String(t[i][ri]||'').toUpperCase()))out.push(t[i][ni]);return out;}
 function lmState(){const p=(route.c||'').split('~');return {person:p[0]||'',lens:p[1]||'week',metric:p[2]||''};}
 function lmGo(person,lens,metric){go('lm',[person,lens,metric||''].join('~'));}
 const lmBuild=person=>LMGamify.gamify(LMEngine.buildModel(scopeToLM(RAW,person)));

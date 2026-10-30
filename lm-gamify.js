@@ -28,7 +28,7 @@
     connected: { s: 'connected', mode: 'sum' }, deepConv: { s: 'deepConv', mode: 'sum' },
     contractsSigned: { s: 'signed', mode: 'sum' }
   };
-  var HIGHER_IS_BETTER = { speed: false }; // speed-to-lead: lower is better
+  var low = E.lowerIsBetter;   // the engine's one list: speed-to-lead, J1, J6, J7, J8
 
   function fullWindow(shifted, lens) {
     var w = E.lensWindow(shifted, lens), s = w.start, end;
@@ -45,7 +45,7 @@
     return Math.max(0, Math.round((E.sod(periodEndDate(asOf, lens)).getTime() - E.sod(asOf).getTime()) / 864e5));
   }
   function lbl(d) { return (d.getMonth() + 1) + '/' + d.getDate(); }
-  function better(metricKey, a, b) { return (HIGHER_IS_BETTER[metricKey] === false) ? a < b : a > b; }
+  function better(metricKey, a, b) { return low(metricKey) ? a < b : a > b; }
 
   // to-date value of the period k steps back (same point-in-period)
   function valToDate(points, anchor, lens, k, mode) { return E.aggIn(points, E.lensWindow(E.shiftAsOf(anchor, lens, k), lens), mode); }
@@ -55,7 +55,8 @@
     var anchor = E.anchorFor(points, asOf, lens).asOf, span = E.dataSpan(points);
     if (!span.lo) return { current: 0, best: 0 };
     var vals = [];
-    for (var k = 0; k < 400; k++) { var w = E.lensWindow(E.shiftAsOf(anchor, lens, k), lens); if (w.end < span.lo) break; vals.push(valToDate(points, anchor, lens, k, mode)); }
+    // an 'avg' period with no rows has no reading: it neither extends nor breaks a streak (as a 0 it would beat any lower-is-better bar)
+    for (var k = 0; k < 400; k++) { var w = E.lensWindow(E.shiftAsOf(anchor, lens, k), lens); if (w.end < span.lo) break; var v0 = valToDate(points, anchor, lens, k, mode); if (v0 != null) vals.push(v0); }
     function barAt(k) { var s = 0, c = 0; for (var j = k + 1; j <= k + N && j < vals.length; j++) { s += vals[j]; c++; } return c ? s / c : null; }
     var above = vals.map(function (v, k) { var b = barAt(k); return b != null && better(metricKey, v, b); });
     var current = 0; for (var i = 0; i < above.length; i++) { if (above[i]) current++; else break; }
@@ -76,7 +77,7 @@
       if (best == null || better(metricKey, v, best.value)) best = { value: v, date: fw.end, label: lbl(fw.end) };
     }
     var cur = E.aggIn(points, E.lensWindow(anchor, lens), mode);
-    var toTie = (best == null || cur == null) ? null : (HIGHER_IS_BETTER[metricKey] === false ? null : Math.max(0, best.value - cur));
+    var toTie = (best == null || cur == null) ? null : (low(metricKey) ? null : Math.max(0, best.value - cur));
     return { best: best, current: cur, toTie: toTie, isRecord: best != null && cur != null && better(metricKey, cur, best.value) };
   }
 
@@ -86,13 +87,14 @@
     var lastFull = E.aggIn(points, fullWindow(E.shiftAsOf(anchor, lens, 1), lens), mode);
     var target = (fixedTarget != null) ? fixedTarget : lastFull;        // beat fixed target if set, else last period
     var basis = (fixedTarget != null) ? 'target' : 'last period';
-    var daysLeft = daysLeftInPeriod(anchor, lens);
-    var remaining = (target == null || cur == null) ? null : Math.max(0, target - cur);
+    var daysLeft = daysLeftInPeriod(anchor, lens), down = low(metricKey);
+    // Lower is better: `remaining` is what's left to CUT, and an average has no per-day amount to add.
+    var remaining = (target == null || cur == null) ? null : Math.max(0, down ? cur - target : target - cur);
     return {
       current: cur, target: target, basis: basis, daysLeft: daysLeft,
-      remaining: remaining,
-      perDayNeeded: (remaining == null || daysLeft <= 0) ? null : remaining / daysLeft,
-      alreadyBeat: (target != null && cur != null) ? cur > target : null
+      remaining: remaining, lower: down,
+      perDayNeeded: (remaining == null || daysLeft <= 0 || down) ? null : remaining / daysLeft,
+      alreadyBeat: (target != null && cur != null) ? better(metricKey, cur, target) : null
     };
   }
 
@@ -123,7 +125,7 @@
   }
   function paceState(metricKey, cur, bar) {
     if (bar == null || !isFinite(bar) || bar === 0 || cur == null) return 'none';
-    var r = (HIGHER_IS_BETTER[metricKey] === false) ? bar / cur : cur / bar;
+    var r = low(metricKey) ? bar / cur : cur / bar;
     return r >= 1.0 ? 'ahead' : (r >= 0.9 ? 'on' : 'behind');
   }
 
@@ -154,7 +156,7 @@
 
   // Leaderboard — entries: [{person, model}]. Solo → single rank-1 entry.
   function leaderboard(entries, lens, metricKey) {
-    var higher = HIGHER_IS_BETTER[metricKey] !== false;
+    var higher = !low(metricKey);
     var arr = entries.map(function (e) { return { person: e.person, value: (e.model.lenses[lens][metricKey] || {}).current }; });
     arr.sort(function (a, b) { return higher ? (b.value - a.value) : (a.value - b.value); });
     arr.forEach(function (x, i) { x.rank = i + 1; x.percentile = arr.length > 1 ? Math.round((arr.length - 1 - i) / (arr.length - 1) * 100) : 100; });

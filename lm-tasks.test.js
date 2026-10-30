@@ -78,15 +78,15 @@ const before = (h, a, b) => h.indexOf(a) > -1 && h.indexOf(b) > -1 && h.indexOf(
 (async function () {
   console.log('ASSET VERSIONS');
   const html = fs.readFileSync(__dirname + '/lm.html', 'utf8'), sw = fs.readFileSync(__dirname + '/sw-lm.js', 'utf8');
-  ok('lm.html: engine/gamify/view tags + css link at ?v=45, no v=44 left', (html.match(/\?v=45/g) || []).length === 4 && html.indexOf('v=44') === -1);
-  ok('sw-lm.js: cache name clt-lm-v45 and V=45', sw.indexOf("'clt-lm-v45'") > -1 && sw.indexOf("const V = '45'") > -1);
+  ok('lm.html: engine/gamify/view tags + css link at ?v=46, no v=45 left', (html.match(/\?v=46/g) || []).length === 4 && html.indexOf('v=45') === -1);
+  ok('sw-lm.js: cache name clt-lm-v46 and V=46', sw.indexOf("'clt-lm-v46'") > -1 && sw.indexOf("const V = '46'") > -1);
 
   console.log('HOME — the ✓ Today button');
   const B = boot(); await tick(60);
   const home = B.view();
   ok('app booted on the scoped payload', B.els.app.style.display === '' && home.indexOf(J) > -1);
   ok('home shows "✓ Today — 4 open, 1 overdue →" (snoozed not open; private/other/expired rows ignored)', home.indexOf('✓ Today — 4 open, 1 overdue →') > -1);
-  ok('button sits above Make More Money and routes to tasks', before(home, "'tasks')", 'Make More Money') && home.indexOf('class="lm-deals-btn tasksbtn late"') > -1);
+  ok('button sits above Deals & Pipeline and routes to tasks', before(home, "'tasks')", 'Deals &amp; Pipeline') && home.indexOf('class="lm-deals-btn tasksbtn late"') > -1);
   ok('home never leaks the private or other-person rows', home.indexOf('PRIVATE-OWNER-ROW') === -1 && home.indexOf('ANDREWS-ROW') === -1);
 
   console.log('TASKS VIEW');
@@ -167,7 +167,7 @@ const before = (h, a, b) => h.indexOf(a) > -1 && h.indexOf(b) > -1 && h.indexOf(
 
   console.log('NO TASKS TAB (old endpoint) — degrade, never throw');
   const N = boot({ noTasks: true }); await tick(60);
-  ok('home: no ✓ Today button', N.view().indexOf('✓ Today') === -1 && N.view().indexOf('Make More Money') > -1);
+  ok('home: no ✓ Today button', N.view().indexOf('✓ Today') === -1 && N.view().indexOf('Deals &amp; Pipeline') > -1);
   N.ctx.window.lmGo(J, 'week', 'tasks');
   ok('tasks route explains instead of throwing', N.view().indexOf('TASKS NOT CONNECTED') > -1 && N.view().indexOf('RENDER ERROR') === -1);
 

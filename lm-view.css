@@ -70,6 +70,7 @@ select.lm-person{cursor:pointer}
 .lm-diag{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
 .lm-d-h{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.2em;color:var(--glow);margin-bottom:8px}
 .lm-diag p{margin:6px 0;font-size:13px;color:var(--txt2)} .lm-diag b{color:var(--txt)}
+.lm-coach.lm-nopay{margin:0 0 14px}
 .lm-coach{margin-top:14px;background:radial-gradient(360px 100px at 12% 0%,var(--glow-dim),transparent),var(--card);border:1px solid var(--line2);border-radius:14px;padding:14px}
 .lm-coach p{margin:6px 0 0;font-size:13.5px;color:var(--txt);line-height:1.55}
 .lm-reclist{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}

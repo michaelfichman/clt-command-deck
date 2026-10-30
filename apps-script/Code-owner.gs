@@ -37,7 +37,8 @@
  *     and `tasksAsOf`; a POST with a bad token must answer
  *     {"ok":false,"error":"unauthorized"}. For expire_rules (2026-10-21): the
  *     probe in apps-script/README.md §2 step 6, with Michael's token, must
- *     answer with `expired_by_rule` and one `notes` line.
+ *     answer with `expired_by_rule` and one `notes` line. For D1: a GET with
+ *     Michael's token and `action=kpi_feed` must answer unauthorized.
  *  5. The KPI Staging workbook must have tabs named exactly `Tasks` and
  *     `Review` with the header rows from apps-script/TASKS.md (row 1).
  *     Missing tab -> GET ships tabs.Tasks = null; POST answers
@@ -118,6 +119,11 @@ function doGet(e) {
   var out = {};
   try {
     var token = (e && e.parameter && e.parameter.token) || '';
+    // kpi_feed lives on the LM /exec with ROUTINE_TOKEN alone. Here it is refused for every token:
+    // the owner token must never become the routine's way in, nor go on disk for it.
+    if (e && e.parameter && e.parameter.action === 'kpi_feed') {
+      return json_({ ok: false, error: 'unauthorized' });
+    }
     var who = ownerWho_(token);
     if (!who) {
       return json_({ ok: false, error: 'unauthorized' });

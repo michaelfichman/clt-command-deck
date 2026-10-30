@@ -30,7 +30,10 @@
  *     For Tasks: a GET must carry `tasksAsOf`; a POST with a bad token must
  *     answer {"ok":false,"error":"unauthorized"}. For expire_rules (2026-10-21):
  *     the ROUTINE_TOKEN probe in apps-script/README.md §2 step 6 must answer
- *     with `expired_by_rule` and one `notes` line.
+ *     with `expired_by_rule` and one `notes` line. For D1 (role scoping +
+ *     kpi_feed): an LM GET must carry `teamRole` and `payPlanSet:false`, and
+ *     `?action=kpi_feed` with ROUTINE_TOKEN must answer ok:true while either
+ *     LM token answers unauthorized (README §2 step 6).
  *  5. The KPI Staging workbook must have tabs named exactly `Tasks` and
  *     `Review` with the header rows from apps-script/TASKS.md (row 1).
  *     Missing tab -> GET ships tabs.Tasks = null; POST answers
@@ -41,20 +44,31 @@
  * ======================================================
  * SEPARATE, role-restricted endpoint for the Lead Manager scoreboard.
  * It serves ONLY:
- *   • an LM's OWN attributed rows (their funnel + activity), and
- *   • that LM's personal comp dollars — their 10% split on THEIR deals.
+ *   • a person's OWN rows: Leads/Calls/Speed by their one attribution column,
+ *     and Appointments/Offers/Contracts/Closings by the ROLE COLUMNS (D1, since
+ *     the 10/15 reorg: Andrew owns new cards, Jordan is the AM on offers), each
+ *     row tagged `_as` with the role it is theirs by, and
+ *   • the fee of a deal only where they are its LM.
  *
  * It NEVER serves company revenue / gross profit / cost, the full pipeline,
- * or any other person's deals. Those tabs and columns are not referenced
- * here, so the r=lm network response cannot contain company money — the
- * boundary holds by construction, not by client-side hiding.
+ * or any other person's deals. Those tabs are not referenced here, and a fee
+ * column on a row the person is not the LM of ships blank, so the r=lm network
+ * response cannot contain company money — the boundary holds by construction,
+ * not by client-side hiding.
  *
  * WHAT DOLLARS DO ship (by design, per Michael 2026-06-16):
  *   • the LM's own per-deal wholesale fee (their offers/contracts out), and
  *   • the business avg wholesale fee, used only as a projection basis.
- *   The client multiplies by the 10% split to show earned/earmarked/potential.
  *   The dispo STAGE per deal also ships (non-dollar) so the client can mark a
  *   fee "earmarked" only once the deal reaches "Under Contract".
+ *
+ * PAY IS HIDDEN (D1, decision D-5): pay after the reorg is undecided, and the old
+ * math paid Andrew on offers Jordan prices and Jordan $0 for AM work. Until it is
+ * decided PAY_PLAN_SET stays false, the clients show "Pay plan not set", and the
+ * LM-only fees above stay exactly as they were so nothing is lost for that day.
+ *
+ * The routine's second door: GET ?action=kpi_feed with ROUTINE_TOKEN, a role-column
+ * read feed with an ALLOW-LIST of headers. Shape: apps-script/README.md §5.
  *
  * This is a STANDALONE Apps Script project — its own deployment, its own
  * /exec URL, its own token set — physically distinct from the owner Code.gs.
@@ -88,9 +102,10 @@ var LM_TOKENS = {
 };
 
 /* The call-coaching nightly's token (cltbuyers-routines, `.secrets/deck_routine_token`).
-   It may call ONLY `upsert_tasks` (POST). It is NOT in LM_TOKENS, so it gets no GET
-   payload and can read nobody's scoreboard. Must differ from every LM token —
-   the token IS the identity. REDACTED here; real value only in the deployed editor. */
+   It may call ONLY `upsert_tasks` (POST) and `kpi_feed` (GET). It is NOT in LM_TOKENS,
+   so it gets no scoreboard payload and can read nobody's scoreboard. Must differ from
+   every LM token — the token IS the identity. REDACTED here; real value only in the
+   deployed editor. */
 var ROUTINE_TOKEN = 'SET-IN-DEPLOYED-EDITOR-ROUTINE';
 
 /* POST identity for the shared Tasks block (below): an LM, or the routine. */
@@ -102,12 +117,14 @@ function tasksWho_(token) {
 }
 function tasksSS_() { return SpreadsheetApp.openById(SHEET_ID); }
 
-var LM_DEFAULT_SPLIT = 0.10;   // LM earns 10% of each wholesale fee.
+var LM_DEFAULT_SPLIT = 0.10;   // The pre-reorg split. Behind PAY_PLAN_SET: it ships only once a plan is set.
+var PAY_PLAN_SET = false;      // D-5: pay is deferred and hidden. Flip when Michael sets it (the clients read `payPlanSet`).
 
 /* LM-safe, person-attributed tabs and the 0-based column holding the person's
    name. `cols` (optional) caps how many leading columns ship — used to drop a
-   tab's side/summary block. Every column of these tabs is non-dollar, so
-   row-filtering to the LM leaks no company money.
+   tab's side/summary block. The one dollar column here is Contracts' derived
+   gross: row-filtering is not enough for it, so scopeTab_ blanks it on any row
+   whose deal the person is not the LM of (MONEY_HEADER).
 
    COLUMNS ARE RESOLVED BY HEADER NAME, never by index. A `Current Owner` column
    was inserted into Leads at I; any index-based lookup to its right would have
@@ -115,22 +132,28 @@ var LM_DEFAULT_SPLIT = 0.10;   // LM earns 10% of each wholesale fee.
    no error. The numeric `attr`/`member` values remain ONLY as a last-resort
    fallback for a tab whose headers get renamed.
 
-   `attrNames` is an ORDERED PREFERENCE resolved PER ROW to the first non-blank:
-   on Leads that is `Current Owner` (who works the lead now) falling back to
-   `Assigned User` (who was given it at creation). Those are two different facts
-   and both are kept. A row the backfill missed still scopes to someone instead
-   of disappearing. */
+   `attrNames` is an ordered preference resolved per row to the first non-blank.
+   Leads names only `Assigned User`: `Current Owner` was a one-time backfill, blank
+   from row 333, and the deck's own LM preview (index.html scopeToLM) never read it.
+   Scoping both the same way is what keeps the phone and the preview on one count.
+
+   `amNames` marks a DEAL tab: a row is the person's when its Booker (LM) or its AM
+   is the person, tagged in a trailing `_as` column. `memberNames` then only decides
+   which OTHER rows ride along for the record lists — see scopeTab_. */
 var PERSON_TABS = {
-  'Leads':         { attrNames: ['Current Owner', 'Assigned User'], attr: 6 },
-  'Appointments':  { attrNames: ['Booker (LM)'], memberNames: ['Contact ID'], attr: 3, member: 9 },
-  'Offers':        { attrNames: ['Booker (LM)'], memberNames: ['Contact ID'], attr: 3, member: 9 },
-  'Contracts':     { attrNames: ['Booker (LM)'], memberNames: ['Contact ID'], attr: 4, member: 10 },
+  'Leads':         { attrNames: ['Assigned User'], attr: 6 },
+  'Appointments':  { attrNames: ['Booker (LM)'], amNames: ['AM'], memberNames: ['Contact ID'], attr: 3, member: 9 },
+  'Offers':        { attrNames: ['Booker (LM)'], amNames: ['AM'], memberNames: ['Contact ID'], attr: 3, member: 9 },
+  'Contracts':     { attrNames: ['Booker (LM)'], amNames: ['AM'], memberNames: ['Contact ID'], attr: 4, member: 10 },
   'Calls':         { attrNames: ['User'], attr: 1 },
-  // NOTE: Speed to Lead has its OWN Assigned User column and no Current Owner
-  // column, so it is still scoped at-creation. Reassigned leads stay on the
-  // previous owner's speed funnel until that tab gains the same treatment.
+  // NOTE: Speed to Lead has its OWN Assigned User column, so it is scoped at-creation
+  // exactly like Leads. Reassigned leads stay on the previous owner's speed funnel.
   'Speed to Lead': { attrNames: ['Assigned User'], attr: 6, cols: 25 }
 };
+
+/* A header whose column carries deal money. Applied to the deal tabs and Closings:
+   on a row the person is not the LM of, such a cell ships blank. */
+var MONEY_HEADER = /revenue|fee|gross|profit|cost/i;
 
 /* Curated Goals allow-list (default-DENY): ONLY these labels leave the
    endpoint. Matched on a normalized label so the arrow glyph / spacing can't
@@ -153,24 +176,35 @@ var GOALS_ALLOW = {
 function doGet(e) {
   try {
     var token = (e && e.parameter && e.parameter.token) || '';
+
+    // The routine's read feed, its own door: ROUTINE_TOKEN only. tasksWho_ answers an LM
+    // first, so a token pasted into both slots is an LM here, never the routine.
+    if (e && e.parameter && e.parameter.action === 'kpi_feed') {
+      var caller = tasksWho_(token);
+      if (!caller || caller.role !== 'routine') return json_({ ok: false, error: 'unauthorized' });
+      return json_(kpiFeed_(SpreadsheetApp.openById(SHEET_ID)));
+    }
+
+    // hasOwnProperty: LM_TOKENS['constructor'] is a truthy inherited function, which would pass as a person.
+    if (!Object.prototype.hasOwnProperty.call(LM_TOKENS, token)) return json_({ ok: false, error: 'unauthorized' });
     var person = LM_TOKENS[token];
     if (!person) return json_({ ok: false, error: 'unauthorized' });
 
     var ss = SpreadsheetApp.openById(SHEET_ID);
 
-    // 1) person-scoped tabs: header row + ONLY this LM's rows
+    // 1) person-scoped tabs: header row + ONLY this person's rows
     var tabs = {};
     Object.keys(PERSON_TABS).forEach(function (name) {
       tabs[name] = scopeTab_(ss, name, PERSON_TABS[name], person);
     });
 
-    // 2) Team roster — LM rows only (person selector + leaderboard-ready)
-    tabs['Team'] = teamLMs_(ss);
+    // 2) Team roster — LM and AM rows only (person selector + leaderboard-ready)
+    tabs['Team'] = teamRoles_(ss);
 
-    // 2b) Closings — ONLY this LM's own deals (live → drives Earned at real revenue)
-    tabs['Closings'] = scopedClosings_(ss, tabs);
+    // 2b) Closings — this person's rows by Booker (LM) / AM / DM, money on LM rows only
+    tabs['Closings'] = scopedClosings_(ss, tabs, person);
 
-    // 3) scoped fees + dispo stage — ONLY this LM's own deals
+    // 3) scoped fees + dispo stage — ONLY the deals this person is the LM of (D-5: AM rows never add fees)
     var fs = scopedFees_(ss, tabs);
 
     // 3b) Tasks & Review — own team-visible tasks (live or touched in 14 days) + own flags.
@@ -182,16 +216,18 @@ function doGet(e) {
     // 4) curated goals + split + optional fixed LM-target slots
     return json_({
       ok: true,
-      role: 'lm',
+      role: 'lm',                     // the ENDPOINT's role; the person's job is teamRole
       person: person,
+      teamRole: teamRoleOf_(tabs['Team'], person),   // their Team-tab Role, as written: 'AM, LM', 'LM'
       fetchedAt: new Date().toISOString(),
       tasksAsOf: new Date().toISOString(),
-      splitRate: LM_DEFAULT_SPLIT,
+      payPlanSet: PAY_PLAN_SET,
+      splitRate: PAY_PLAN_SET ? LM_DEFAULT_SPLIT : null,
       tabs: tabs,
       fees: fs.fees,
       stages: fs.stages,              // dispo stage per deal → Earmarked only if "Under Contract"
       goals: curatedGoals_(ss),
-      lmTargets: readLMTargets_(ss)   // [] until the block is populated
+      lmTargets: readLMTargets_(ss, person)   // the caller's rows + blank-Person rows
     });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
@@ -200,13 +236,16 @@ function doGet(e) {
 
 /* Single-attribution tabs (Leads/Calls/Speed): header + rows where the
    attribution column == person.
-   Deal tabs (Appointments/Offers/Contracts): scope by OPPORTUNITY MEMBERSHIP.
-   Collect every Contact ID the LM is attributed to on any row, then include
-   ALL rows for those opportunities — including disposition rows logged by the
-   AM (e.g. Michael logging a Declined / Closed / Cancelled on the LM's deal).
-   Without this, a deal's terminal status would be invisible to the LM and an
-   AM-declined offer would wrongly read as "open." Only the LM's OWN
-   opportunities are included, and these tabs carry no dollar columns. */
+   Deal tabs (Appointments/Offers/Contracts): a row is the person's when its
+   Booker (LM) or its AM is the person, and a trailing `_as` column says which:
+   'LM', 'AM' or 'LM,AM'. Clients COUNT by that tag, never by contact.
+   Contact membership stays ONLY for the record lists: every other row on a
+   contact the person holds a role on still ships, with `_as` blank — a
+   disposition logged by someone else (Michael logging a Declined / Closed /
+   Cancelled on the deal). Without it a deal's terminal status would be invisible
+   and a declined offer would wrongly read as "open." A blank `_as` row counts
+   for nothing. Only the person's OWN opportunities are included, and fee columns
+   ship only on a deal they are the LM of (D-5). */
 /* Header-name → column index. Returns EVERY named column that exists, in the
    order named, so the caller can coalesce across them per row. */
 function colsByName_(header, names) {
@@ -226,7 +265,7 @@ function scopeTab_(ss, name, cfg, person) {
   if (!values.length) return [];
   var width = cfg.cols || values[0].length;
   var want = norm_(person);
-  var out = [values[0].slice(0, width)];
+  var out = [cfg.amNames ? values[0].slice(0, width).concat(['_as']) : values[0].slice(0, width)];
 
   // Ownership columns, by header name; numeric `attr` only if no header matched.
   var attrIdx = colsByName_(values[0], cfg.attrNames);
@@ -257,46 +296,82 @@ function scopeTab_(ss, name, cfg, person) {
     return out;
   }
 
-  var ids = {};                             // opportunity membership
+  var amIdx = colsByName_(values[0], cfg.amNames);   // no AM header -> nobody tagged AM; Booker still scopes
+  var ids = {}, lmIds = {}, tags = [];               // ids: any role (record lists); lmIds: LM (money)
   for (var a = 1; a < values.length; a++) {
-    if (ownerOf(values[a]) === want) {
-      var k = values[a][memberIdx]; if (k) ids[k] = true;
-    }
+    var isLM = ownerOf(values[a]) === want, isAM = amIdx.length > 0 && norm_(values[a][amIdx[0]]) === want;
+    tags[a] = isLM && isAM ? 'LM,AM' : (isLM ? 'LM' : (isAM ? 'AM' : ''));
+    var k = values[a][memberIdx];
+    if (k && tags[a]) ids[k] = true;
+    if (k && isLM) lmIds[k] = true;
   }
+  var money = moneyCols_(values[0], width);
   for (var b = 1; b < values.length; b++) {
     var k2 = values[b][memberIdx];
-    if (k2 && ids[k2]) out.push(values[b].slice(0, width));
+    if (!tags[b] && !(k2 && ids[k2])) continue;
+    var row = values[b].slice(0, width);
+    if (!(k2 && lmIds[k2]) && tags[b].indexOf('LM') < 0) blank_(row, money);
+    row.push(tags[b]);
+    out.push(row);
   }
   return out;
 }
 
-/* Team rows whose Role contains 'LM' (hides AM/DM org rows) */
-function teamLMs_(ss) {
+/* Column indexes of `header` (first `width`) that carry deal money. */
+function moneyCols_(header, width) {
+  var out = [];
+  for (var i = 0; i < width && i < header.length; i++) if (MONEY_HEADER.test(String(header[i]))) out.push(i);
+  return out;
+}
+function blank_(row, cols) { cols.forEach(function (c) { row[c] = ''; }); }
+
+/* Team rows whose Role names LM or AM (hides Owner/DM/Partner org rows). Whole words, so
+   'Team Lead' is not an AM. Role is 'AM, LM' / 'LM' / 'Owner, DM' / 'Partner' on the live tab. */
+function teamRoles_(ss) {
   var sh = ss.getSheetByName('Team');
   if (!sh) return null;
   var v = sh.getDataRange().getValues();
   if (!v.length) return [];
-  var out = [v[0]];
+  var out = [v[0]], ri = colsByName_(v[0], ['Role']);
+  if (!ri.length) return out;               // no Role column -> visibly empty, not silently everyone
   for (var i = 1; i < v.length; i++) {
-    if (String(v[i][1] || '').toUpperCase().indexOf('LM') > -1) out.push(v[i]);
+    if (/\b(LM|AM)\b/.test(String(v[i][ri[0]] || '').toUpperCase())) out.push(v[i]);
   }
   return out;
 }
 
+/* The Role cell of `person` on the scoped Team tab, as written; '' when they have no LM or AM role. */
+function teamRoleOf_(team, person) {
+  if (!team || team.length < 2) return '';
+  var ni = colsByName_(team[0], ['Name']), ri = colsByName_(team[0], ['Role']);
+  if (!ni.length || !ri.length) return '';
+  for (var i = 1; i < team.length; i++) if (norm_(team[i][ni[0]]) === norm_(person)) return String(team[i][ri[0]] || '').trim();
+  return '';
+}
+
+/* Contact IDs of the deals this person is the LM of: their Contracts rows tagged LM. The ONE
+   definition of "mine" for money (D-5) — an AM row never adds a fee, a stage or a closing. */
+function lmContacts_(rows) {
+  var mine = {};
+  if (!rows || rows.length < 2) return mine;
+  var idx = rows[0].indexOf('Contact ID'), as = rows[0].indexOf('_as');
+  if (idx < 0 || as < 0) return mine;
+  for (var i = 1; i < rows.length; i++) {
+    var c = rows[i][idx];
+    if (c && String(rows[i][as]).split(',').indexOf('LM') > -1) mine[c] = true;
+  }
+  return mine;
+}
+
 /* {contactId: fee} and {contactId: dispoStage} from the Pipeline X:Z stash,
-   but ONLY for contact ids that appear in THIS LM's own CONTRACTS (deals they
-   own — earned/earmarked). Offers are excluded on purpose: an LM can make an
-   offer on a deal someone else contracts (e.g. Jordan offered Joseph Patterson,
+   but ONLY for contact ids of the Contracts THIS person is the LM of (deals they
+   own — earned/earmarked), never their AM rows. Offers are excluded on purpose: an LM can make an
+   offer on a deal someone else contracts (e.g. Jordan offered a seller,
    Michael holds the contract), and offers carry no real fee — the Potential
    bucket uses the avg fee instead. The dispo stage drives Earmarked vs
    Projected: a fee is "earmarked" only once its dispo opp is "Under Contract". */
 function scopedFees_(ss, tabs) {
-  var mine = {};
-  ['Contracts'].forEach(function (t) {
-    var rows = tabs[t]; if (!rows || rows.length < 2) return;
-    var idx = rows[0].indexOf('Contact ID'); if (idx < 0) return;
-    for (var i = 1; i < rows.length; i++) { var c = rows[i][idx]; if (c) mine[c] = true; }
-  });
+  var mine = lmContacts_(tabs['Contracts']);
   var fees = {}, stages = {};
   var sh = ss.getSheetByName('Pipeline');
   if (!sh) return { fees: fees, stages: stages };
@@ -313,17 +388,31 @@ function scopedFees_(ss, tabs) {
   return { fees: fees, stages: stages };
 }
 
-/* Closings for ONLY this LM's own deal contacts (matched to their Contracts).
-   Drives Earned at actual revenue — live, no nightly dependency. */
-function scopedClosings_(ss, tabs) {
-  var mine = {}, rows = tabs['Contracts'];
-  if (rows && rows.length > 1) { var idx = rows[0].indexOf('Contact ID'); if (idx > -1) for (var i = 1; i < rows.length; i++) { var c = rows[i][idx]; if (c) mine[c] = true; } }
+/* Closings by the role columns C/D/E (Booker (LM), AM, DM), tagged `_as` 'LM' / 'AM' / 'DM' or a
+   comma join in that order. The LM tag also covers a deal matched to their LM Contracts (the Booker
+   membership that always drove Earned at actual revenue — live, no nightly dependency).
+   D-5: Revenue and the fee ship ONLY on an LM row. An AM- or DM-only row carries its date and roles
+   with its money blanked, so it cannot add a dollar to anything even if a client ignored `_as`. */
+function scopedClosings_(ss, tabs, person) {
+  var mine = lmContacts_(tabs['Contracts']);
   var sh = ss.getSheetByName('Closings');
   if (!sh) return null;
   var v = sh.getDataRange().getValues();
   if (!v.length) return [];
-  var ci = v[0].indexOf('Contact ID'), out = [v[0]];
-  if (ci > -1) for (var j = 1; j < v.length; j++) { var k = v[j][ci]; if (k && mine[k]) out.push(v[j]); }
+  var want = norm_(person), width = v[0].length, money = moneyCols_(v[0], width);
+  var ci = colsByName_(v[0], ['Contact ID']), lm = colsByName_(v[0], ['Booker (LM)']);
+  var am = colsByName_(v[0], ['AM']), dm = colsByName_(v[0], ['DM']);
+  function has(row, cols) { return cols.length > 0 && norm_(row[cols[0]]) === want; }
+  var out = [v[0].concat(['_as'])];
+  for (var j = 1; j < v.length; j++) {
+    var isLM = has(v[j], lm) || (ci.length > 0 && !!v[j][ci[0]] && mine[v[j][ci[0]]] === true);
+    var tag = (isLM ? ['LM'] : []).concat(has(v[j], am) ? ['AM'] : [], has(v[j], dm) ? ['DM'] : []).join(',');
+    if (!tag) continue;
+    var row = v[j].slice();
+    if (!isLM) blank_(row, money);
+    row.push(tag);
+    out.push(row);
+  }
   return out;
 }
 
@@ -340,10 +429,9 @@ function curatedGoals_(ss) {
   return goals;
 }
 
-/* Optional fixed-target block. Reads an 'LM Targets' tab if present
-   (cols: Metric | Lens | Person | Target ...) into a list of objects. Empty
-   until populated — the slot is wired now so Part 3 reads it with no change. */
-function readLMTargets_(ss) {
+/* The 'LM Targets' tab (Metric | Lens | Person | Target | Note) as a list of objects, every
+   person's rows. NOT for a client — a client gets readLMTargets_ — and kpi_feed narrows it. */
+function lmTargetRows_(ss) {
   var sh = ss.getSheetByName('LM Targets');
   if (!sh) return [];
   var v = sh.getDataRange().getValues();
@@ -354,6 +442,90 @@ function readLMTargets_(ss) {
     out.push(o);
   }
   return out;
+}
+
+/* Only the caller's target rows plus blank-Person rows (a target for everyone): one LM's
+   targets are nobody else's business. No Person column -> [], never everyone's. */
+function readLMTargets_(ss, person) {
+  return lmTargetRows_(ss).filter(function (t) {
+    if (!Object.prototype.hasOwnProperty.call(t, 'Person')) return false;
+    var p = norm_(t.Person);
+    return p === '' || p === norm_(person);
+  });
+}
+
+/* ── ROUTINE READ FEED ── GET ?action=kpi_feed&token=<ROUTINE_TOKEN>, shape in README §5.
+   An ALLOW-LIST of exact headers, in the order they ship: a column nobody listed cannot leave,
+   however it is renamed or wherever it is inserted. NO name, phone, email or address column may
+   ever join these lists. Closings' fee is its derived gross; its net Revenue stays out. Only
+   Contracts has an Opportunity ID. */
+var KPI_FEED_TABS = {
+  'Appointments': ['Confirmed Date', 'Disposition Date', 'Outcome', 'Booker (LM)', 'AM', 'Contact ID'],
+  'Offers':       ['Offer Made Date', 'Disposition Date', 'Outcome', 'Booker (LM)', 'AM', 'Contact ID'],
+  'Contracts':    ['Sent Date', 'Signed Date', 'Disposition Date', 'Outcome', 'Booker (LM)', 'AM', 'Contact ID', 'Opportunity ID'],
+  'Closings':     ['Closed Date', 'Booker (LM)', 'AM', 'DM', 'Contact ID', 'Gross Assignment Fee (derived)']
+};
+var KPI_FEED_TARGETS = ['Metric', 'Lens', 'Person', 'Target'];   // no Note: free text no routine needs
+
+/* One tab through the allow-list: {rows: header + rows | null, lastWrite, missing}. A tab has no
+   write stamp of its own, so lastWrite = the latest date in its date columns, script-zone
+   'YYYY-MM-DD'. A future-dated cell is not a write and must not hide a stale tab. `missing` names
+   allow-listed headers the tab no longer has, so a rename reads as a gap, never as blanks. */
+function feedTab_(ss, name, allow, nowMs) {
+  var sh = ss.getSheetByName(name);
+  if (!sh) return { rows: null, lastWrite: null, missing: [] };
+  var v = sh.getDataRange().getValues();
+  var head = v.length ? v[0] : [], keep = [], missing = [], dates = [];
+  allow.forEach(function (h) {
+    var c = colsByName_(head, [h]);
+    if (!c.length) { missing.push(h); return; }
+    if (/ date$/i.test(h)) dates.push(c[0]);
+    keep.push({ h: h, c: c[0] });
+  });
+  var out = [keep.map(function (k) { return k.h; })], last = NaN;
+  for (var i = 1; i < v.length; i++) {
+    var row = keep.map(function (k) { return tOut_(v[i][k.c] == null ? '' : v[i][k.c]); });
+    if (row.every(function (c) { return c === ''; })) continue;
+    out.push(row);
+    dates.forEach(function (c) {
+      var ms = tMs_(v[i][c]);
+      if (!isNaN(ms) && ms <= nowMs && (isNaN(last) || ms > last)) last = ms;
+    });
+  }
+  return { rows: out, lastWrite: isNaN(last) ? null : tDay_(new Date(last)), missing: missing };
+}
+
+/* task_id -> {status, done_at} for the routine's OWN rows (created_by). Ids carry opp/contact ids and
+   hashes, never a name; lead / ask / why stay on the tab. null when the tab is missing. */
+function feedTasks_(ss) {
+  var sh = ss.getSheetByName(TASKS_TAB);
+  if (!sh) return null;
+  var v = sh.getDataRange().getValues(), out = {};
+  if (!tHasHeader_(v)) return out;
+  var h = v[0], iI = tCol_(h, 'task_id'), iS = tCol_(h, 'status'), iD = tCol_(h, 'done_at'), iC = tCol_(h, 'created_by');
+  if (iI < 0 || iS < 0 || iC < 0) return out;
+  for (var i = 1; i < v.length; i++) {
+    var id = tStr_(v[i][iI]);
+    if (id && tStr_(v[i][iC]) === ROUTINE_CREATED_BY) out[id] = { status: tStr_(v[i][iS]), done_at: iD < 0 ? '' : tOut_(v[i][iD]) };
+  }
+  return out;
+}
+
+function kpiFeed_(ss) {
+  var now = Date.now(), tabs = {}, lastWrite = {}, missing = {};
+  Object.keys(KPI_FEED_TABS).forEach(function (name) {
+    var t = feedTab_(ss, name, KPI_FEED_TABS[name], now);
+    tabs[name] = t.rows;
+    lastWrite[name] = t.lastWrite;
+    if (t.missing.length) missing[name] = t.missing;
+  });
+  var targets = lmTargetRows_(ss).filter(function (t) { return tStr_(t.Metric) !== ''; }).map(function (t) {
+    var o = {};
+    KPI_FEED_TARGETS.forEach(function (k) { o[k] = t[k] == null ? '' : t[k]; });
+    return o;
+  });
+  return { ok: true, role: 'routine', fetchedAt: new Date(now).toISOString(), tabs: tabs, lastWrite: lastWrite,
+    missing: missing, lmTargets: targets, goals: curatedGoals_(ss), tasks: feedTasks_(ss) };
 }
 
 function norm_(x) { return String(x == null ? '' : x).trim().toLowerCase(); }
