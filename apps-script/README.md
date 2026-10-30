@@ -7,7 +7,7 @@ is a `SET-IN-DEPLOYED-EDITOR-…` placeholder, and the placeholders must stay di
 
 | file | editor | /exec called by |
 |---|---|---|
-| `Code-LM.gs` | standalone project "CLT LM Endpoint" | `lm.html` (Jordan, Andrew) and the call-coaching routine (`upsert_tasks`) |
+| `Code-LM.gs` | standalone project "CLT LM Endpoint" | `lm.html` (Jordan, Andrew) and the call-coaching routine (`upsert_tasks`, `kpi_feed`) |
 | `Code-owner.gs` | container-bound: KPI Staging workbook → Extensions → Apps Script | `index.html` (Michael, Ed) |
 
 ## 1. Create the two tabs (once)
@@ -25,6 +25,33 @@ Until the tabs exist, GET ships `tabs.Tasks = null` (the decks say "not connecte
 POST answers `{ok:false,error:'Tasks tab missing'}` — nothing throws.
 
 ## 2. Redeploy each editor (both, same motion)
+
+### Release order, when a release changes the Pages files AND the scripts (D1 did)
+
+The clients go first. The engine reads a payload with no `_as` column as all-LM, so a new
+client on the old script is correct; an old client on the new script is not (it ignores `_as`
+and counts every AM row as its own). The 5 AM nightly runs the engine files from Michael's
+checkout, so that checkout moves before the scripts do. In this order, all before 4:30 AM:
+
+1. Merge after the 5 AM run.
+2. Confirm the Pages files are byte-identical to main: fetch each changed file from
+   `michaelfichman.github.io/clt-command-deck/` and compare it with `git show main:<file>`.
+   Pages lags a merge by a minute or two, and a stale file looks like a passing check.
+3. `git pull` in `~/Documents/GitHub/clt-command-deck` (Michael, or the nightly's Step 0).
+4. Redeploy BOTH editors per the steps below: same deployment, New version, all tokens
+   re-inserted.
+5. Run step 6 below, including the `kpi_feed` probes.
+6. The `/exec` URL check: the URL you just probed is the one in
+   `routines/call-coaching/.secrets/lm_exec_url` and in the phones' links. "New deployment"
+   mints a different URL and strands them.
+7. From `routines/call-coaching` in the routines repo's main checkout, run
+   `node bin/deck_stats.js --person "Jordan Mathis" --as-of <yesterday> --token-file .secrets/lm_exec_token_jordan --url-file .secrets/lm_exec_url`,
+   then the same for `"Andrew Estrada"` with `.secrets/lm_exec_token_andrew`. Both must exit 0.
+
+A phone that has not launched since the release can show an old client on the new script
+until its next launch. That is display only, and it clears itself.
+
+### The steps
 
 Follow the REDEPLOY CHECKLIST at the top of each `.gs` file. In short:
 
@@ -58,12 +85,23 @@ Follow the REDEPLOY CHECKLIST at the top of each `.gs` file. In short:
      (`expire_rules[0] ignored: unknown source "probe"`). It writes nothing (empty batch, no
      `expire_sources`). An answer **without** `expired_by_rule` means the old version is
      still serving — the nightly's `step_in` / `next_action` rows would then never expire.
+   - D1 scoping is live: an LM GET carries `teamRole` (Jordan `AM, LM`, Andrew `LM`) and
+     `payPlanSet: false`, and `tabs.Offers[0]` ends in `_as`.
+   - `kpi_feed` is live: GET the **LM** `/exec` with `?action=kpi_feed&token=<ROUTINE_TOKEN>` →
+     `ok:true` with `role:"routine"`, the four `tabs`, a `lastWrite` date per tab and an empty
+     `missing` (a name in `missing` means a header moved: see §5). The same GET with either LM
+     token, and on the **owner** `/exec` with Michael's token → `{"ok":false,"error":"unauthorized"}`.
+   - Every placeholder is gone: GET the **LM** `/exec` with
+     `?action=kpi_feed&token=SET-IN-DEPLOYED-EDITOR-ROUTINE` and again with `?token=SET-IN-DEPLOYED-EDITOR-JORDAN`,
+     then `…-ANDREW` → all three answer `{"ok":false,"error":"unauthorized"}`. Those strings are public: one
+     left in the editor opens that door to anyone holding the `/exec` URL.
 
 ## 3. Hand the routine its token
 
 The call-coaching nightly (cltbuyers-routines, `routines/call-coaching/bin/tasks_sync.py`)
-posts `upsert_tasks` to the **LM** `/exec` with `ROUTINE_TOKEN`. That token may do nothing
-else — it is not in `LM_TOKENS`, so it gets no GET payload.
+posts `upsert_tasks` to the **LM** `/exec` with `ROUTINE_TOKEN`. Its one other use is the
+read feed `GET ?action=kpi_feed` (§5). It may do nothing else — it is not in `LM_TOKENS`, so
+it gets no scoreboard payload. The owner token never goes on disk for the routine.
 
 1. Generate a long random string (e.g. `openssl rand -hex 24`).
 2. Paste it as `ROUTINE_TOKEN` in the deployed **LM** editor, save, new version (§2).
@@ -84,11 +122,70 @@ else — it is not in `LM_TOKENS`, so it gets no GET payload.
 ## 4. Ship the clients
 
 `lm.html`, `index.html`, `lm-view.js`, `lm-view.css` are served by GitHub Pages. Asset
-tags are at `?v=45` and both service workers (`sw-lm.js`, `sw.js`) use a `v45` cache name,
+tags are at `?v=46` and both service workers (`sw-lm.js`, `sw.js`) use a `v46` cache name,
 so phones and the deck pick the release up on the next launch. Bump all of those together
 on every release that changes a client file (the cache sweep deletes any cache whose name
 differs). Skip this section when no client file changed — e.g. the 2026-10-21 `expire_rules`
 release touched only `apps-script/`.
+
+## 5. What the LM endpoint serves by role, and `kpi_feed`
+
+### The LM GET (`?token=<LM token>`)
+
+Since D1 a deal row is the person's by its role columns, not by contact. The new and changed keys:
+
+| key | value |
+|---|---|
+| `teamRole` | The person's Team-tab Role as written (`AM, LM`, `LM`); `''` if they have neither role. `role` stays `'lm'`: that is the endpoint, not the job. |
+| `payPlanSet` | `false` until pay is decided (D-5). The clients show "Pay plan not set" unless this is `true`, so a script that predates it hides pay too. |
+| `splitRate` | `null` while `payPlanSet` is false (the engine still defaults it, nothing shows it). |
+| `tabs.Appointments`, `.Offers`, `.Contracts` | The header gains a trailing `_as` column. Each row carries `LM`, `AM` or `LM,AM`, or blank for a **record row**: someone else's row on a contact the person holds a role on (Michael's Declined on their deal). A record row is for the record lists and is never counted. |
+| `tabs.Closings` | Scoped by `Booker (LM)` / `AM` / `DM`, plus the LM's own Contracts matched by contact. `_as` is `LM`, `AM`, `DM` or a comma join in that order. |
+| `tabs.Team` | Rows whose Role names LM or AM (was LM only). |
+| `tabs.Leads` | `Assigned User` only. `Current Owner` no longer scopes anything. |
+| `fees`, `stages` | Only the deals the person is the LM of (Contracts rows tagged `LM`). |
+| `lmTargets` | The caller's rows plus blank-Person rows. |
+
+Read `_as` by splitting on the comma, never by equality. A header with no `_as` column is the old
+shape: treat every row as `LM`. Money ships only on a deal the person is the LM of: on any other
+row of Contracts or Closings, each column whose header matches `MONEY_HEADER` is blank.
+
+### `GET ?action=kpi_feed&token=<ROUTINE_TOKEN>` (LM `/exec` only)
+
+For the routine's scorecard (P4). `ROUTINE_TOKEN` only: any LM or owner token answers
+`{"ok":false,"error":"unauthorized"}`, and the owner `/exec` refuses `action=kpi_feed` for every
+token. Headers are an **allow-list** (`KPI_FEED_TABS`), so no name, phone, email or address column
+can ship, whatever happens to the tab.
+
+```jsonc
+{
+  "ok": true,
+  "role": "routine",
+  "fetchedAt": "2026-10-30T16:00:00.000Z",
+  "tabs": {                  // each tab: header row + rows, columns in exactly this order; null if the tab is missing
+    "Appointments": [["Confirmed Date", "Disposition Date", "Outcome", "Booker (LM)", "AM", "Contact ID"], ...],
+    "Offers":       [["Offer Made Date", "Disposition Date", "Outcome", "Booker (LM)", "AM", "Contact ID"], ...],
+    "Contracts":    [["Sent Date", "Signed Date", "Disposition Date", "Outcome", "Booker (LM)", "AM", "Contact ID", "Opportunity ID"], ...],
+    "Closings":     [["Closed Date", "Booker (LM)", "AM", "DM", "Contact ID", "Gross Assignment Fee (derived)"], ...]
+  },
+  "lastWrite": { "Appointments": "2026-10-29", "Offers": "2026-10-28", "Contracts": "2026-10-19", "Closings": "2026-08-27" },
+  "missing": {},             // tab -> allow-listed headers it no longer has; {} when all are present
+  "lmTargets": [{ "Metric": "connected", "Lens": "daily", "Person": "Andrew Estrada", "Target": 43 }],   // every person's rows
+  "goals": { "avgWholesaleFee": 20000, "leadToAppt": 0.15 },   // the GOALS_ALLOW keys, same as the LM GET
+  "tasks": { "t:pulse:<opp_id>": { "status": "open", "done_at": "" } }   // routine-made rows only; null if the tab is missing
+}
+```
+
+- `lastWrite`: the sheet keeps no per-tab write stamp, so this is the latest date in the tab's date
+  columns, ignoring future-dated cells, as `YYYY-MM-DD` in the script's time zone. `null` when no date
+  is readable or the tab is missing.
+- Date cells ship the way the sheet holds them: a real date as an ISO UTC string, a text date as its
+  text (`10/29/2026 1:03 PM`). Parse both.
+- `Closings`' fee is the derived gross. A non-numeric value there is the sheet's "no partner rate on
+  file" alarm: carry it as an error, never coerce it. Net `Revenue` is not served.
+- Only Contracts has an `Opportunity ID`; Appointments and Offers join on `Contact ID`.
+- A name in `missing` means someone renamed a column. Fail loud on it: the column is absent from the
+  rows, and the fix is the rename or `KPI_FEED_TABS`.
 
 ## Tests (node, no network)
 
@@ -96,7 +193,12 @@ release touched only `apps-script/`.
 for f in *.test.js; do node "$f" || exit 1; done
 ```
 
-`apps-script-tasks.test.js` runs the real `.gs` sources against a stubbed SpreadsheetApp;
-`lm-tasks.test.js` and `deck-tasks.test.js` render the two decks on synthetic payloads.
+`apps-script-tasks.test.js` and `apps-script-roles.test.js` run the real `.gs` sources against a
+stubbed SpreadsheetApp (the second covers role scoping, pay, targets and `kpi_feed`);
+`lm-tasks.test.js` and `deck-tasks.test.js` render the two decks on synthetic payloads;
+`lm-roles.test.js` covers the clients' side of D1 (counting by `_as`, one population per ratio,
+pace direction, 'Pay plan not set' on the phone and the owner preview) on both payload shapes;
+`role-scoper-parity.test.js` runs the real `Code-LM.gs` and the real `scopeToLM` side by side, so the
+owner preview and the phone cannot drift (`scoper-parity.test.js` is an older local file, not in git).
 (`lm-smoke.test.js` needs the private `../lm-fixture.js`; `deck-lm-render.test.js`
 is pinned to the real clock against a June-2026 fixture.)

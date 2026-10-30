@@ -11,7 +11,8 @@ decks (clt-command-deck). Change this file first, then code.
 - **Ed** = owner token, not an approver. Sees team tasks (visibility `team`), never Michael's private rows, never the review queue.
 - **Jordan, Andrew** = LM tokens. Each sees ONLY rows whose `owner` is their exact Team-tab name, never `visibility=owner`
   rows, never another person's rows, never another person's flags. Enforced by the ENDPOINT, never by the client.
-- **The routine** (call-coaching nightly) = a dedicated `ROUTINE_TOKEN` on the LM endpoint. It may only `upsert_tasks`.
+- **The routine** (call-coaching nightly) = a dedicated `ROUTINE_TOKEN` on the LM endpoint. It may only `upsert_tasks`
+  and read `GET ?action=kpi_feed` (README §5), which carries its own rows' `task_id → status / done_at` and nothing else of this tab.
 - Team-tab names are the identity strings everywhere: `Jordan Mathis`, `Andrew Estrada`, `Michael Fichman`.
 
 ## Storage — KPI Staging workbook `1MT1lc3bsB2Wf-ELv_-HGqt400BDAQbK0o5TcBa-hC0w`
@@ -166,7 +167,7 @@ before 2026-10-21 ignores `expire_rules` silently and answers without that field
 ### Tokens (placeholders in the repo, real values only in the deployed editors — repo rule)
 
 - Code-LM.gs: keep `LM_TOKENS` (token → Team-tab name). Add `var ROUTINE_TOKEN = 'SET-IN-DEPLOYED-EDITOR-ROUTINE';` —
-  may call ONLY `upsert_tasks`; it is not in LM_TOKENS and gets no GET payload.
+  may call ONLY `upsert_tasks` and `GET ?action=kpi_feed`; it is not in LM_TOKENS and gets no scoreboard payload.
 - Code-owner.gs: `TOKENS` becomes an object token → Team-tab name: `{'SET-IN-DEPLOYED-EDITOR-MICHAEL': 'Michael Fichman',
   'SET-IN-DEPLOYED-EDITOR-ED': 'Edward Peugh'}` and `var APPROVERS = ['Michael Fichman'];`. Keep accepting an array for
   safety if someone pastes the old shape (treat every entry as a non-approver named 'owner').
