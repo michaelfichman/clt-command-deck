@@ -256,9 +256,23 @@
   }
   function hasRole(row, role) { return (row.as || ['LM']).indexOf(role) > -1; }
 
+  /* THE TEAM RULE (P0d). tabs['Team Deals'] is the person's own cards, ids only: a card they are owner or follower on. A tagged row
+     off that list reads as a record row, so contractsSigned, every other count and comp() leave it out at once, and money follows
+     the LM role and the team rule. The endpoint already takes the tag off such a row; this holds for any payload that reaches the
+     engine, the nightly's included. null (no tab to go by) or no key (an endpoint from before P0d) tests nothing, as before. */
+  function teamIds(tab) {
+    if (!Array.isArray(tab) || !tab.length) return null;
+    var h = colIndexer(tab[0]), cols = [h('Opp ID'), h('Contact ID')], ids = Object.create(null);
+    rowsOf(tab).forEach(function (r) { cols.forEach(function (c) { if (c > -1 && r[c]) ids[r[c]] = true; }); });
+    return ids;
+  }
+
   function parse(payload) {
     var T = payload.tabs || {};
     function tab(name) { return T[name] || [['']]; }
+    var team = teamIds(T['Team Deals']);
+    // The row's role tags, or none on a deal off the person's cards. `opp` is Contracts alone: the row names its own card.
+    function roleTags(r, col, contact, opp) { return team && !team[contact] && !(opp && team[opp]) ? [] : tagsOf(r, col); }
 
     // Calls. TWO SEPARATE call-answer metrics (operator directive 2026-07-09):
     // PICKUPS = the legacy duration>0 column — activity, target 43/day —
@@ -279,27 +293,27 @@
     // Appointments
     var a = tab('Appointments'), ai = colIndexer(a[0]);
     var appts = rowsOf(a).map(function (r) {
-      return { conf: parseDate(r[ai('Confirmed Date')]), dispo: parseDate(r[ai('Disposition Date')]), outcome: String(r[ai('Outcome')] || '').trim(), contactId: r[ai('Contact ID')], name: r[ai('Contact Name')], property: r[ai('Property Address')], as: tagsOf(r, ai('_as')) };
+      return { conf: parseDate(r[ai('Confirmed Date')]), dispo: parseDate(r[ai('Disposition Date')]), outcome: String(r[ai('Outcome')] || '').trim(), contactId: r[ai('Contact ID')], name: r[ai('Contact Name')], property: r[ai('Property Address')], as: roleTags(r, ai('_as'), r[ai('Contact ID')]) };
     });
 
     // Offers
     var o = tab('Offers'), oi = colIndexer(o[0]);
     var offers = rowsOf(o).map(function (r) {
-      return { made: parseDate(r[oi('Offer Made Date')]), dispo: parseDate(r[oi('Disposition Date')]), outcome: String(r[oi('Outcome')] || '').trim(), contactId: r[oi('Contact ID')], name: r[oi('Contact Name')], property: r[oi('Property Address')], as: tagsOf(r, oi('_as')) };
+      return { made: parseDate(r[oi('Offer Made Date')]), dispo: parseDate(r[oi('Disposition Date')]), outcome: String(r[oi('Outcome')] || '').trim(), contactId: r[oi('Contact ID')], name: r[oi('Contact Name')], property: r[oi('Property Address')], as: roleTags(r, oi('_as'), r[oi('Contact ID')]) };
     });
 
     // Contracts
     var k = tab('Contracts'), ki = colIndexer(k[0]);
     var contracts = rowsOf(k).map(function (r) {
       var g = grossCell(r[ki('Gross Assignment Fee')]);
-      return { signed: parseDate(r[ki('Signed Date')]), dispo: parseDate(r[ki('Disposition Date')]), outcome: String(r[ki('Outcome')] || '').trim(), contactId: r[ki('Contact ID')], name: r[ki('Contact Name')], property: r[ki('Property Address')], gross: g.v, grossErr: g.err, as: tagsOf(r, ki('_as')) };
+      return { signed: parseDate(r[ki('Signed Date')]), dispo: parseDate(r[ki('Disposition Date')]), outcome: String(r[ki('Outcome')] || '').trim(), contactId: r[ki('Contact ID')], name: r[ki('Contact Name')], property: r[ki('Property Address')], gross: g.v, grossErr: g.err, as: roleTags(r, ki('_as'), r[ki('Contact ID')], r[ki('Opportunity ID')]) };
     });
 
     // Closings (live) — drives EARNED at actual revenue
     var cl = tab('Closings'), cli = colIndexer(cl[0]);
     var closings = rowsOf(cl).map(function (r) {
       var g = grossCell(r[cli('Gross Assignment Fee')]);
-      return { date: parseDate(r[cli('Closed')]), revenue: +String(r[cli('Revenue')] == null ? '' : r[cli('Revenue')]).replace(/[^0-9.\-]/g, '') || 0, contactId: String(r[cli('Contact ID')] || ''), name: String(r[cli('Contact Name')] || ''), gross: g.v, grossErr: g.err, as: tagsOf(r, cli('_as')) };
+      return { date: parseDate(r[cli('Closed')]), revenue: +String(r[cli('Revenue')] == null ? '' : r[cli('Revenue')]).replace(/[^0-9.\-]/g, '') || 0, contactId: String(r[cli('Contact ID')] || ''), name: String(r[cli('Contact Name')] || ''), gross: g.v, grossErr: g.err, as: roleTags(r, cli('_as'), r[cli('Contact ID')]) };
     }).filter(function (c) { return c.contactId || c.revenue; });
 
     // Whose offers and contracts these are: the AM's where the Team tab gives the person AM (Jordan

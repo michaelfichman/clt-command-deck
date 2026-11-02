@@ -53,6 +53,7 @@ const HEAD = {
   Closings: ['Closed Date', 'Revenue', 'Booker (LM)', 'AM', 'DM', 'Contact Name', 'Property Address', 'Phone', 'Email', 'Contact ID', 'Gross Assignment Fee (derived)'],
   Team: ['Name', 'Role', 'Active', 'Start Date'],
   Targets: ['Metric', 'Lens', 'Person', 'Target', 'Note'],
+  Spend: ['Month', 'Channel', 'Spend ($)'],
   Tasks: ['task_id', 'date', 'owner', 'visibility', 'kind', 'lead', 'contact_id', 'opp_id', 'ask', 'why', 'source', 'due', 'priority', 'status', 'done_at', 'done_by', 'note',
     'snoozed_until', 'created_at', 'created_by', 'updated_at', 'ghl_url']
 };
@@ -122,6 +123,7 @@ function sheets() {
       ['10/1/2026', '10/1/2026', 5, 'MLS', 'x', 'x', A, 's1'], ['10/1/2026', '10/1/2026', 9, 'MLS', 'x', 'x', J, 's2']]),
     Team: fakeSheet([HEAD.Team, [J, 'AM, LM', 'Yes', '4/22/2026'], [M, 'Owner, DM', 'Yes', ''], [A, 'LM', 'Yes', '8/11/2026'], [E, 'Partner', 'Yes', '']]),
     Pipeline: fakeSheet([new Array(26).fill('h'), pipe('', 'd1', 1111), pipe('Under Contract', 'cg', 6666), pipe('Under Contract', 'cu', 5555), pipe('', 'd4', 4444), pipe('', 'd3', 3333)]),
+    'Marketing Spend': fakeSheet([HEAD.Spend, ['9/30/2026', 'Google Ads', 1111.11], ['9/30/2026', 'Google Ads - Agency Fee', 222.22]]),
     'LM Targets': fakeSheet([HEAD.Targets,
       ['calls', 'daily', J, '', 'Dials/day — TARGET_NOTE'], ['connected', 'daily', A, 43, 'Answered'], ['showRate', '', A, 0.8, 'Ratio'],
       ['', '', '', '', ''],                                   // the live tab's blank separator, R17
@@ -281,7 +283,9 @@ console.log('KPI_FEED — allow-list');
     Appointments: ['Confirmed Date', 'Disposition Date', 'Outcome', 'Booker (LM)', 'AM', 'Contact ID'],
     Offers: ['Offer Made Date', 'Disposition Date', 'Outcome', 'Booker (LM)', 'AM', 'Contact ID'],
     Contracts: ['Sent Date', 'Signed Date', 'Disposition Date', 'Outcome', 'Booker (LM)', 'AM', 'Contact ID', 'Opportunity ID'],
-    Closings: ['Closed Date', 'Booker (LM)', 'AM', 'DM', 'Contact ID', 'Gross Assignment Fee (derived)']
+    Closings: ['Closed Date', 'Booker (LM)', 'AM', 'DM', 'Contact ID', 'Gross Assignment Fee (derived)'],
+    Leads: ['Created Date', 'Contact ID'],
+    'Marketing Spend': ['Month', 'Channel', 'Spend ($)']
   };
   ok('the source list is exactly the agreed list', same(JSON.parse(JSON.stringify(lm.KPI_FEED_TABS)), EXPECT));
   ok('each tab ships exactly its allow-listed headers, in order', Object.keys(EXPECT).every(n => same(f.tabs[n][0], EXPECT[n])));
@@ -291,6 +295,9 @@ console.log('KPI_FEED — allow-list');
   ok('no sentinel seller cell anywhere on the wire', !/SELLER_|PIPELINE_NAME/.test(wire));
   ok('every row of every tab has the header\'s width', Object.values(f.tabs).every(t => t.slice(1).every(r => r.length === t[0].length)));
   ok('row counts: every source row ships', f.tabs.Appointments.length === APPT.length + 1 && f.tabs.Offers.length === OFFER.length + 1 && f.tabs.Contracts.length === CONTRACT.length + 1 && f.tabs.Closings.length === CLOSING.length + 1);
+  ok('Leads ship their date and Contact ID, every row, and nothing else of that tab', same(f.tabs.Leads, [['Created Date', 'Contact ID'], ['10/1/2026', 'l1'], ['10/2/2026', 'l2'], ['10/3/2026', 'l3'], ['10/4/2026', 'l4']]));
+  ok('...P0\'s scorecard reads these exact two headers', f.tabs.Leads[0][0] === 'Created Date' && f.tabs.Leads[0][1] === 'Contact ID');
+  ok('Marketing Spend ships Month, Channel and the sheet\'s own Spend ($), and no gap', same(f.tabs['Marketing Spend'][1], ['9/30/2026', 'Google Ads', 1111.11]) && same(f.missing, {}));
   ok('R94 reads through intact', same(f.tabs.Appointments[15], ['10/20/2026 2:20 PM', '', 'Confirmed', A, J, 'cj']));
   ok('Contracts carry the Opp ID and NOT the gross', f.tabs.Contracts[1][7] === 'o1' && wire.indexOf('Derived-gross') === -1);
   ok('Closings carry the fee and NOT net Revenue', f.tabs.Closings[2][5] === 1111 && wire.indexOf('Revenue') === -1);
@@ -327,6 +334,10 @@ console.log('KPI_FEED — lastWrite + missing tabs');
   ok('reads every date column of the tab', f.lastWrite.Offers === iso(now - 3 * D));
   ok('a real Date cell counts and ships as an ISO string; an unreadable cell is skipped', f.lastWrite.Contracts === iso(now - 5 * D) && /^\d{4}-\d{2}-\d{2}T/.test(f.tabs.Contracts[1][0]));
   ok('no readable date: null', f.lastWrite.Appointments === null);
+  const ms = sheets(); ms['Marketing Spend'] = fakeSheet([HEAD.Spend, [us(now - 40 * D), 'Google Ads', 1], [us(now - 12 * D), 'Google Ads', 1], [us(now + 20 * D), 'Google Ads', 1]]);
+  ok('Marketing Spend: Month is its date column, a future month is not a write', endpoint('lm', ms).GET(TOK.routine, 'kpi_feed').lastWrite['Marketing Spend'] === iso(now - 12 * D));
+  const plain = sheets(); plain['Marketing Spend'] = fakeSheet([['Month', 'Channel', 'Spend'], ['9/30/2026', 'Google Ads', 1]]);
+  ok('the header is exact: a Spend with no ($) reads as a gap, never as blanks', same(endpoint('lm', plain).GET(TOK.routine, 'kpi_feed').missing, { 'Marketing Spend': ['Spend ($)'] }));
   const b = sheets(); delete b.Offers; delete b.Tasks; delete b['LM Targets']; delete b['Goals & Assumptions'];
   const g = endpoint('lm', b).GET(TOK.routine, 'kpi_feed');
   ok('a missing tab is null, never a throw', g.ok && g.tabs.Offers === null && g.lastWrite.Offers === null && g.tasks === null && same(g.lmTargets, []) && same(g.goals, {}) && Array.isArray(g.tabs.Closings));
@@ -495,6 +506,100 @@ console.log('END TO END — Code-LM.gs payload → lm-engine + lm-gamify');
   ok('...Michael\'s Cancelled on his LM deal holds (the record row stays in comp)', dn(jm.comp.projectedDeals.concat(jm.comp.earmarkedDeals)).length === 0);
   ok('Jordan\'s open offers are his LM offers, never an AM row (R191, R192, R196 out)', jm.comp.openOffers.length === 1 && jm.comp.openOffers[0].contactId === 'ct');
   ok('Andrew\'s open offers are the two he booked', am.comp.openOffers.map(o => o.contactId).sort().join() === 'ck,cr');
+}
+
+/* ═══ P0d: the team rule. Every id and dollar is fake. ═══ */
+const TEAM_HEAD = ['Opp ID', 'Contact ID', 'Attached People', '', 'As Of'], TEAM_STAMP = '2026-11-02T05:40:00-05:00';
+const att = (names, ...contacts) => contacts.map(c => ['a-' + c, c, names, '', '']);
+/* Jordan alone on most of his rows, both on a few. cu is the JV deal, read with neither on it: its Contracts row says AM Jordan, the writer fault. cd is off the tab: not read. */
+const TEAM_ROWS = () => [TEAM_HEAD, ['a-ca', 'ca', A + ', ' + J, '', TEAM_STAMP],
+  ...att(J, 'cb', 'cc', 'ce', 'cf', 'cg', 'ch', 'ci', 'cj', 'co', 'cp', 'cq', 'cr', 'cs', 'ct'),   // cj: Andrew booked it, Jordan alone is on the card
+  ...att(J + ', ' + A, 'ck', 'cl'),
+  ...att(A, 'cm', 'd6'),                                                                          // cm: Jordan is its AM and not a follower, the N9 case
+  ['o1', 'd1', J, '', ''], ['o2', 'd2', J, '', ''], ['o4', 'd3', '', '', ''], ['o5', 'd4', A, '', ''], ['o6', 'cu', '', '', '']];
+const teamSheets = rows => { const s = sheets(); s['Team Deals'] = fakeSheet(rows || TEAM_ROWS()); return s; };
+const contacts = t => [...new Set(t.slice(1).map(r => r[col(t, 'Contact ID')]))];
+const wire = (g, name) => JSON.stringify(g.tabs[name]);
+const noClock = g => { const o = JSON.parse(JSON.stringify(g)); delete o.fetchedAt; delete o.tasksAsOf; return o; };
+
+console.log('TEAM DEALS — a row ships only to a person attached to it');
+{
+  const L = endpoint('lm', teamSheets()), j = L.GET(TOK.jordan), a = L.GET(TOK.andrew);
+  ok('the JV deal is off Jordan\'s Contracts: R67, whatever its AM cell says, and the Cancelled that rode along', rowsWhere(j.tabs.Contracts, 'Contact ID', 'cu').length === 0 && rowsWhere(jg.tabs.Contracts, 'Contact ID', 'cu').length === 2);
+  ok('...and his count with it: one Signed row fewer tagged AM', rowsWhere(j.tabs.Contracts, 'Outcome', 'Signed').filter(r => /AM/.test(r[col(j.tabs.Contracts, '_as')])).length === 0 && rowsWhere(jg.tabs.Contracts, 'Outcome', 'Signed').filter(r => /AM/.test(r[col(jg.tabs.Contracts, '_as')])).length === 1);
+  ok('a card off the tab was not read: it fails closed, for both', !contacts(j.tabs.Appointments).includes('cd') && !contacts(a.tabs.Appointments).includes('cd') && contacts(jg.tabs.Appointments).includes('cd'));
+  ok('a deal Andrew booked and only Jordan is on leaves Andrew', !contacts(a.tabs.Appointments).includes('cj') && contacts(j.tabs.Appointments).includes('cj') && rowsWhere(j.tabs.Appointments, 'Contact ID', 'cj').every(r => r[col(j.tabs.Appointments, '_as')] === 'AM'));
+  ok('a deal he is the AM of and no follower on leaves Jordan (N9)', !contacts(j.tabs.Appointments).includes('cm') && contacts(a.tabs.Appointments).includes('cm'));
+  ok('attached, either way round on the cell: both keep the deal, tags as before', same(rowsWhere(j.tabs.Appointments, 'Contact ID', 'ck'), rowsWhere(jg.tabs.Appointments, 'Contact ID', 'ck')) && same(rowsWhere(a.tabs.Appointments, 'Contact ID', 'ck'), rowsWhere(ag.tabs.Appointments, 'Contact ID', 'ck')));
+  ok('a record row still rides along on an attached deal', rowsWhere(j.tabs.Appointments, 'Contact ID', 'ck').some(r => r[col(j.tabs.Appointments, '_as')] === ''));
+  ok('a row with no tag brings no record rows: the JV contact\'s Offers rows stay home', !contacts(j.tabs.Offers).includes('cu'));
+  ok('a Contracts row reads its own card: o2 is read, o3 on the same contact falls back to the contact', rowsWhere(j.tabs.Contracts, 'Opportunity ID', 'o2').length === 1 && rowsWhere(j.tabs.Contracts, 'Opportunity ID', 'o3').length === 1);
+  const mixed = TEAM_ROWS().map(r => r[0] === 'o2' ? ['o2', 'd2', '', '', ''] : r).concat([['a-other', 'd2', J, '', '']]);
+  const m = endpoint('lm', teamSheets(mixed)).GET(TOK.jordan);
+  ok('its own card blank, another card on the contact attached: the row takes no tag, a record row at most', rowsWhere(m.tabs.Contracts, 'Opportunity ID', 'o2').every(r => r[col(m.tabs.Contracts, '_as')] === ''));
+  ok('...while the other tabs join through the contact, so a union keeps the deal', rowsWhere(m.tabs.Contracts, 'Opportunity ID', 'o3').length === 1);
+  ok('money leaves with the row: no fee on a deal he is not attached to', !('cu' in j.fees) && !('cu' in a.fees) && j.fees.cg === 6666);
+  const j2 = endpoint('lm', teamSheets(TEAM_ROWS().filter(r => r[1] !== 'cg').concat([['a-cg', 'cg', '', '', '']]))).GET(TOK.jordan);
+  ok('his LM deal read as outside: no tag, no fee, no stage', !('cg' in j2.fees) && !('cg' in j2.stages) && rowsWhere(j2.tabs.Contracts, 'Contact ID', 'cg').length === 0);
+  ok('names match in any case and spacing', (() => { const r = TEAM_ROWS().map(x => x[1] === 'cc' ? [x[0], x[1], '  jordan MATHIS ,andrew estrada ', '', ''] : x), g = endpoint('lm', teamSheets(r)).GET(TOK.andrew), h = endpoint('lm', teamSheets(r)).GET(TOK.jordan); return contacts(h.tabs.Appointments).includes('cc') && rowsWhere(g.tabs['Team Deals'], 'Contact ID', 'cc').length === 1; })());
+}
+console.log('TEAM DEALS — Closings');
+{
+  const L = endpoint('lm', teamSheets()), j = L.GET(TOK.jordan), a = L.GET(TOK.andrew);
+  ok('his closing on an attached deal stands, money and all', rowsWhere(j.tabs.Closings, 'Contact ID', 'd1')[0][col(j.tabs.Closings, 'Revenue')] === 1111);
+  ok('an AM row on a deal he is not attached to does not ship, as Andrew\'s stays his', rowsWhere(j.tabs.Closings, 'Contact ID', 'd6').length === 0 && rowsWhere(a.tabs.Closings, 'Contact ID', 'd6').length === 1 && rowsWhere(jg.tabs.Closings, 'Contact ID', 'd6').length === 1);
+  ok('a DM row off the tab fails closed', rowsWhere(j.tabs.Closings, 'Contact ID', 'd7').length === 0 && rowsWhere(jg.tabs.Closings, 'Contact ID', 'd7').length === 1);
+  const r = TEAM_ROWS().map(x => x[1] === 'd1' ? ['o1', 'd1', '', '', ''] : x), g = endpoint('lm', teamSheets(r)).GET(TOK.jordan);
+  ok('his name on a closing read as outside: no row and no dollar on the wire', rowsWhere(g.tabs.Closings, 'Contact ID', 'd1').length === 0 && rowsWhere(jg.tabs.Closings, 'Contact ID', 'd1').length === 1);
+}
+console.log('TEAM DEALS — what the phone gets of the tab');
+{
+  const L = endpoint('lm', teamSheets()), j = L.GET(TOK.jordan), a = L.GET(TOK.andrew), T = j.tabs['Team Deals'];
+  ok('two columns, ids only, by name', same(T[0], ['Opp ID', 'Contact ID']) && T.slice(1).every(r => r.length === 2));
+  ok('his cards, and nobody else\'s', contacts(T).includes('ca') && contacts(T).includes('d1') && !contacts(T).includes('cm') && !contacts(T).includes('cu'));
+  ok('Andrew\'s are his own', contacts(a.tabs['Team Deals']).includes('cm') && !contacts(a.tabs['Team Deals']).includes('cb'));
+  ok('no name, no stamp on the wire', !/Mathis|Estrada|2026-11-02/.test(wire(j, 'Team Deals')));
+  const shuffled = TEAM_ROWS().map(r => [r[4], r[2], r[3], r[1], r[0]]);
+  ok('columns by header name', same(endpoint('lm', teamSheets(shuffled)).GET(TOK.jordan).tabs['Team Deals'].slice(1).map(r => r.join()).sort(), T.slice(1).map(r => r.join()).sort()));
+  const live = [TEAM_HEAD, ['a-x', 'x', '', '', TEAM_STAMP]];
+  ok('a live tab with nothing of his is a header, not null', same(endpoint('lm', teamSheets(live)).GET(TOK.jordan).tabs['Team Deals'], [['Opp ID', 'Contact ID']]));
+}
+console.log('TEAM DEALS — every reader as it is today with no tab to go by');
+{
+  const base = { jordan: noClock(lm.GET(TOK.jordan)), andrew: noClock(lm.GET(TOK.andrew)) };
+  ok('no tab: the key is there and null', 'Team Deals' in lm.GET(TOK.jordan).tabs && lm.GET(TOK.jordan).tabs['Team Deals'] === null);
+  ok('no tab: Jordan keeps R67, as today', rowsWhere(jg.tabs.Contracts, 'Contact ID', 'cu').length === 2);
+  const STATES = { 'an empty tab': [TEAM_HEAD], 'only the stamp at E2': [TEAM_HEAD, ['', '', '', '', TEAM_STAMP]], 'a blank sheet': [['']],
+    'Opp ID renamed': TEAM_ROWS().map((r, i) => i ? r : r.map(c => c === 'Opp ID' ? 'Opportunity' : c)),
+    'Contact ID renamed': TEAM_ROWS().map((r, i) => i ? r : r.map(c => c === 'Contact ID' ? 'Contact' : c)),
+    'Attached People renamed': TEAM_ROWS().map((r, i) => i ? r : r.map(c => c === 'Attached People' ? 'People' : c)) };
+  Object.keys(STATES).forEach(name => {
+    const L = endpoint('lm', teamSheets(STATES[name]));
+    ok(name + ': both payloads byte for byte what no tab serves', same(noClock(L.GET(TOK.jordan)), base.jordan) && same(noClock(L.GET(TOK.andrew)), base.andrew));
+  });
+  const stale = TEAM_ROWS(); stale[1][4] = '2026-09-01T05:40:00-05:00';
+  const g = endpoint('lm', teamSheets(stale)).GET(TOK.jordan);
+  ok('a stale stamp is still a tab: the JV deal stays off his phone', rowsWhere(g.tabs.Contracts, 'Contact ID', 'cu').length === 0);
+  const none = TEAM_ROWS(); none[1][4] = '';
+  ok('rows and no stamp, a first night that stopped short: the rule holds', rowsWhere(endpoint('lm', teamSheets(none)).GET(TOK.jordan).tabs.Contracts, 'Contact ID', 'cu').length === 0);
+}
+console.log('TEAM DEALS — odd cells');
+{
+  const s = teamSheets(); s.Appointments = fakeSheet([HEAD.Appointments, ...APPT.map(apptRow), apptRow(['x', '10/30/2026 1:00 PM', '', 'Confirmed', J, J, 'constructor']), apptRow(['x', '10/30/2026 2:00 PM', '', 'Confirmed', J, J, '__proto__']), apptRow(['x', '10/30/2026 3:00 PM', '', 'Confirmed', J, J, ''])]);
+  const g = endpoint('lm', s).GET(TOK.jordan);
+  ok('a Contact ID that is an inherited name is no card: its row takes no tag', g.ok && ['constructor', '__proto__'].every(c => rowsWhere(g.tabs.Appointments, 'Contact ID', c).every(r => r[col(g.tabs.Appointments, '_as')] === '')));
+  ok('a role row with a blank Contact ID cannot be joined: it fails closed once the tab is live', !contacts(g.tabs.Appointments).includes(''));
+  const t = TEAM_ROWS().concat([['__proto__', '__proto__', J, '', ''], ['constructor', 'constructor', '', '', '']]), r = endpoint('lm', teamSheets(t)).GET(TOK.jordan);
+  ok('the same ids on the tab itself do not throw', r.ok === true);
+  const c = teamSheets(); c.Contracts = fakeSheet([HEAD.Contracts, ...CONTRACT.map(contractRow), contractRow(['x', '', '10/30/2026 1:00 PM', '', 'Signed', J, J, 'ca', 'constructor', 1])]);
+  const k = endpoint('lm', c).GET(TOK.jordan);
+  ok('an Opportunity ID that is an inherited name is no card: the contact decides', k.ok === true && rowsWhere(k.tabs.Contracts, 'Opportunity ID', 'constructor').length === 1);
+}
+console.log('TEAM DEALS — the owner GET');
+{
+  const o = endpoint('owner', teamSheets()).GET(TOK.michael), T = o.tabs['Team Deals'];
+  ok('the whole tab: blanks, names, the as-of at E1:E2', T.length === TEAM_ROWS().length && T[0][4] === 'As Of' && T[1][4] === TEAM_STAMP && T[T.length - 1][2] === '');
+  ok('no tab: the key is there and null', (t => 'Team Deals' in t && t['Team Deals'] === null)(endpoint('owner', sheets()).GET(TOK.michael).tabs));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

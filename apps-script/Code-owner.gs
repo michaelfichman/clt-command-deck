@@ -41,7 +41,8 @@
  *     Michael's token and `action=kpi_feed` must answer unauthorized. For D2:
  *     a GET must carry the keys tabs['Role Scorecard'], tabs['Deal Board'] and
  *     syncStatus; the two tabs are null until P4 creates them, and an absent
- *     key means the old version is still serving (README §2 step 6).
+ *     key means the old version is still serving (README §2 step 6). For P0d:
+ *     a GET must carry the key tabs['Team Deals'], null until the tab exists.
  *  5. The KPI Staging workbook must have tabs named exactly `Tasks` and
  *     `Review` with the header rows from apps-script/TASKS.md (row 1).
  *     Missing tab -> GET ships tabs.Tasks = null; POST answers
@@ -85,7 +86,10 @@ var TABS = [
   // D2: the routine's two tabs (P4), whole. A missing tab ships null, and the deck says
   // 'source stale'. The owner's Deal Board carries Value and the As Of stamp (N1:N2).
   'Role Scorecard',
-  'Deal Board'
+  'Deal Board',
+  // P0d: the routine's third tab, whole, the as-of at E1:E2 included. Opp ID, Contact ID, Attached People: the team rule. null when
+  // missing, and every reader on the deck then reads as it did before P0d.
+  'Team Deals'
 ];
 
 /* One token per person: token -> EXACT Team-tab name. Replace BOTH keys with real,

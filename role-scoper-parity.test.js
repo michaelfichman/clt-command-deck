@@ -98,6 +98,7 @@ const TOK = { [J]: 'SET-IN-DEPLOYED-EDITOR-JORDAN', [A]: 'SET-IN-DEPLOYED-EDITOR
 
 const P = scopeToLM(RAW, J);
 const blob = JSON.stringify(P);
+const TEAM_H = ['Opp ID', 'Contact ID', 'Attached People', '', 'As Of'];
 const rows = t => (t && t.length > 1) ? t.slice(1) : [];
 const col = (t, n) => t[0].indexOf(n);
 const of = (t, n, v) => rows(t).filter(r => r[col(t, n)] === v);
@@ -108,7 +109,7 @@ const ok = (l, c) => { console.log((c ? '  ✓ ' : '  ✗ ') + l); c ? pass++ : 
 console.log('SCOPER PARITY (in-deck scopeToLM)');
 ok('role lm, person Jordan', P.role === 'lm' && P.person === J);
 ok('teamRole as written, pay hidden', P.teamRole === 'AM, LM' && P.payPlanSet === false && P.splitRate === null);
-ok('only whitelisted tabs', Object.keys(P.tabs).every(t => ['Leads', 'Appointments', 'Offers', 'Contracts', 'Calls', 'Speed to Lead', 'Team', 'Closings', 'Role Scorecard', 'Deal Board'].includes(t)));
+ok('only whitelisted tabs', Object.keys(P.tabs).every(t => ['Leads', 'Appointments', 'Offers', 'Contracts', 'Calls', 'Speed to Lead', 'Team', 'Team Deals', 'Closings', 'Role Scorecard', 'Deal Board'].includes(t)));
 ok('Calls only Jordan (no Michael/ALEX)', rows(P.tabs.Calls).every(r => r[1] === J));
 ok('Leads by Assigned User: the stale Current Owner decides nothing', rows(P.tabs.Leads).map(r => r[7]).join() === 'JL1,JL2');
 ok('Appointments: Michael X1 absent', of(P.tabs.Appointments, 'Contact ID', 'X1').length === 0);
@@ -201,6 +202,54 @@ console.log('THE D2 TABS IN EVERY STATE, LINE FOR LINE');
   ok('Value moved left: still not shipped, the 11 columns stay in order', same(v.tabs['Deal Board'][0], BOARD_H.slice(0, 11).concat(['_as'])) && JSON.stringify(v.tabs['Deal Board']).indexOf('7776') === -1);
 }
 
+console.log('TEAM DEALS IN EVERY STATE, LINE FOR LINE');
+{
+  const STAMPED = '2026-06-19T09:40:00-05:00', team = t => Object.assign({}, RAW, { 'Team Deals': t });
+  /* every contact on the fixture's deal rows, by what the rule should do with it */
+  const ids = [...new Set(['Appointments', 'Offers', 'Contracts', 'Closings'].flatMap(n => { const t = RAW[n], c = t[0].indexOf('Contact ID'); return t.slice(1).map(r => r[c]).filter(Boolean); }))];
+  /* turn = 0 to 3 walks every contact through every verdict: Jordan alone, both, Andrew alone, neither */
+  const cardsAt = turn => ids.map((c, i) => { const n = (i + turn) % 4; return ['opp-' + c, c, n === 0 ? J : n === 1 ? A + ', ' + J : n === 2 ? A : '', '', i ? '' : STAMPED]; });
+  const cards = cardsAt(0);
+  const opps = RAW.Contracts.slice(1).map(r => [r[RAW.Contracts[0].indexOf('Opportunity ID')], r[RAW.Contracts[0].indexOf('Contact ID')]]).filter(x => x[0]);
+  const STATES = {
+    'no tab': RAW,
+    'a live tab': team([TEAM_H, ...cards]),
+    'a live tab, turned once': team([TEAM_H, ...cardsAt(1)]),
+    'a live tab, turned twice': team([TEAM_H, ...cardsAt(2)]),
+    'a live tab, turned three times': team([TEAM_H, ...cardsAt(3)]),
+    'a live tab with Contracts on their own cards': team([TEAM_H, ...cards, ...opps.map(([o, c], i) => [o, c, i % 2 ? J : '', '', ''])]),
+    'an empty tab': team([TEAM_H]),
+    'a blank sheet': team([['']]),
+    'no rows at all': team([]),
+    'only the stamp at E2': team([TEAM_H, ['', '', '', '', STAMPED]]),
+    'a stale stamp': team([TEAM_H, ...cards.map((r, i) => i ? r : [r[0], r[1], r[2], r[3], '2026-01-01T09:40:00-05:00'])]),
+    'no stamp': team([TEAM_H, ...cards.map(r => r.slice(0, 4).concat(['']))]),
+    'a renamed Opp ID': team([TEAM_H.map(c => c === 'Opp ID' ? 'Opp' : c), ...cards]),
+    'a renamed Contact ID': team([TEAM_H.map(c => c === 'Contact ID' ? 'Contact' : c), ...cards]),
+    'a renamed Attached People': team([TEAM_H.map(c => c === 'Attached People' ? 'People' : c), ...cards]),
+    'nobody attached anywhere': team([TEAM_H, ...cards.map(r => [r[0], r[1], '', '', r[4]])]),
+    'names in odd case and spacing': team([TEAM_H, ...cards.map(r => [r[0], r[1], String(r[2]).toUpperCase().replace(', ', ' ,  '), '', r[4]])]),
+    'a card with no Contact ID': team([TEAM_H, ['opp-only', '', J, '', STAMPED], ...cards.slice(1)]),
+    'a contact with no Opp ID': team([TEAM_H, ['', ids[0], J, '', STAMPED], ...cards.slice(1)])
+  };
+  Object.keys(STATES).forEach(name => {
+    const g2 = endpoint(STATES[name]);
+    [J, A].forEach(person => {
+      const g = g2(TOK[person]), d = scopeToLM(STATES[name], person), first = person.split(' ')[0];
+      ok(name + ': ' + first + ', every deal tab, Team Deals, fees and stages identical', ['Appointments', 'Offers', 'Contracts', 'Closings', 'Team Deals'].every(t => same(g.tabs[t], d.tabs[t])) && same(g.fees, d.fees) && same(g.stages, d.stages));
+      const gm = E.buildModel(g, '6/19/2026 11:50:00'), dm = E.buildModel(d, '6/19/2026 11:50:00');
+      ok(name + ': ' + first + ', the same tiles and the same comp', E.LENSES.every(l => Object.keys(gm.lenses[l]).every(k => gm.lenses[l][k].current === dm.lenses[l][k].current)) && same(gm.comp, dm.comp));
+    });
+  });
+  const on = scopeToLM(STATES['a live tab'], J), offT = scopeToLM(RAW, J);
+  ok('the states are not all the same payload: the live tab does take rows off', JSON.stringify(on.tabs.Offers) !== JSON.stringify(offT.tabs.Offers));
+  ok('no tab: null on the preview', offT.tabs['Team Deals'] === null);
+  /* an inherited name for an id is no card, on either side. The tabs alone: the engine's own maps are older than this rule */
+  const ck = RAW.Contracts[0].indexOf('Contact ID'), co = RAW.Contracts[0].indexOf('Opportunity ID'), odd = RAW.Contracts[1].slice(); odd[ck] = 'constructor'; odd[co] = 'constructor';
+  const inherited = team([TEAM_H, ...cards]); inherited.Contracts = RAW.Contracts.concat([odd]);
+  [J, A].forEach(person => ok('an id that is an inherited name: ' + person.split(' ')[0] + ', no throw, identical', same(endpoint(inherited)(TOK[person]).tabs.Contracts, scopeToLM(inherited, person).tabs.Contracts)));
+}
+
 console.log('MISMATCHED LEADS / SPEED POPULATIONS');
 {
   const m = E.buildModel(P, '6/19/2026 11:50:00'), w = m.lenses.week;
@@ -219,6 +268,15 @@ console.log('ENGINE ON THE SCOPED PAYLOAD');
   ok('Contracts = his 1 AM row', m.lenses.ytd.contractsSigned.current === 1);
   const am = E.buildModel(scopeToLM(RAW, A), '6/19/2026 11:50:00');
   ok('Andrew is the LM here: his 1 booked, his 1 offer, his 1 contract', am.dealRole === 'LM' && am.lenses.ytd.apptsBooked.current === 1 && am.lenses.ytd.offersMade.current === 1 && am.lenses.ytd.contractsSigned.current === 1);
+}
+
+console.log('THE TEAM COUNT, END TO END: Code-LM.gs INTO THE ENGINE');
+{
+  /* Jordan is the AM on a signed row of a deal nobody on the team is attached to */
+  const c = RAW.Contracts, cc = c[0].indexOf('Contact ID'), co = c[0].indexOf('Opportunity ID'), mine = c.slice(1).filter(r => r[c[0].indexOf('AM')] === J && r[c[0].indexOf('Outcome')] === 'Signed');
+  const raw = Object.assign({}, RAW, { 'Team Deals': [TEAM_H, ...mine.map((r, i) => [r[co], r[cc], '', '', i ? '' : '2026-06-19T09:40:00-05:00'])] });
+  const was = E.buildModel(GET(TOK[J]), '6/19/2026 11:50:00'), now = E.buildModel(endpoint(raw)(TOK[J]), '6/19/2026 11:50:00');
+  ok('his AM contract counts with no tab, and not once it reads outside', was.lenses.ytd.contractsSigned.current === mine.length && now.lenses.ytd.contractsSigned.current === 0);
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

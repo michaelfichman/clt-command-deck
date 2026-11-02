@@ -101,6 +101,33 @@ console.log('BOTH PAYLOAD SHAPES');
   ok('a tab missing altogether never throws', !!model(bare).comp);
 }
 
+/* ═══ P0d: the team rule, in the engine. The endpoint already takes the tag off these rows; a payload that still carries one counts for nothing. ═══ */
+console.log('TEAM RULE — Team Deals in the payload');
+{
+  const CARDS = ['Opp ID', 'Contact ID'], cardsOf = (...c) => [CARDS, ...c.map(x => ['op-' + x, x])];
+  const withCards = (...c) => { const p = jordan(); p.tabs['Team Deals'] = cardsOf(...c); return p; };
+  const all = cardsOf('c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9');
+  const base = model(jordan());
+  ok('every row on his cards: the same model as no tab', (() => { const p = jordan(); p.tabs['Team Deals'] = all; const m = model(p); return m.lenses.month.contractsSigned.current === base.lenses.month.contractsSigned.current && JSON.stringify(m.comp) === JSON.stringify(base.comp); })());
+  ok('a contract off his cards leaves contractsSigned', base.lenses.month.contractsSigned.current === 1 && model(withCards('c1', 'c3', 'c4', 'c5', 'c6', 'c7')).lenses.month.contractsSigned.current === 0);
+  ok('...and its records carry no role', E.buildModel(withCards('c1'), ASOF).records.contracts.filter(r => E.hasRole(r, 'AM')).length === 0);
+  ok('every other count follows: offers, booked, showed', (m => m.lenses.week.offersMade.current === 0 && m.lenses.week.apptsBooked.current === 0 && m.lenses.week.apptsShowed.current === 0)(model(withCards('c9'))));
+  const c = model(withCards('c2', 'c3', 'c4', 'c6')).comp;
+  ok('comp: a signed LM deal off his cards adds nothing', base.comp.earmarkedDeals.length === 1 && c.earmarkedDeals.length === 0);
+  ok('comp: an LM closing off his cards adds nothing, money follows the LM role and the rule', base.comp.earned > 0 && c.earned === 0 && c.earnedDeals.length === 0);
+  ok('comp: an LM offer off his cards is not an open offer', base.comp.openOffers.length === 1 && model(withCards('c1')).comp.openOffers.length === 0);
+  const opp = jordan(); opp.tabs['Team Deals'] = [CARDS, ['op-c2', 'other-contact']];
+  ok('a Contracts row also passes on its own card', model(opp).lenses.month.contractsSigned.current === 1);
+  const head = jordan(); head.tabs['Team Deals'] = [CARDS];
+  ok('a live tab with none of his cards: nothing counts, comp is empty', (m => m.lenses.month.contractsSigned.current === 0 && m.comp.earned === 0 && m.comp.openOffers.length === 0)(model(head)));
+  const nul = jordan(); nul.tabs['Team Deals'] = null;
+  ok('null (no tab to go by): as today', model(nul).lenses.month.contractsSigned.current === 1 && JSON.stringify(model(nul).comp) === JSON.stringify(base.comp));
+  const old = oldShape(jordan());
+  ok('no key, an endpoint from before P0d: as today', !('Team Deals' in old.tabs) && model(old).lenses.week.contractsSigned.current === 1);
+  const proto = jordan(); proto.tabs['Team Deals'] = [CARDS]; proto.tabs.Closings[1][9] = 'constructor';
+  ok('a Contact ID that is an inherited name is no card', model(proto).comp.earned === 0);
+}
+
 /* ═══ ratios ═══ */
 console.log('RATIOS — one population, never over 100%');
 {
