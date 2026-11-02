@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════
-   CLT LM Scoreboard — SHARED VIEW (single source of truth)
-   Loaded by BOTH the owner Command Deck (index.html) and Jordan's
-   standalone app (lm.html). Pure render functions over a built model.
+   CLT Scoreboard — SHARED VIEW (single source of truth)
+   Loaded by BOTH the owner Command Deck (index.html) and the LM/AM
+   phone app (lm.html). Pure render functions over a built model.
    Host supplies glue globals: lmGo(person,lens,metric), css(var),
    and (deck only) RAW/route/scopeToLM. RAW-absent paths degrade
    gracefully (team picker / company-goal / benchmark simply hide).
@@ -37,7 +37,6 @@ const LM_CALLQ=[['connected','Pickups','any answer'],['conversations','Conversat
 const LM_CALLKEYS={connected:1,conversations:1,deepConv:1,qualifying:1};
 const LM_XTILES={connected:{k:'connected',label:'Pickups (any answer, incl. voicemail)',fmt:'num'},deepConv:{k:'deepConv',label:'Deep ≥3 min',fmt:'num'}};
 const lmTileDef=k=>LM_TILES.find(t=>t.k===k)||LM_XTILES[k]||{k:k,label:k,fmt:'num'};
-function lmSpeedBySource(lm,t){var bs=lm.bySource;if(!bs||!bs.length)return '';return '<div class="lm-qh">By lead type · fastest first · inbound ≠ cold-list</div><div class="lm-ladder">'+bs.map(function(b){return '<span class="lm-lad"><span>'+b.source+' ('+b.n+')</span><b>'+LM_FMT[t.fmt](b.avg)+'</b></span>';}).join('<i>·</i>')+'</div>';}
 function lmCallLadder(M,lens,key){var L=M.lenses[lens];return '<div class="lm-qh">Call-quality ladder · '+LM_LBL[lens]+' · longer call = better</div><div class="lm-ladder">'+LM_CALLQ.map(function(c){var lm=L[c[0]],v=lm?lm.current:0;return '<button class="lm-lad'+(c[0]===key?' on':'')+'" onclick="lmGo(\''+M.person+'\',\''+lens+'\',\''+c[0]+'\')"><span>'+c[2]+'</span><b>'+lmNum(v)+'</b></button>';}).join('<i>›</i>')+'</div>';}
 const lmPaceCls=s=>s==='ahead'?'lm-ahead':s==='on'?'lm-on':s==='behind'?'lm-behind':'lm-none';
 /* no value this period = no read: the engine's comparePct is then -100%, which is not a drop */
@@ -68,7 +67,7 @@ function lmComp(M,person,lens){if(!lmPayOn(M))return lmNoPay();const c=M.comp,s=
 function lmRailN(t,v){if(v==null)return null;if(t.fmt==='num')return (v>0&&v<10)?(Math.round(v*10)/10).toLocaleString():lmNum(v);return LM_FMT[t.fmt](v);}
 function lmTileBars(lm,t){var g=lm.game,a=(lm.bar==null)?null:lmRailN(t,lm.bar),tg=(g&&g.bars&&g.bars.target!=null)?lmRailN(t,g.bars.target):null;if(a==null&&tg==null)return '';var p=[];if(a!=null)p.push('avg <b>'+a+'</b>');if(tg!=null)p.push('🎯 <b>'+tg+'</b>');return '<div class="lm-t-bars">'+p.join('<i>·</i>')+'</div>';}
 function lmTile(M,person,lens,t){const lm=M.lenses[lens][t.k];if(!lm)return '';const g=lm.game,nh=lmNoHist(M,t.k);let badge='';if(!nh&&g&&g.streak&&g.streak.current>=2)badge='<span class="lm-badge fire">🔥'+g.streak.current+'</span>';if(!nh&&g&&g.pr&&g.pr.isRecord)badge='<span class="lm-badge pr">PR</span>';const pc=nh?'lm-none':lmPaceCls(lm.paceState);return '<button class="lm-tile '+pc+'" onclick="lmGo(\''+person+'\',\''+lens+'\',\''+t.k+'\')"><div class="lm-t-top"><span class="lm-t-lbl">'+t.label+'</span>'+badge+'</div><div class="lm-t-val">'+LM_FMT[t.fmt](lm.current)+'</div><div class="lm-t-spark '+pc+'">'+lmSpark(lm.trend,t.fmt==='pct')+'</div><div class="lm-t-foot">'+(nh?'<span class="lm-flat">'+LM_NOHIST_TXT+'</span>':lmDeltaOf(lm,t.low)+' <span>vs '+LM_PRIOR[lens]+'</span>')+'</div>'+(nh?'':lmTileBars(lm,t))+'</button>';}
-function lmStreakHL(M,lens){let best=null;['calls','leads','apptsBooked','apptsShowed','talkTime','speed'].forEach(k=>{const lm=M.lenses[lens][k];if(!lm||!lm.game)return;const s=lm.game.streak;if(s&&s.current>=1&&(!best||s.current>best.cur))best={k:k,cur:s.current};});if(!best)return '<div class="lm-hl-streak none">No active streak '+LM_LBL[lens]+' — start one.</div>';return '<div class="lm-hl-streak"><span class="fire">🔥</span><b>'+best.cur+' '+LM_UNIT[lens]+(best.cur>1?'s':'')+'</b> above your '+lmTileDef(best.k).label.toLowerCase()+' pace</div>';}
+function lmStreakHL(M,lens){let best=null;['calls','leads','apptsBooked','apptsShowed','talkTime'].forEach(k=>{const lm=M.lenses[lens][k];if(!lm||!lm.game)return;const s=lm.game.streak;if(s&&s.current>=1&&(!best||s.current>best.cur))best={k:k,cur:s.current};});if(!best)return '<div class="lm-hl-streak none">No active streak '+LM_LBL[lens]+' — start one.</div>';return '<div class="lm-hl-streak"><span class="fire">🔥</span><b>'+best.cur+' '+LM_UNIT[lens]+(best.cur>1?'s':'')+'</b> above your '+lmTileDef(best.k).label.toLowerCase()+' pace</div>';}
 function lmPaceDay(M){const t=M.lenses.today.calls,d=t.anchorDate,bar=t.bar,when=lmRel(d);let tail='';if(bar!=null)tail=t.current>=bar?' · <span class="lm-up">+'+Math.round(t.current-bar)+' vs avg</span>':' · <span class="lm-dn">'+Math.round(bar-t.current)+' under avg</span>';const note=t.lagged?'latest closed day · today posts tomorrow AM':'today so far';return '<div class="lm-hl-pace"><div class="lm-pl">PACE THE DAY · '+when+'</div><div class="lm-pv">'+lmNum(t.current)+' calls</div><div class="lm-ps">'+note+' · avg '+(bar==null?'—':lmNum(bar))+tail+'</div></div>';}
 function lmPicker(person,team){if(team.length<2)return '<span class="lm-person">'+person+'</span>';return '<select class="lm-person" onchange="lmGo(this.value,\'week\',\'\')">'+team.map(p=>'<option'+(p===person?' selected':'')+'>'+p+'</option>').join('')+'</select>';}
 function lmBars(lm,t){const g=lm.game,F=t?function(v){return lmRailN(t,v);}:function(v){return v==null?'—':Math.round(v*10)/10;};let o='<div class="lm-bars"><div class="lm-bar"><span class="lm-bl">Trailing avg</span><span class="lm-bv">'+(lm.bar==null?'—':F(lm.bar))+'</span></div>';o+=(g&&g.bars&&g.bars.target!=null)?'<div class="lm-bar"><span class="lm-bl">🎯 Target</span><span class="lm-bv">'+F(g.bars.target)+'</span></div>':'<div class="lm-bar dim"><span class="lm-bl">🎯 Target</span><span class="lm-bv">not set</span></div>';return o+'</div>';}
@@ -81,8 +80,17 @@ if(rc.estimated)h+='<div class="lm-reach-row sub"><span>connects on estimated ba
 if(rc.inbound.att||rc.cold.att){h+='<div class="lm-reach-row sub"><span>· inbound leads reached</span><b>'+rc.inbound.con+' / '+rc.inbound.att+' ('+pct(rc.inbound.con,rc.inbound.att)+')</b></div>';h+='<div class="lm-reach-row sub"><span>· cold list (MLS) reached</span><b>'+rc.cold.con+' / '+rc.cold.att+' ('+pct(rc.cold.con,rc.cold.att)+')</b></div>';}
 if(rc.never.length)h+='<div class="lm-reach-never"><span>Attempted, never connected ('+rc.never.length+') — coaching targets:</span> '+rc.never.slice(0,12).join(', ')+(rc.never.length>12?' +'+(rc.never.length-12)+' more':'')+'</div>';
 h+='<div class="lm-reach-never">Reach depends on lead mix (inbound answers; cold lists screen calls) and young leads connect late — diagnose, don\'t race it.</div></div>';return h;}
-function lmHome(M,person,lens,team){return '<div class="lm-head"><div><p class="eyebrow">LM Scoreboard</p><h1>'+person+'</h1></div>'+lmPicker(person,team)+'</div><div class="lm-clockbar">this device&rsquo;s clock → <span id="lm-clock">'+lmNowLbl()+'</span></div>'+lmLensBar(person,lens)+lmComp(M,person,lens)+'<section class="lm-hero">'+lmStreakHL(M,lens)+lmPaceDay(M)+'</section><div class="sec-h"><h2>Scoreboard</h2><span class="tag">'+LM_LBL[lens]+' · tap a tile</span></div><section class="lm-tiles">'+LM_TILES.map(t=>lmTile(M,person,lens,t)).join('')+'</section>'+lmTasksBtn(M,person,lens)+(lmPayOn(M)?'<button class="lm-deals-btn focusbtn" onclick="lmGo(\''+person+'\',\''+lens+'\',\'focus\')">💰 Make More Money — your earning levers →</button>':'')+'<button class="lm-deals-btn" onclick="lmGo(\''+person+'\',\''+lens+'\',\'deals\')">⊞ Deals &amp; Pipeline'+(lmPayOn(M)?' — '+lmMoney(M.comp.totalOpportunity)+' in play':'')+' →</button><div class="lm-lb">Solo · self-competition. Head-to-head ranking activates when a 2nd LM joins.</div>';}
-function lmDetail(M,person,lens,key){const t=lmTileDef(key),lm=M.lenses[lens][key],nh=lmNoHist(M,key),g=nh?null:lm.game;let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-head"><div><p class="eyebrow">'+(lens==='today'?lmRel(lm.anchorDate):LM_LBL[lens])+'</p><h1>'+t.label+'</h1></div>'+lmLensBar(person,lens,key)+'</div><div class="lm-big '+(nh?'lm-none':lmPaceCls(lm.paceState))+'">'+LM_FMT[t.fmt](lm.current)+'</div><div class="lm-cmp">'+(nh?LM_NOHIST_TXT:lmDeltaOf(lm,t.low)+' vs '+LM_PRIOR[lens]+' ('+(lm.comparisonEst?'~':'')+LM_FMT[t.fmt](lm.comparison)+(lm.comparisonEst?' pace':'')+')')+'</div>'+(nh?'':lmBars(lm,t))+(LM_CALLKEYS[key]?lmCallLadder(M,lens,key):'')+(key==='speed'?lmSpeedBySource(lm,t):'')+(key==='reached'?lmReachPanel(M,lens):'');if(g){h+='<div class="lm-gcards">';if(g.streak)h+='<div class="lm-gc"><div class="lm-gl">Streak</div><div class="lm-gv">'+g.streak.current+'</div><div class="lm-gs">best '+g.streak.best+' '+LM_UNIT[lens]+'s</div></div>';if(g.pr&&g.pr.best)h+='<div class="lm-gc"><div class="lm-gl">Personal record</div><div class="lm-gv">'+LM_FMT[t.fmt](g.pr.best.value)+'</div><div class="lm-gs">'+g.pr.best.label+(g.pr.toTie?' · '+LM_FMT[t.fmt](g.pr.toTie)+' to tie':(g.pr.isRecord?' · NEW 🎉':''))+'</div></div>';if(g.paceToBeat&&g.paceToBeat.remaining!=null&&g.paceToBeat.daysLeft>0){const b=g.paceToBeat;h+='<div class="lm-gc"><div class="lm-gl">Pace to beat '+b.basis+'</div>'+(b.lower?'<div class="lm-gv">'+LM_FMT[t.fmt](b.target)+'</div><div class="lm-gs">'+(b.alreadyBeat?'under it':LM_FMT[t.fmt](b.remaining)+' to cut')+' · '+b.daysLeft+'d left</div>':'<div class="lm-gv">'+(Math.round(b.perDayNeeded*10)/10)+'/day</div><div class="lm-gs">'+LM_FMT[t.fmt](b.remaining)+' over '+b.daysLeft+'d</div>')+'</div>';}h+='</div>';}h+='<div class="card chart-card"><h3>'+t.label+' · '+LM_LBL[lens]+'</h3><p class="sub">'+(RATIO2[key]?'two lines = the counts behind the % (e.g. showed vs booked)':'solid = you · dashed = your avg'+(g&&g.bars&&g.bars.target!=null?' · dotted = target':''))+'</p><div class="chart-wrap" onclick="lmFsOpen()"><canvas id="lmchart"></canvas><span class="chart-expand">⤢ tap to expand</span></div></div><div class="lm-diag"><div class="lm-d-h">READOUT</div>'+(nh?['AM credit on these rows is new, so this counts your rows and compares them to nothing yet.']:lmDiag(lm,t,lens)).map(x=>'<p>'+x+'</p>').join('')+'</div>';h+=lmCoachBlock(M,key)+lmRecList(M,key,lens);return h;}
+function lmHome(M,person,lens,team){const role=lmRole(M),am=role==='AM',R=lmTabsNow(M),count=lmBoardCount(R.board,role,person),nav=(l,to,cls)=>'<button class="lm-deals-btn'+(cls?' '+cls:'')+'" onclick="lmGo('+lmJsq(person)+','+lmJsq(lens)+','+lmJsq(to)+')">'+l+' →</button>';
+  let h='<div class="lm-head"><div><p class="eyebrow">Scoreboard</p><h1>'+person+'</h1></div>'+lmPicker(person,team)+'</div><div class="lm-clockbar">this device&rsquo;s clock → <span id="lm-clock">'+lmNowLbl()+'</span></div>'+lmComp(M,person,lens);
+  if(am)h+=lmDayStrip(M,person,R);
+  h+='<div class="sec-h"><h2>Scorecard</h2><span class="tag">'+lmScoreTag(R,'tap a tile')+'</span></div><section class="lm-tiles">'+LM_SCORE_TILES[role].map(id=>lmScoreTile(M,person,lens,R,id)).join('')+'</section>';
+  /* the lens, the streak and the pace of the day are all about dials, and an AM gets no dial coaching */
+  if(!am)h+='<div class="sec-h lm-sec2"><h2>Activity</h2><span class="tag">'+LM_LBL[lens]+' · tap a tile</span></div>'+lmLensBar(person,lens)+'<section class="lm-hero">'+lmStreakHL(M,lens)+lmPaceDay(M)+'</section><section class="lm-tiles">'+LM_ACTIVITY_TILES.map(k=>lmTile(M,person,lens,lmTileDef(k))).join('')+'</section>';
+  h+=lmTasksBtn(M,person,lens)+nav('💰 Make More Money — your '+(lmPayOn(M)?'earning ':'')+'levers','focus','focusbtn');
+  h+=nav('⊞ Deals &amp; Pipeline — '+(count===LM_SOURCE_STALE?count:count+(count===1?' deal':' deals'))+(lmPayOn(M)?' — '+lmMoney(M.comp.totalOpportunity)+' in play':''),'deals');
+  if(am)h+=nav('⊟ My book','book');
+  return h;}
+function lmDetail(M,person,lens,key){if(lmGated(M,key))return lmNotHere(person,lens);const t=lmTileDef(key),lm=M.lenses[lens][key],nh=lmNoHist(M,key),g=nh?null:lm.game;let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-head"><div><p class="eyebrow">'+(lens==='today'?lmRel(lm.anchorDate):LM_LBL[lens])+'</p><h1>'+t.label+'</h1></div>'+lmLensBar(person,lens,key)+'</div><div class="lm-big '+(nh?'lm-none':lmPaceCls(lm.paceState))+'">'+LM_FMT[t.fmt](lm.current)+'</div><div class="lm-cmp">'+(nh?LM_NOHIST_TXT:lmDeltaOf(lm,t.low)+' vs '+LM_PRIOR[lens]+' ('+(lm.comparisonEst?'~':'')+LM_FMT[t.fmt](lm.comparison)+(lm.comparisonEst?' pace':'')+')')+'</div>'+(nh?'':lmBars(lm,t))+(LM_CALLKEYS[key]?lmCallLadder(M,lens,key):'')+(key==='speed'?'<p class="lm-cap">'+LM_SPEED_CAP+'</p>':'')+(key==='reached'?lmReachPanel(M,lens):'');if(g){h+='<div class="lm-gcards">';if(g.streak)h+='<div class="lm-gc"><div class="lm-gl">Streak</div><div class="lm-gv">'+g.streak.current+'</div><div class="lm-gs">best '+g.streak.best+' '+LM_UNIT[lens]+'s</div></div>';if(g.pr&&g.pr.best)h+='<div class="lm-gc"><div class="lm-gl">Personal record</div><div class="lm-gv">'+LM_FMT[t.fmt](g.pr.best.value)+'</div><div class="lm-gs">'+g.pr.best.label+(g.pr.toTie?' · '+LM_FMT[t.fmt](g.pr.toTie)+' to tie':(g.pr.isRecord?' · NEW 🎉':''))+'</div></div>';if(g.paceToBeat&&g.paceToBeat.remaining!=null&&g.paceToBeat.daysLeft>0){const b=g.paceToBeat;h+='<div class="lm-gc"><div class="lm-gl">Pace to beat '+b.basis+'</div>'+(b.lower?'<div class="lm-gv">'+LM_FMT[t.fmt](b.target)+'</div><div class="lm-gs">'+(b.alreadyBeat?'under it':LM_FMT[t.fmt](b.remaining)+' to cut')+' · '+b.daysLeft+'d left</div>':'<div class="lm-gv">'+(Math.round(b.perDayNeeded*10)/10)+'/day</div><div class="lm-gs">'+LM_FMT[t.fmt](b.remaining)+' over '+b.daysLeft+'d</div>')+'</div>';}h+='</div>';}h+='<div class="card chart-card"><h3>'+t.label+' · '+LM_LBL[lens]+'</h3><p class="sub">'+(RATIO2[key]?'two lines = the counts behind the % (e.g. showed vs booked)':'solid = you · dashed = your avg'+(g&&g.bars&&g.bars.target!=null?' · dotted = target':''))+'</p><div class="chart-wrap" onclick="lmFsOpen()"><canvas id="lmchart"></canvas><span class="chart-expand">⤢ tap to expand</span></div></div><div class="lm-diag"><div class="lm-d-h">READOUT</div>'+(nh?['AM credit on these rows is new, so this counts your rows and compares them to nothing yet.']:lmDiag(lm,t,lens)).map(x=>'<p>'+x+'</p>').join('')+'</div>';h+=lmCoachBlock(M,key)+lmRecList(M,key,lens);return h;}
 /* ── records, dual-line ratios, coaching, deals view ── */
 /* `as`: the role a record must carry to sit under its tile, so a list always matches the count ('deal' = M.dealRole) */
 function inWin(d,w){return !!(d&&d.getTime()>=w.start.getTime()&&d.getTime()<=w.end.getTime());}
@@ -113,7 +121,7 @@ function lmCoach(M,key){
   const c=M.comp,y=M.lenses.ytd,a2c=y.apptToContract.current||0,l2a=y.leadToAppt.current||0,sr=y.showRate.current||0,perK=(c.avgFee||0)*(c.split||0.1),perShow=a2c*perK,perAppt=sr*perShow,P=v=>lmPctF(v);
   const L={
     calls:'Dials feed the funnel. At your '+P(l2a)+' Lead→Appt rate, ~'+(l2a?Math.round(1/l2a):'—')+' leads worked ≈ 1 appt — volume here is what creates everything downstream.',
-    conversations:'Real conversations (≥75s) are the ONE call metric that matters — no-answers and voicemails don’t count. Target ~3/day. Each one is a chance to book; lift this and appts follow.',
+    conversations:'Real conversations (≥75s) are the ONE call metric that matters — no-answers and voicemails don’t count. Each one is a chance to book; lift this and appts follow.',
     connectRate:'Of every dial, how many become a real ≥75s conversation. Yours is the leading quality signal — better openers turn more pickups into talks without dialing more.',
     qualifying:'Qualifying calls (≥10 min) are the premium avenue — a real discovery conversation. These convert to appts/offers far above any other call. Few and high-value: protect and grow them.',
     outbound:'Outbound is your controllable input. More dials → more conversations → more appts at your '+P(l2a)+' booking rate.',
@@ -122,7 +130,7 @@ function lmCoach(M,key){
     apptsBooked:'Every booked appt ≈ '+lmMoney(perAppt)+' to you (show '+P(sr)+' × contract '+P(a2c)+' × $'+Math.round(perK)+'). Book more, earn more.',
     apptsShowed:'A show is ~'+lmMoney(perShow)+' to you at your '+P(a2c)+' contract rate. Getting them to show is the unlock — speed-to-lead drives it.',
     showRate:'Show rate is a money lever: each appt that actually shows ≈ '+lmMoney(perShow)+'. The #1 driver of shows is fast first-touch — see Speed.',
-    speed:'Faster first-touch lifts shows. Your YTD avg is '+Math.round(y.speed.current||0)+' min; sub-5-min is the target. Every extra show ≈ '+lmMoney(perShow)+' to you.',
+    speed:'Faster first-touch lifts shows. Your YTD avg is '+Math.round(y.speed.current||0)+' clock min; the first-call rule is 30 working minutes. Every extra show ≈ '+lmMoney(perShow)+' to you.',
     leadToAppt:'Booking rate sets appt volume. At '+P(a2c)+' Appt→Contract and $'+Math.round(perK)+'/contract, each appt you book ≈ '+lmMoney(perAppt)+'.',
     apptToContract:'Your highest-$ lever: each contract ≈ $'+Math.round(perK)+' to you. Lifting Appt→Contract from '+P(a2c)+' compounds across every show you get.',
     offersMade:'Offers out become money once they go Under Contract — each ≈ $'+Math.round(perK)+' to you at the avg fee.',
@@ -134,12 +142,28 @@ function lmCoach(M,key){
     apptsBooked:'Book more: '+P(sr)+' of booked appts show and '+P(a2c)+' of shows reach a contract.',
     apptsShowed:'Getting them to show is the unlock: '+P(a2c)+' of shows reach a contract, and speed-to-lead drives it.',
     showRate:'The #1 driver of shows is fast first-touch — see Speed.',
-    speed:'Faster first-touch lifts shows. Your YTD avg is '+Math.round(y.speed.current||0)+' min; sub-5-min is the target.',
+    speed:'Faster first-touch lifts shows. Your YTD avg is '+Math.round(y.speed.current||0)+' clock min; the first-call rule is 30 working minutes.',
     leadToAppt:'Booking rate sets appt volume, and '+P(a2c)+' of shows reach a contract.',
     apptToContract:'Lifting Appt→Contract from '+P(a2c)+' compounds across every show.',
     offersMade:'An offer out becomes a deal once it goes Under Contract.',
     contractsSigned:'A signed contract is a deal pending close.'
   };
+  /* role LM: Andrew's coach lines name no offer, no contract and no dollar, with the pay switch on or off. His job ends at the walkthrough */
+  const C={
+    calls:'Dials feed everything downstream. At your '+P(l2a)+' Lead→Appt rate, ~'+(l2a?Math.round(1/l2a):'—')+' leads worked ≈ 1 appt. The queue sets the dials, not a fixed number a day.',
+    conversations:L.conversations,
+    connectRate:L.connectRate,
+    qualifying:'Qualifying calls (≥10 min) are real discovery conversations, and they book far above any other call. Few and high-value: protect and grow them.',
+    outbound:L.outbound,
+    talkTime:L.talkTime,
+    leads:'Each lead worked feeds your walkthroughs: book '+P(l2a)+' → show '+P(sr)+'.',
+    apptsBooked:'Book more: '+P(sr)+' of booked appts show.',
+    apptsShowed:'Getting them to show is the unlock, and the first call drives it.',
+    showRate:N.showRate,
+    speed:N.speed,
+    leadToAppt:'Booking rate sets appt volume. Every lead worked raises your chance at the next walkthrough.'
+  };
+  if(lmRole(M)==='LM')return C[key]||'';
   return (!lmPayOn(M)&&N[key])||L[key]||'';
 }
 function lmCoachBlock(M,key){const x=lmCoach(M,key);return x?'<div class="lm-coach"><div class="lm-d-h">COACH — what moves the number</div><p>'+x+'</p></div>':'';}
@@ -166,7 +190,7 @@ function lmEarnView(M,person,lens,bucket){
     earned:{label:'Earned',cls:'gr',val:c.earned,deals:c.earnedDeals,kind:'deal',sub:'Closed deals — money in hand. Your '+sp+' of each closed wholesale fee.',empty:'No closed deals yet. Earmarked deals land here the day they close.'},
     earmarked:{label:'Earmarked',cls:'br',val:c.earmarked,deals:c.earmarkedDeals,kind:'deal',sub:'Signed AND under contract on the dispo side — a buyer is locked. This banks at close.',empty:'Nothing under contract yet. Projected deals move here once a buyer goes Under Contract.'},
     projected:{label:'Projected',cls:'',val:c.projected,deals:c.projectedDeals,kind:'deal',sub:'Signed, but the dispo side isn’t under contract yet — likely, not locked. Becomes Earmarked when a buyer goes Under Contract.',empty:'No signed-but-pre-contract deals right now.'},
-    potential:{label:'Potential',cls:'',val:c.potential,deals:c.openOffers,kind:'offer',sub:'Open offers out, estimated at the avg fee × your '+sp+' split until one gets signed.',empty:'No open offers out right now — make offers to fill this.'}
+    potential:{label:'Potential',cls:'',val:c.potential,deals:c.openOffers,kind:'offer',sub:'Open offers out, estimated at the avg fee × your '+sp+' split until one gets signed.',empty:'No open offers out right now.'}
   };
   const E=cfg[bucket]; if(!E)return '<p class="lede">Unknown earnings stage.</p>';
   let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button>';
@@ -178,14 +202,21 @@ function lmEarnView(M,person,lens,bucket){
   h+=lmRateAlarm(c);
   return h;
 }
+/* The board is the AM's deal list. While it is not current his page would hold no deal name at all, so the rows the engine already
+   has stand in, under their own label. They are comp()'s, which keeps LM rows: his LM credit, not his AM deals, and the label says so. */
+function lmNoBoardLists(c){const l=lmDealList('Under contract',c.earmarkedDeals,1)+lmDealList('Signed — pre-contract',c.projectedDeals,1)+lmOfferList('Offers out',c.openOffers,1)+lmDealList('Closed',c.earnedDeals,1);
+  return l?'<div class="sec-h lm-sec2"><h2>Your LM deals</h2><span class="tag">from the Contracts and Offers tabs, not the board</span></div>'+l:'';}
 function lmDealsView(M,person,lens){
-  const c=M.comp,L=M.lenses[lens],pay=lmPayOn(M);
-  const funnel=[['Leads',L.leads.current],['Appts Booked',L.apptsBooked.current],['Showed',L.apptsShowed.current],['Offers Made',L.offersMade.current],['Contracts',L.contractsSigned.current]];
+  const c=M.comp,L=M.lenses[lens],pay=lmPayOn(M),am=lmRole(M)==='AM',R=lmTabsNow(M);
+  /* an AM's row by the AM tag; his Leads and Booked would count LM rows he no longer has. Role LM stops at Showed */
+  const funnel=am?[['Offers Made',L.offersMade.current],['Contracts',L.contractsSigned.current]]:[['Leads',L.leads.current],['Appts Booked',L.apptsBooked.current],['Showed',L.apptsShowed.current]];
   let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button>';
   h+='<div class="lm-head"><div><p class="eyebrow">Deals &amp; Pipeline</p><h1>'+(pay?'Funnel &amp; Money':'Your deals')+'</h1></div>'+lmLensBar(person,lens,'deals')+'</div>';
   h+=lmComp(M,person,lens);
-  h+='<div class="sec-h"><h2>Funnel</h2><span class="tag">'+LM_LBL[lens]+'</span></div><div class="lm-funnel">'+funnel.map(f=>'<div class="lm-frow"><span class="lm-fl">'+f[0]+'</span><span class="lm-fv">'+lmNum(f[1])+'</span></div>').join('')+'</div>';
-  if(!pay)return h+lmDealList('Under contract',c.earmarkedDeals,1)+lmDealList('Signed — pre-contract',c.projectedDeals,1)+lmOfferList('Offers out',c.openOffers,1)+lmDealList('Closed',c.earnedDeals,1);
+  if(am)h+=lmDayStrip(M,person,R)+lmAmDeals(M,person,R);
+  h+='<div class="sec-h lm-sec2"><h2>Funnel</h2><span class="tag">'+LM_LBL[lens]+'</span></div><div class="lm-funnel">'+funnel.map(f=>'<div class="lm-frow"><span class="lm-fl">'+f[0]+'</span><span class="lm-fv">'+lmNum(f[1])+'</span></div>').join('')+'</div>';
+  if(!am)return h+lmWithList(person,R);
+  if(!pay)return R.board.ok?h:h+lmNoBoardLists(c);
   h+=lmDealList('Under contract — earmarked',c.earmarkedDeals)+lmDealList('Projected — pre-contract',c.projectedDeals)+lmOfferList('Offers out — potential',c.openOffers);
   if(c.earnedDeals.length)h+=lmDealList('Closed — earned',c.earnedDeals);
   h+=lmRateAlarm(c);
@@ -201,7 +232,7 @@ function lmFocus(M){
   // what each funnel step is worth to the LM (their split on an avg deal)
   const perDeal=avgDeal*split,perShow=a2c*perDeal,perBooked=sr*perShow,perLead=l2a*perBooked;
   const cpb=(y.apptsBooked.current>0)?y.calls.current/y.apptsBooked.current:null,perDial=cpb?perBooked/cpb:null;
-  const start=new Date(2026,3,22),wks=Math.max(1,(M.asOf-start)/6048e5);
+  const start=M.startDate||M.asOf,wks=Math.max(1,(M.asOf-start)/6048e5);
   // his ACTUAL current pace — the baseline every sprint is measured against
   const bookedYtd=y.apptsBooked.current||0,callsYtd=y.calls.current||0,showsYtd=y.apptsShowed.current||0,leadsYtd=(y.leads&&y.leads.current)||0;
   const apptsWk=bookedYtd/wks,dialsDay=callsYtd/(wks*5),showsWk=showsYtd/wks,leadsWk=leadsYtd/wks;
@@ -228,39 +259,36 @@ function lmLevers(f,M){
   const cashBy=d=>{try{return new Date(asOf.getTime()+d*D).toLocaleDateString('en-US',{month:'short',day:'numeric'});}catch(e){return'';}};
   const when=(d,pfx)=>(pfx||'banks ~by ')+cashBy(d+CLOSE)+' · '+CLOSE+'-day closes';
   const bookedMo=f.apptsWk*wk,leadsMo=(f.leadsWk||0)*wk;
-  const showT=Math.max(f.sr+0.1,0.75),l2aT=Math.max(f.l2a+0.05,f.tL2A||0.15);
+  const showT=Math.min(1,Math.max(f.sr+0.1,0.75)),l2aT=Math.max(f.l2a+0.05,f.tL2A||0.15);
   const aimWk=Math.max(Math.ceil(f.apptsWk)+1,Math.round(f.apptsWk*2||2)),aimD=Math.round(f.dialsDay*1.5);
   const P=[
     {key:'appts',title:'Book more appointments',now:'You average '+lmR(f.apptsWk,1)+' booked/wk',goal:'Book '+Math.round(aimWk*3)+' over 3 weeks ('+aimWk+'/wk)',diff:2,dollars:(aimWk-f.apptsWk)*3*f.perBooked,when:when(21)},
-    {key:'close',title:'Close more of your shows',now:'You close '+lmPctF(f.a2c)+' of shows',goal:'Take your next 4 shows to '+lmPctF(f.tA2C),diff:3,dollars:4*Math.max(0,f.tA2C-f.a2c)*f.perDeal,when:when(28)},
     {key:'dials',title:'Turn up the dials',now:'You make '+lmR(f.dialsDay,0)+' dials/day',goal:'Hit '+aimD+'/day for a month (+'+lmR(aimD-f.dialsDay,0)+')',diff:1,dollars:Math.max(0,(aimD-f.dialsDay))*mo*f.perDial,when:when(30)},
     {key:'showrate',title:'Cut your no-shows',now:lmPctF(f.sr)+' of booked actually show',goal:'Confirm harder → '+lmPctF(showT)+' show up',diff:2,dollars:bookedMo*Math.max(0,showT-f.sr)*f.perShow,when:when(30)},
     {key:'l2a',title:'Book a bigger slice of leads',now:lmPctF(f.l2a)+' of leads become appts',goal:'Work them to '+lmPctF(l2aT),diff:3,dollars:leadsMo*Math.max(0,l2aT-f.l2a)*f.perBooked,when:when(35)},
     {key:'sat',title:'Work your Saturdays',now:'You run a 5-day week',goal:'Add 4 Saturdays of your normal pace',diff:2,dollars:(f.apptsWk/5)*4*f.perBooked,when:when(30)},
-    {key:'dormant',title:'Re-work 10 dead leads',now:'Old "no" ≠ forever',goal:'Re-touch 10 dormant leads',diff:2,dollars:10*f.l2a*f.perBooked,when:when(35)},
-    {key:'dormant25',title:'Mine your whole old list',now:'Months of leads sitting cold',goal:'Re-touch 25 dormant leads',diff:2,dollars:25*f.l2a*f.perBooked,when:when(40)},
-    {key:'onedeal',title:'Steal one extra close',now:'One deal you’d have let slip',goal:'Push 1 more deal over the line this month',diff:3,dollars:f.perDeal,when:when(0)},
-    {key:'speed',title:'Call new leads in 5 min',now:'Speed-to-lead drives booking',goal:'Be first to every fresh lead',diff:1,dollars:leadsMo*0.05*f.perBooked,when:when(30),est:1},
+    {key:'speed',title:'Call new leads in 30 working minutes',now:'Speed-to-lead drives booking',goal:'Be first to every fresh lead',diff:1,dollars:leadsMo*0.05*f.perBooked,when:when(30),est:1},
     {key:'talk',title:'Win the conversation',now:'Better calls book more',goal:'Earn ~1 extra appt/week on connect quality',diff:1,dollars:1*wk*f.perBooked,when:when(25),est:1},
     {key:'nozero',title:'Kill your zero-call days',now:'Slow days bleed pipeline',goal:'Hit your dial average every working day',diff:1,dollars:f.dialsDay*2*f.perDial,when:when(30),est:1},
     {key:'confirm',title:'Confirm every appointment',now:'A reminder text saves shows',goal:'Recover ~10% of would-be no-shows',diff:1,dollars:bookedMo*0.10*f.perShow,when:when(30),est:1},
     {key:'sustain',title:'Lock in +1 appt/week',now:'Small bump, compounded',goal:'Hold +1 booked/wk for 3 months',diff:2,dollars:1*wk*3*f.perBooked,when:when(90,'fully banks ~by ')}
   ];
   // effort weeks per lever → drives $/week-of-effort so the pin is the most EFFICIENT lever, not just the biggest total
-  const EW={appts:3,close:4,dials:4.33,showrate:4.33,l2a:4.33,sat:4.33,dormant:1.5,dormant25:3,onedeal:4.33,speed:4.33,talk:4.33,nozero:4.33,confirm:4.33,sustain:13};
+  const EW={appts:3,dials:4.33,showrate:4.33,l2a:4.33,sat:4.33,speed:4.33,talk:4.33,nozero:4.33,confirm:4.33,sustain:13};
   // monthly STRETCH phrasing — used only when a lever is pinned as the month's big goal (sustain it all month = bigger, harder)
-  const MG={appts:'Hit '+aimWk+' booked every week, all month',close:'Close '+lmPctF(f.tA2C)+' of every show this month',dials:'Hold '+aimD+'/day for the entire month',showrate:'Get '+lmPctF(showT)+' of booked to show, all month',l2a:'Convert '+lmPctF(l2aT)+' of every lead this month',sat:'Work all 4 Saturdays this month',dormant:'Re-touch dead leads every week this month',dormant25:'Mine your whole old list this month',onedeal:'Force 2 extra closes this month',speed:'Be first to every fresh lead, all month',talk:'Win every conversation this month',nozero:'No zero-call days the whole month',confirm:'Confirm every appointment this month',sustain:'Lock +1/wk and hold it all quarter'};
+  const MG={appts:'Hit '+aimWk+' booked every week, all month',dials:'Hold '+aimD+'/day for the entire month',showrate:'Get '+lmPctF(showT)+' of booked to show, all month',l2a:'Convert '+lmPctF(l2aT)+' of every lead this month',sat:'Work all 4 Saturdays this month',speed:'Be first to every fresh lead, all month',talk:'Win every conversation this month',nozero:'No zero-call days the whole month',confirm:'Confirm every appointment this month',sustain:'Lock +1/wk and hold it all quarter'};
   return P.filter(function(l){return l.dollars && isFinite(l.dollars) && l.dollars>=1;}).map(function(l){l.dollars=Math.round(l.dollars);l.ew=EW[l.key]||4.33;l.rate=l.dollars/l.ew;l.mdollars=Math.round(l.rate*4.33);l.mdiff=Math.min(3,l.diff+1);l.mg=MG[l.key]||'Go all-in on this all month';l.mwhen='banks ~by '+cashBy(30+CLOSE)+' · '+CLOSE+'-day closes';return l;});
 }
-function lmFocusView(M,person){
-  /* every line here is a dollar figure: no plan, no page (home drops the button; a saved #m=focus link lands here) */
-  if(!lmPayOn(M))return '<button class="lm-back" onclick="lmGo(\''+person+'\',\'ytd\',\'\')">‹ Scoreboard</button>'+lmNoPay();
+function lmFocusView(M,person,lens){
+  const back=lmBack(person,lmLensSafe(lens));
+  /* no plan: the same levers from Role Scorecard, with no dollar anywhere. Every line below this is a dollar figure */
+  if(!lmPayOn(M))return back+lmRoleLevers(M,person);
   const f=lmFocus(M),first=String(person||'').split(' ')[0]||'You';
   const pay=(l,v)=>'<div class="lm-pay"><span>'+l+'</span><b>'+lmMoney(v)+'</b></div>';
   const CLOSE_DAYS=45;
   const diffName=['','Easy','Medium','Hard'],diffBadge=d=>'<span class="lm-diff d'+d+'">'+('●'.repeat(d)+'○'.repeat(3-d))+' '+diffName[d]+'</span>';
   const card=(L,pin)=>'<div class="lm-scen'+(pin?' pin':'')+'"><div class="lm-scen-l"><div class="lm-scen-t">'+L.title+' '+diffBadge(L.diff)+(L.est?' <span class="lm-est">est.</span>':'')+'</div><div class="lm-scen-now">'+L.now+'</div><div class="lm-scen-goal">→ '+L.goal+'</div></div><div class="lm-scen-r"><div class="lm-scen-v">+'+lmMoney(L.dollars)+'</div><div class="lm-scen-when">'+L.when+'</div></div></div>';
-  let h='<button class="lm-back" onclick="lmGo(\''+person+'\',\'ytd\',\'\')">‹ Scoreboard</button>';
+  let h=back;
   h+='<div class="lm-head"><div><p class="eyebrow">Your money · how to make more of it</p><h1>'+first+'’s earning levers</h1></div></div>';
   h+='<div class="lm-foc"><div class="lm-foc-h">What each step pays YOU — '+lmPctF(f.split)+' of a '+lmMoney(f.avgDeal)+' deal = '+lmMoney(f.perDeal)+'/deal</div><div class="lm-pays">'+pay('Each deal',f.perDeal)+pay('Each show',f.perShow)+pay('Each booked appt',f.perBooked)+pay('Each lead worked',f.perLead)+(f.perDial?pay('Each dial',f.perDial):'')+'</div><p class="lm-foc-sub">Each action has a price tag — but you bank it at <b>close, ~'+CLOSE_DAYS+' days after a deal goes under contract</b>. Today’s work pays out in ~2–3 months.</p></div>';
   // LIVING QUEUE — full lever pool, biggest pinned, the rest rotate daily so the mix stays fresh
@@ -302,7 +330,7 @@ function lmFsDraw(lens){if(!LM_FS_CTX)return;const M=LM_FS_CTX.M,metric=LM_FS_CT
 }
 function lmFsOpen(){if(!LM_FS_CTX)return;var host=document.getElementById('lm-fs');if(!host){host=document.createElement('div');host.id='lm-fs';host.className='lm-fs';document.body.appendChild(host);}try{document.documentElement.classList.add('lm-fs-on');}catch(e){}lmFsDraw(LM_FS_CTX.lens||'week');}
 function lmChartMount(cv,M,lens,metric,host){var mk=host.mk,css=host.css;try{
-  if(!metric||metric==='deals'||metric==='focus'||metric==='tasks'||LM_EARN[metric])return;
+  if(lmIsView(metric)||lmGated(M,metric)||!M.lenses[lens]||!Object.prototype.hasOwnProperty.call(M.lenses[lens],metric))return;
   const lm=M.lenses[lens][metric],t=lmTileDef(metric),g=lm.game,gl=css('--glow'),amb=css('--amber'),grn=css('--green'),labels=lm.trend.map(x=>x.label);
   if(cv==='lmchart')LM_FS_CTX={M:M,metric:metric,lens:lens};   // stash for the tap-to-fullscreen view
   const big=cv==='lmfschart', fs=big?13:9, pr=big?4:3;
@@ -321,20 +349,6 @@ function lmChartMount(cv,M,lens,metric,host){var mk=host.mk,css=host.css;try{
   }
   const sc=t.fmt==='pct'?100:1,r1=v=>(v==null||isNaN(v))?null:Math.round(v*sc*10)/10,data=lm.trend.map(x=>r1(x.value)),unit=t.fmt==='pct'?'%':(t.fmt==='min'||t.fmt==='spd')?'min':'count';
   let ds;
-  if(metric==='speed'&&lm.sourceTrend&&lm.sourceTrend.length){
-    // one plot line per LEAD SOURCE — a blended speed line hides inbound vs cold-list.
-    // Colors are FIXED per source (never cycled by index): a source keeps its color
-    // across lenses/days even as which sources appear changes. Palette validated
-    // (CVD ΔE 23.7, ≥3:1 on --card #0C192C).
-    const srcColor=s=>({'Google Ads':'#3987e5','MLS':'#c98500','Website':'#199e70','PPL':'#9085e9','SMS':'#e66767','D4D':'#d55181','Events':'#d95926','Office Phone':'#008300','Referral':'#7ab0e6'})[s]||'#8b97a8';
-    ds=lm.sourceTrend.map(s=>({label:s.source,data:s.data,borderColor:srcColor(s.source),backgroundColor:'transparent',fill:false,tension:.3,pointRadius:pr,pointHoverRadius:big?7:5,pointBackgroundColor:srcColor(s.source),borderWidth:big?2.4:1.8,spanGaps:true,lmCounts:s.counts}));
-    const o=opt(unit);
-    o.plugins.tooltip={callbacks:{label:(c)=>{const n=(c.dataset.lmCounts||[])[c.dataIndex]||0;return c.dataset.label+': '+LM_FMT[t.fmt](c.parsed.y)+' avg · '+n+' lead'+(n===1?'':'s');}}};
-    const tg0=(g&&g.bars&&g.bars.target!=null)?g.bars.target:null;
-    if(tg0!=null)ds.push({label:'🎯 Target',data:labels.map(()=>tg0),borderColor:grn,borderDash:[2,3],pointRadius:0,borderWidth:big?2.4:1.4,fill:false});
-    mk(cv,{type:'line',data:{labels:labels,datasets:ds},options:o});
-    return;
-  }
   {
     ds=[{label:t.label,data:data,borderColor:gl,backgroundColor:'rgba(63,208,255,.12)',fill:true,tension:.3,pointRadius:pr,pointBackgroundColor:gl,borderWidth:big?2.8:2,spanGaps:true}];
     if(lm.bar!=null)ds.push({label:'Your avg',data:labels.map(()=>r1(lm.bar)),borderColor:amb,borderDash:[5,4],pointRadius:0,borderWidth:big?2:1.4,fill:false});
@@ -367,6 +381,238 @@ function lmDayOf(v){const s=String(v==null?'':v).trim();if(!s)return '';if(/^\d{
 function lmMsOf(v){const s=String(v==null?'':v).trim();if(!s||/^\d{4}-\d{2}-\d{2}$/.test(s))return NaN;const d=new Date(s);if(isNaN(d)||(d.getHours()===0&&d.getMinutes()===0&&d.getSeconds()===0))return NaN;return d.getTime();}
 /* header row + rows → objects keyed by header name (one parser for every tab of this shape) */
 function lmTabObjs(tab){if(!Array.isArray(tab)||!tab.length)return [];const h=(tab[0]||[]).map(x=>String(x==null?'':x).trim()),out=[];for(let i=1;i<tab.length;i++){const r=tab[i]||[],o={};for(let j=0;j<h.length;j++)if(h[j])o[h[j]]=r[j]==null?'':r[j];out.push(o);}return out;}
+/* ═══════════ ROLE TABS (D2) — the ONE reader of Role Scorecard and Deal Board ═══════════
+   Every phone and owner view reads these two routine-written tabs through here, so there is one
+   rule for what counts as current. Either tab can be missing (P4 creates them after this ships; an old
+   script sends neither), empty, or a day behind, and each of those reads 'source stale': never a
+   blank, a 0, a throw, or an old number passed off as today's.
+     lmRoleTabs({tabs, dealBoardAsOf}, now) → {score, board}. The owner passes {tabs: RAW}.
+     lmKpi(score, person, id)               → one KPI. Print .shown; a real 0 stays 0.
+     lmBoardCount(board, role, person)      → a count, or 'source stale'.
+     lmBoardMine(board, role, person)       → that person's rows; [] when the board is stale, so check board.ok.
+   A renamed column reads 'source stale' too ('header changed'): the readers take each cell by its exact header name, so a
+   rename would otherwise read as a blank on every row, and a fresh stamp would pass that off as nothing past the line.
+   Call lmRoleTabs at render, not once at load: staleness depends on the clock, and the app stays open.
+   A stale tab hands back no rows, so nothing downstream can show them by mistake. */
+const LM_SOURCE_STALE='source stale';
+const LM_SHEET_TZ='America/New_York';   // the workbook says America/Nassau, which keeps this same clock
+const LM_FRESH_BY_HOUR=9;               // Eastern. The 5 AM nightly has landed by then
+let lmSheetFmt=null;
+/* `d` on the sheet's clock, on any device: {day:'YYYY-MM-DD', hour}. */
+function lmSheetClock(d){try{if(!lmSheetFmt)lmSheetFmt=new Intl.DateTimeFormat('en-CA',{timeZone:LM_SHEET_TZ,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'});const p={};lmSheetFmt.formatToParts(d).forEach(x=>{p[x.type]=x.value;});return {day:p.year+'-'+p.month+'-'+p.day,hour:+p.hour};}catch(e){return {day:lmDayStr(d),hour:d.getHours()};}}
+/* The calendar day a sheet cell means, 'YYYY-MM-DD'; '' when unreadable. A date as text stands as written. A
+   real date cell reaches JSON as a UTC instant (midnight on the sheet = 04:00Z), which lmDayOf reads as the
+   day before on a phone west of Eastern, so an instant is read on the sheet's clock instead. */
+function lmSheetDay(v){if(typeof v==='number')return '';const s=String(v==null?'':v).trim();if(!s)return '';if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?!\d)/);if(m)return m[3]+'-'+lmPad2(+m[1])+'-'+lmPad2(+m[2]);const d=new Date(s);return isNaN(d)?'':lmSheetClock(d).day;}
+const lmDayShift=(day,n)=>new Date(Date.parse(day+'T12:00:00Z')+n*864e5).toISOString().slice(0,10);
+/* The oldest scorecard Date still current at `now`. The nightly runs about 5 AM, every day, and writes
+   yesterday's date, so yesterday is due from 9 AM; before that the run may just not have finished. */
+function lmStaleFloor(now){const c=lmSheetClock(now);return lmDayShift(c.day,c.hour>=LM_FRESH_BY_HOUR?-1:-2);}
+const lmNameKey=x=>String(x==null?'':x).trim().toLowerCase();
+const lmCellTxt=v=>String(v==null?'':v).trim();
+const lmCellOn=v=>/^(true|yes|y|1|red|stale)$/i.test(lmCellTxt(v));
+/* a number when it reads as one, text verbatim when it does not, null when blank. A real 0 stays 0. */
+const lmCellVal=v=>{const s=lmCellTxt(v);if(!s)return null;const n=Number(s);return isNaN(n)?s:n;};
+/* Headers each reader cannot work without. Value only on the owner's board: a phone's row never has one, and `_as` marks that shape.
+   Exact names, the way the readers look them up. No header at all is an empty tab, not a rename. */
+const LM_SCORE_NEED=['Date','Person','KPI','Value','Target Status','Stale'],LM_BOARD_NEED=['Opp ID','Pipeline','Stage','Days','Red','LM','AM'];
+const lmHeadOf=tab=>(tab[0]||[]).map(lmCellTxt);
+const lmHeadMiss=(head,need)=>head.some(Boolean)&&need.some(n=>head.indexOf(n)<0);
+/* The Target Status words scorecard.py writes on a row it stands behind */
+const LM_STATUS_KNOWN={on_track:1,behind:1,'target not set':1,weekend:1};
+
+function lmScoreRead(tab,now){const out={ok:false,why:'tab missing',asOf:'',latest:{}};if(!Array.isArray(tab))return out;
+  if(lmHeadMiss(lmHeadOf(tab),LM_SCORE_NEED)){out.why='header changed';return out;}
+  const today=lmSheetClock(now).day,rows=[];
+  lmTabObjs(tab).forEach(r=>{const id=lmCellTxt(r.KPI).toUpperCase(),date=lmSheetDay(r.Date);if(lmNameKey(r.Person)&&id&&date&&date<=today)rows.push({r,id,date});});   // a future date is not a write, and must not hide a stale tab
+  if(!rows.length){out.why='tab empty';return out;}
+  rows.forEach(x=>{if(x.date>out.asOf)out.asOf=x.date;});
+  if(out.asOf<lmStaleFloor(now)){out.why='stale';return out;}
+  rows.forEach(x=>{const k=lmNameKey(x.r.Person)+'|'+x.id,was=out.latest[k];if(!was||x.date>=was.date)out.latest[k]=x;});
+  out.ok=true;out.why='';return out;}
+
+/* One KPI for one person, ids in either case. stale:true whenever the number cannot be trusted: then .value, .n,
+   .target and .vsLastWeek are null, .status and .shown read 'source stale', and .why says which rule fired.
+   Label, Source and Note survive, because a stale row's Note says what is missing.
+   A blank Value is not stale by itself. P4 writes one on purpose when a KPI measures nothing tonight (nobody owed a dial): Stale
+   false, a real Target Status, a Note saying why. That row is healthy: value null, printed '—', and no colour (lmKpiStatus), the way
+   the email prints it. Only a blank with no status P4 writes reads 'blank value'. A Value that is not a finite number was not
+   written by P4, and a green tile must not stand over it. */
+function lmKpi(score,person,id){const kid=lmCellTxt(id).toUpperCase(),x=score&&score.latest?score.latest[lmNameKey(person)+'|'+kid]:null,r=x?x.r:{};
+  const raw=lmCellTxt(r['Target Status']).toLowerCase(),status=raw||'target not set',value=lmCellVal(r.Value);
+  const out={id:kid,person,role:lmCellTxt(r.Role),label:lmCellTxt(r.Label),source:lmCellTxt(r.Source),note:lmCellTxt(r.Note),date:x?x.date:'',tabAsOf:score&&score.asOf||'',value:null,n:null,target:null,vsLastWeek:null,status:LM_SOURCE_STALE,stale:true,shown:LM_SOURCE_STALE,why:''};
+  out.why=!score?'tab missing':!score.ok?score.why:!x?'no row':x.date<score.asOf?'row is behind the tab':(lmCellOn(r.Stale)||status===LM_SOURCE_STALE)?'marked stale':value==null?(LM_STATUS_KNOWN[raw]===1?'':'blank value'):(typeof value==='number'&&isFinite(value))?'':'unreadable value';
+  if(out.why)return out;
+  out.value=value;out.n=lmCellVal(r.N);out.target=lmCellVal(r.Target);out.vsLastWeek=lmCellVal(r['Vs Last Week']);out.status=status;out.stale=false;out.shown=value;return out;}
+
+/* `asOf` is the payload's dealBoardAsOf: a phone's columns stop before N2, and the endpoint sends null for an empty
+   board. The owner's full tab carries the stamp itself. A fresh stamp with no rows on a phone is a real 0 deals. */
+function lmBoardRead(tab,asOf,now){const out={ok:false,why:'tab missing',asOf:'',day:'',rows:[]};if(!Array.isArray(tab))return out;
+  const head=lmHeadOf(tab);if(lmHeadMiss(head,head.indexOf('_as')>-1?LM_BOARD_NEED:LM_BOARD_NEED.concat(['Value']))){out.why='header changed';return out;}
+  const all=lmTabObjs(tab),objs=all.filter(r=>lmCellTxt(r['Opp ID']));   // the stamp at N2 makes a phantom row on an empty board
+  if(asOf==null&&!objs.length){out.why='tab empty';return out;}
+  const raw=asOf!=null?asOf:all[0]['As Of'],day=lmSheetDay(raw);
+  if(!day||day>lmSheetClock(now).day){out.why='no as-of';return out;}
+  out.asOf=lmCellTxt(raw);out.day=day;
+  if(day<lmDayShift(lmStaleFloor(now),1)){out.why='stale';return out;}   // stamped the morning it ran, a day after the Date it reports
+  out.rows=objs.map(r=>({opp:lmCellTxt(r['Opp ID']),lead:lmCellTxt(r.Lead),pipeline:lmCellTxt(r.Pipeline),stage:lmCellTxt(r.Stage),days:lmCellVal(r.Days),red:lmCellOn(r.Red),lm:lmCellTxt(r.LM),am:lmCellTxt(r.AM),dm:lmCellTxt(r.DM),nextContact:lmSheetDay(r['Next Contact']),apptAt:lmCellTxt(r['Appt At']),apptDay:lmSheetDay(r['Appt At']),value:lmCellVal(r.Value),as:'_as' in r?lmCellTxt(r._as).split(',').map(lmCellTxt).filter(Boolean):null}));
+  out.ok=true;out.why='';return out;}
+
+/* `role` is 'LM' or 'AM'. By the `_as` tag where the endpoint scoped the rows (split on the comma, never equality), by the
+   column on the owner's full tab. Jordan is 'AM, LM': his LM-tagged rows are not his AM deals. */
+function lmBoardMine(board,role,person){if(!board||!board.ok)return [];const want=lmNameKey(person),col=role==='AM'?'am':'lm';return board.rows.filter(r=>r.as?r.as.indexOf(role)>-1:lmNameKey(r[col])===want);}
+const lmBoardCount=(board,role,person)=>board&&board.ok?lmBoardMine(board,role,person).length:LM_SOURCE_STALE;
+function lmRoleTabs(src,now){const s=src||{},tabs=s.tabs||{},t=now||new Date();return {score:lmScoreRead(tabs['Role Scorecard'],t),board:lmBoardRead(tabs['Deal Board'],s.dealBoardAsOf,t)};}
+
+/* ═══════════ ROLE SCREENS (D2) — what each role sees ═══════════
+   The phone and the owner preview render the same screens, so they cannot drift. M.dealRole picks them: 'AM' only when the
+   payload is tagged and the Team role names AM, so 'AM, LM' gets the AM screens and an old payload gets the LM's, as the
+   counts already do. Tile numbers come from Role Scorecard alone, through lmKpi. The engine's tiles stay in code, because the
+   nightly reads their keys; the LM keeps two of them, Dials and Conversations, which follow the lens.
+   Colour comes only from Target Status. Vs Last Week is the KPI's value 7 days back and never colours: the lower-is-better list
+   leaves out A2-A5 and A9, so a good drop there would read red. Rates are fractions (0.85), the deck's own convention.
+   Andrew's phone carries no offer, no contract and no dollar: those tiles are gone, saved links to them land on lmNotHere, his
+   lists show a stage number only, and Role Scorecard text with those words is dropped before it prints (lmKpiText).
+   A task's words stand, because they are his work and real rows use them in plain English (an agent's contract ending), but a
+   dollar figure in one is masked (lmTaskClean). Whether the words go too is Michael's call: apps-script/README.md §5.
+   On the wire, Deal Board carries no Value, and an LM-only row carries its Stage as the number alone (scopeByRole_). His
+   payload still holds Offers, Contracts and his LM fees, and his Task text whole, which the engine's comp() and the nightly read. */
+const lmRole=M=>M&&M.dealRole==='AM'?'AM':'LM';
+/* a Team Role cell's lane: 'AM, LM' is AM, the way dealRole reads it; 'Owner, DM' is Owner; Partner has none */
+const lmLaneOf=c=>{const s=String(c==null?'':c);return /\bAM\b/i.test(s)?'AM':/\bLM\b/i.test(s)?'LM':/\bOwner\b/i.test(s)?'Owner':'';};
+const lmTabsNow=M=>lmRoleTabs(M&&M.roleSrc,new Date());   // at render: stale depends on the clock, and the app stays open
+/* M.startDate is the viewer's own: Team Start Date, else their first activity. */
+function lmStartOf(tabs,person){const want=lmNameKey(person),team=lmTabObjs(tabs.Team).find(r=>lmNameKey(r.Name)===want),day=team?lmSheetDay(team['Start Date']):'';
+  if(day)return new Date(+day.slice(0,4),+day.slice(5,7)-1,+day.slice(8,10));
+  let first=null;lmTabObjs(tabs.Calls).forEach(r=>{if(lmNameKey(r.User)!==want)return;const d=LMEngine.parseDate(r.Date);if(d&&(!first||d<first))first=d;});return first;}
+/* The host's one call after buildModel. It keeps the raw tabs and not a parsed copy, for the same reason as lmTabsNow. */
+function lmRoleAttach(M,p){if(!M)return M;const s=p||{},t=s.tabs||{};M.roleSrc={tabs:{'Role Scorecard':t['Role Scorecard'],'Deal Board':t['Deal Board']},dealBoardAsOf:s.dealBoardAsOf};M.startDate=lmStartOf(t,M.person);return M;}
+
+/* role scopes the id: a saved link can never open another role's page. fmt: pct (scorecard.py's ratio(), a 0 to 1 fraction), hrs, num.
+   The Label cell wins over label; a missing tab has no Label cell, so every id has its own. */
+const LM_KPI={
+  A1:{role:'LM',label:'First call on time',fmt:'pct',coach:'Call every new lead inside 30 working minutes of its arrival.'},
+  A2:{role:'LM',label:'Untouched leads',fmt:'num',coach:'Leads no person has touched yet. Work this queue first.'},
+  A3:{role:'LM',label:'Sellers waiting on us',fmt:'num',coach:'Sellers whose last move was toward us. Answer them before new dials.'},
+  A4:{role:'LM',label:'Holding past 1 hour',fmt:'num',coach:'Holding means no reply to the first text, so it is your window to call. Nobody sits there past 1 hour.'},
+  A5:{role:'LM',label:'Cadence behind',fmt:'num',coach:'Leads behind their call cadence. Bring the oldest back on schedule first.'},
+  A6:{role:'LM',label:'15 touches in the first 72 hours',fmt:'pct',coach:'A new lead gets 15 touches, calls and texts, in its first 72 hours.'},
+  A7:{role:'LM',label:'Dials made vs required',fmt:'pct',coach:'Dials made against the dials your queue required. The queue sets the number, not a fixed count a day.'},
+  A8:{role:'LM',label:'Walkthroughs set',fmt:'num',coach:'Walkthroughs you set. Each contact counts once.'},
+  A9:{role:'LM',label:'LM-Law misses',fmt:'num',coach:'A lead does not move to 4 until Lead Qualification and Comparables are both Completed.'},
+  A10:{role:'LM',label:'Lead→walkthrough',fmt:'pct',coach:'Walkthroughs set out of the leads that reached you, over 30 days.'},
+  J1:{role:'AM',label:'Hours, 5.1 to offer',fmt:'hrs',coach:'Hours from 5.1 entry to the offer out. The target is inside 1 business day.'},
+  J3:{role:'AM',label:'Offer→contract',fmt:'pct',coach:'Offers that became contracts, over 90 days.'},
+  J4:{role:'AM',label:'MAO accuracy',fmt:'pct',coach:'How far your MAO sits from the calculated MAO, median across deals. Stay inside ±5%.'},
+  J5:{role:'AM',label:'Next Contact current',fmt:'pct',coach:'Next Contact Date current on 5.2 to 5.4. Shown for reference: it has no target for now.'},
+  J6:{role:'AM',label:'Stuck in 5.1',fmt:'num',coach:'Cards sitting in 5.1 past 1 business day. Clear them to zero.'},
+  J9:{role:'AM',label:'Walkthrough status not set',fmt:'num',coach:'Yesterday’s walkthroughs still marked booked or confirmed. Set the status the same day.'},
+  J10:{role:'AM',label:'Offers out',fmt:'num',coach:'Offers out over 30 days.'},
+  JB1:{role:'AM',label:'Own book: due',fmt:'num',book:1,coach:'Your own book: what has come due. A card you touch and re-date leaves the count.'},
+  JB2:{role:'AM',label:'1.5 leads behind',fmt:'num',book:1,coach:'Your own 1.5 leads that have fallen behind.'}
+};
+const LM_SCORE_TILES={LM:['A1','A2','A3','A4','A5','A6','A8','A10','A7'],AM:['J6','J1','J10','J3','J5','J4','J9']};
+const LM_ACTIVITY_TILES=['calls','conversations'];
+const LM_BOOK_TILES=['JB1','JB2'];
+const LM_SPEED_CAP='first touch, calls + texts, clock minutes';
+const LM_NOT_LM={offersMade:1,contractsSigned:1,apptToContract:1};
+const LM_LM_BAR=/offer|contract|\$/i;
+const lmGated=(M,k)=>lmRole(M)==='LM'&&LM_NOT_LM[k]===1;
+const lmBack=(person,lens,to)=>'<button class="lm-back" onclick="lmGo('+lmJsq(person)+','+lmJsq(lens)+','+lmJsq(to||'')+')">‹ '+(to==='book'?'My book':'Scoreboard')+'</button>';
+const lmNotHere=(person,lens)=>lmBack(person,lmLensSafe(lens))+'<div class="lm-coach"><div class="lm-d-h">NOT ON THIS PHONE</div><p>This number sits with the Acquisition Manager.</p></div>';
+const lmLensSafe=l=>LM_LENSES.some(x=>x[0]===l)?l:'week';
+const lmMD=day=>day?(+day.slice(5,7))+'/'+(+day.slice(8,10)):'';
+const lmKpiNum=v=>(Math.round(v*10)/10).toLocaleString();
+/* A Value cell reaches here as a number or null (lmKpi). Target and Vs Last Week come through here too, unchecked, so text prints as itself and never as NaN. */
+function lmKpiShow(v,fmt){if(v==null)return '—';if(typeof v!=='number')return lmEsc(v);return fmt==='pct'?lmPctF(v):fmt==='hrs'?lmKpiNum(v)+' h':lmKpiNum(v);}
+/* J5 is parked (Michael 10/30): no target and no colour, whatever its row says. */
+const lmKpiTarget=k=>k.id==='J5'?null:k.target;
+/* k.why stays the reader's code, for the data-health strip. This is what a person reads under 'source stale'. */
+function lmWhyWords(k){const w=k.why;return w==='stale'?(k.tabAsOf?'last run '+lmMD(k.tabAsOf):'no recent run'):w==='tab missing'||w==='tab empty'?'not published yet':w==='no row'?'no number for this KPI':w==='row is behind the tab'?'left out of the last run':w==='marked stale'?'the routine could not measure it':w==='blank value'?'no number and no status':w==='unreadable value'?'the cell is not a number':w==='header changed'?'a column was renamed':w||LM_SOURCE_STALE;}
+/* [tile class, words]. Nothing measured tonight gets its status word and no colour: a green tile needs a number under it. */
+function lmKpiStatus(k){if(k.stale)return ['lm-stale',lmWhyWords(k)];if(k.id==='J5')return ['lm-none','target not set'];const s=k.status.replace(/_/g,' ');return k.value==null?['lm-none',s]:s==='on track'?['lm-ahead',s]:s==='behind'?['lm-behind',s]:['lm-none',s];}
+/* the sheet's words, cleared for this viewer. A row behind the tab keeps its Note in lmKpi, and that Note can hold yesterday's number. */
+function lmKpiText(M,k){const ok=s=>lmRole(M)==='LM'&&LM_LM_BAR.test(s)?'':s,d=LM_KPI[k.id]||{};return {label:ok(k.label)||d.label||k.id,note:k.why==='row is behind the tab'?'':ok(k.note),source:ok(k.source)};}
+function lmScoreTile(M,person,lens,R,id){const d=LM_KPI[id],k=lmKpi(R.score,person,id),st=lmKpiStatus(k),tx=lmKpiText(M,k),bits=[];
+  if(!k.stale){const tg=lmKpiTarget(k);if(tg!=null)bits.push('🎯 <b>'+lmKpiShow(tg,d.fmt)+'</b>');if(k.vsLastWeek!=null)bits.push('last wk <b>'+lmKpiShow(k.vsLastWeek,d.fmt)+'</b>');if(k.n!=null)bits.push('n <b>'+lmEsc(k.n)+'</b>');}
+  return '<button class="lm-tile '+st[0]+'" onclick="lmGo('+lmJsq(person)+','+lmJsq(lens)+','+lmJsq('kpi-'+id)+')"><div class="lm-t-top"><span class="lm-t-lbl">'+lmEsc(tx.label)+'</span></div><div class="lm-t-val'+(k.stale?' stale':'')+'">'+(k.stale?LM_SOURCE_STALE:lmKpiShow(k.shown,d.fmt))+'</div><div class="lm-t-foot"><span>'+lmEsc(st[1])+'</span></div>'+(bits.length?'<div class="lm-t-bars">'+bits.join('<i>·</i>')+'</div>':'')+(tx.note?'<div class="lm-t-note">'+lmEsc(tx.note)+'</div>':'')+'</button>';}
+const lmScoreTag=(R,tail)=>R.score.ok?'as of '+lmMD(R.score.asOf)+(tail?' · '+tail:''):LM_SOURCE_STALE+(R.score.asOf?' · last '+lmMD(R.score.asOf):'');
+function lmScoreDetail(M,person,lens,id){const d=LM_KPI[id],R=lmTabsNow(M),k=lmKpi(R.score,person,id),st=lmKpiStatus(k),tx=lmKpiText(M,k),go=(l,to)=>'<button class="lm-deals-btn" onclick="lmGo('+lmJsq(person)+','+lmJsq(lens)+','+lmJsq(to)+')">'+l+' →</button>';
+  let h=lmBack(person,lens,d.book?'book':'')+'<div class="lm-head"><div><p class="eyebrow">Scorecard'+(k.stale?'':' · as of '+lmMD(k.date))+'</p><h1>'+lmEsc(tx.label)+'</h1></div></div>';
+  h+='<div class="lm-big '+st[0]+(k.stale?' stale':'')+'">'+(k.stale?LM_SOURCE_STALE:lmKpiShow(k.shown,d.fmt))+'</div><div class="lm-cmp">'+lmEsc(st[1])+'</div>';
+  const tg=lmKpiTarget(k);
+  if(!k.stale)h+='<div class="lm-bars"><div class="lm-bar'+(tg==null?' dim':'')+'"><span class="lm-bl">🎯 Target</span><span class="lm-bv">'+(tg==null?'not set':lmKpiShow(tg,d.fmt))+'</span></div><div class="lm-bar'+(k.vsLastWeek==null?' dim':'')+'"><span class="lm-bl">Last week</span><span class="lm-bv">'+(k.vsLastWeek==null?'—':lmKpiShow(k.vsLastWeek,d.fmt))+'</span></div></div>';
+  const read=[];if(tx.note)read.push(lmEsc(tx.note));if(!k.stale&&k.n!=null)read.push('Based on <b>'+lmEsc(k.n)+'</b>.');if(tx.source&&typeof RAW!=='undefined')read.push('Source: '+lmEsc(tx.source)+'.');   /* the Source cell is an engineering reference (code paths): owner preview only */
+  if(read.length)h+='<div class="lm-diag"><div class="lm-d-h">READOUT</div>'+read.map(x=>'<p>'+x+'</p>').join('')+'</div>';
+  h+='<div class="lm-coach"><div class="lm-d-h">COACH — what moves the number</div><p>'+d.coach+'</p></div>';
+  if(id==='A1'){const s=M.lenses[lmLensSafe(lens)].speed;h+=go('Clock speed '+lmSpd(s.current)+' · '+LM_SPEED_CAP,'speed');}
+  if(id==='J3'||id==='J10')h+=go('Offers Made','offersMade')+go('Contracts','contractsSigned');
+  if(id==='J6')h+=go('Deals','deals');
+  return h;}
+/* ── work lists: Deal Board, through lmBoardMine ── */
+/* the number at the front of a stage name. Andrew's lists stop at this: the words past it name offers and contracts */
+const lmStageNum=s=>{const m=String(s==null?'':s).match(/^\s*(\d+(?:\.\d+)?)/);return m?m[1]:'';};
+const lmDaysTxt=n=>n==null?'':typeof n!=='number'?lmEsc(n):n+(n===1?' day':' days');
+const lmByDays=(a,b)=>(+b.days||0)-(+a.days||0);
+const lmFirst=s=>String(s||'').trim().split(/\s+/)[0]||'';
+/* read-only for the LM: no link, no red, stage number + days. One list per AM, named from the AM column */
+function lmWithList(person,R){const none=(t,m)=>'<div class="lm-reclist"><div class="lm-rec-h">'+t+'</div><div class="lm-rec none">'+m+'</div></div>';
+  if(!R.board.ok)return none('With the AM',LM_SOURCE_STALE);
+  const rows=lmBoardMine(R.board,'LM',person);if(!rows.length)return none('With the AM','Nothing with the AM right now.');
+  const groups=Object.create(null),order=[];rows.forEach(r=>{const k=lmNameKey(r.am);if(!groups[k]){groups[k]=[];order.push(k);}groups[k].push(r);});
+  order.sort((a,b)=>groups[b].length-groups[a].length);
+  return order.map(k=>{const g=groups[k].sort(lmByDays),am=g[0].am,who=!am?'the AM':lmNameKey(am)===lmNameKey(person)?'you':lmFirst(am);
+    return '<div class="lm-reclist"><div class="lm-rec-h">With '+lmEsc(who)+' ('+g.length+')</div>'+g.map(r=>{const st=lmStageNum(r.stage),sub=[r.pipeline&&!/^acq/i.test(r.pipeline)?lmEsc(r.pipeline):'',st?'stage '+lmEsc(st):'',lmDaysTxt(r.days)].filter(Boolean).join(' · ');return '<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+lmEsc(r.lead)+'</div>'+(sub?'<div class="lm-rsub">'+sub+'</div>':'')+'</div></div>';}).join('')+'</div>';}).join('');}
+/* A plain link by default (Deal Board has no Contact ID): a Tasks row on the same opportunity lends its ghl_url, else the name is plain text.
+   Whether a follower can open that link under assigned-only permission is Michael's to test. */
+function lmOppLinks(M){const o=Object.create(null);((M.tasks&&M.tasks.tasks)||[]).forEach(t=>{if(t.opp_id&&!o[t.opp_id]&&/^https:\/\//i.test(t.ghl_url))o[t.opp_id]=t.ghl_url;});return o;}
+const lmLeadCell=(r,links)=>links[r.opp]?'<a class="lm-task-lead" href="'+lmEsc(links[r.opp])+'" target="_blank" rel="noopener">'+lmEsc(r.lead)+'</a>':lmEsc(r.lead);
+/* the time an Appt At cell means, on the sheet's clock; '' for a bare date */
+function lmApptTime(s){const t=String(s||'').match(/\b(\d{1,2}:\d{2})(?::\d{2})?\s*([AP]M)\b/i);if(t)return t[1]+' '+t[2].toUpperCase();if(/^\d{4}-\d{2}-\d{2}$/.test(s))return '';const d=new Date(s);if(isNaN(d))return '';try{const x=d.toLocaleTimeString('en-US',{timeZone:LM_SHEET_TZ,hour:'numeric',minute:'2-digit'}).replace(/\s+/g,' ');return x==='12:00 AM'?'':x;}catch(e){return '';}}
+function lmDayStrip(M,person,R){const h='<div class="lm-reclist lm-strip"><div class="lm-rec-h">Today &amp; tomorrow';
+  if(!R.board.ok)return h+'</div><div class="lm-rec none">'+LM_SOURCE_STALE+'</div></div>';
+  const today=lmSheetClock(new Date()).day,tmrw=lmDayShift(today,1),links=lmOppLinks(M),rows=lmBoardMine(R.board,'AM',person).filter(r=>r.apptDay===today||r.apptDay===tmrw).sort((a,b)=>a.apptDay.localeCompare(b.apptDay)||(Date.parse(a.apptAt)||0)-(Date.parse(b.apptAt)||0));
+  if(!rows.length)return h+'</div><div class="lm-rec none">Nothing booked today or tomorrow.</div></div>';
+  return h+' ('+rows.length+')</div>'+rows.map(r=>'<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+lmLeadCell(r,links)+'</div><div class="lm-rsub">'+lmEsc(r.stage)+'</div></div><div class="lm-rmetric lm-rd">'+(r.apptDay===today?'Today':'Tomorrow')+' '+lmEsc(lmApptTime(r.apptAt))+'</div></div>').join('')+'</div>';}
+/* Next Contact prints as plain text: NCD is parked, so it gets no colour and no alert. Red is the board's own cell, not recomputed */
+function lmAmDeals(M,person,R){const h='<div class="lm-reclist"><div class="lm-rec-h">Deals';
+  if(!R.board.ok)return h+'</div><div class="lm-rec none">'+LM_SOURCE_STALE+'</div></div>';
+  const rows=lmBoardMine(R.board,'AM',person).slice().sort((a,b)=>(b.red-a.red)||lmByDays(a,b)),links=lmOppLinks(M);
+  if(!rows.length)return h+' (0)</div><div class="lm-rec none">No deals on your board.</div></div>';
+  return h+' ('+rows.length+')</div>'+rows.map(r=>{const sub=[r.stage?lmEsc(r.stage):'',r.nextContact?'next contact '+lmMD(r.nextContact):''].filter(Boolean).join(' · ');return '<div class="lm-rec"><div class="lm-rmain"><div class="lm-rn">'+lmLeadCell(r,links)+'</div>'+(sub?'<div class="lm-rsub">'+sub+'</div>':'')+'</div><div class="lm-rmetric lm-rd'+(r.red?' red':'')+'">'+lmDaysTxt(r.days)+'</div></div>';}).join('')+'</div>';}
+function lmBookView(M,person,lens){const R=lmTabsNow(M);return lmBack(person,lens)+'<div class="lm-head"><div><p class="eyebrow">Your own leads</p><h1>My book</h1></div></div><div class="sec-h"><h2>Book</h2><span class="tag">'+lmScoreTag(R,'tap a tile')+'</span></div><section class="lm-tiles">'+LM_BOOK_TILES.map(id=>lmScoreTile(M,person,lens,R,id)).join('')+'</section>';}
+/* ── Make More Money without a dollar: the role's levers, each with its number from Role Scorecard ── */
+const LM_ROLE_LEVERS={
+  LM:[{ids:['A1'],title:'Call new leads inside 30 working minutes',goal:'Be first to every fresh lead'},
+    {ids:['A2'],title:'Clear the untouched queue',goal:'No new lead waits for a first human touch'},
+    {ids:['A4'],title:'Keep Holding under 1 hour',goal:'Call everyone in Holding inside the hour'},
+    {ids:['A5','A6'],title:'Stay on cadence',goal:'Keep every lead on its cadence: 15 touches, calls and texts, in its first 72 hours'},
+    {ids:['A9'],title:'LQ + Comps before 4',goal:'Both Completed before a lead moves to stage 4'}],
+  AM:[{ids:['J1'],title:'Offer out inside 1 business day',goal:'Move from 5.1 to an offer out the next business day at the latest'},
+    {ids:['J6'],title:'Clear 5.1',goal:'No card sits in 5.1 past 1 business day'},
+    {ids:['J4'],title:'MAO within ±5%',goal:'Stay inside ±5% of the calculated MAO'},
+    {ids:['J9'],title:'Walkthrough status same day',goal:'Set every walkthrough’s status the day it happens'},
+    {ids:['J3'],title:'Offer→contract',goal:'Follow up every offer out until it is a yes or a no'}]
+};
+function lmLeverNow(M,person,R,ids){const parts=ids.map(id=>{const k=lmKpi(R.score,person,id),d=LM_KPI[id];if(k.stale)return null;const tg=lmKpiTarget(k);return (ids.length>1?lmEsc(lmKpiText(M,k).label)+' ':'')+lmKpiShow(k.shown,d.fmt)+(tg!=null?' · target '+lmKpiShow(tg,d.fmt):k.status==='target not set'?' · target not set':'');});return parts.every(p=>p===null)?LM_SOURCE_STALE:parts.map(p=>p===null?LM_SOURCE_STALE:p).join(' · ');}
+function lmRoleLevers(M,person){const R=lmTabsNow(M),first=lmFirst(person)||'You';
+  const card=L=>'<div class="lm-scen"><div class="lm-scen-l"><div class="lm-scen-t">'+L.title+'</div><div class="lm-scen-now">'+lmLeverNow(M,person,R,L.ids)+'</div><div class="lm-scen-goal">→ '+L.goal+'</div></div></div>';
+  return '<div class="lm-head"><div><p class="eyebrow">Make more money · your levers</p><h1>'+lmEsc(first)+'’s levers</h1></div></div>'+lmNoPay()+'<div class="lm-foc lever"><div class="lm-foc-h">What moves your numbers · '+lmScoreTag(R)+'</div>'+LM_ROLE_LEVERS[lmRole(M)].map(card).join('')+'</div>';}
+/* ── one route table for both hosts ── */
+const LM_ROUTES={deals:1,focus:1,tasks:1,book:1};
+const lmKpiId=m=>/^kpi-/.test(String(m||''))?String(m).slice(4).toUpperCase():'';
+const lmIsView=m=>!m||LM_ROUTES[m]===1||LM_EARN[m]===1||!!lmKpiId(m);
+/* Whatever a saved link names: a route this role does not have, or a key this build does not know, lands on home, never on a render error. */
+function lmRoute(M,person,lens,metric,team){const L=lmLensSafe(lens),kid=lmKpiId(metric),d=kid?LM_KPI[kid]:null;
+  if(metric==='tasks')return lmTasksView(M,person);
+  if(metric==='focus')return lmFocusView(M,person,L);
+  if(metric==='deals')return lmDealsView(M,person,L);
+  if(metric==='book'&&lmRole(M)==='AM')return lmBookView(M,person,L);
+  if(LM_EARN[metric]===1)return lmEarnView(M,person,L,metric);
+  if(d&&d.role===lmRole(M))return lmScoreDetail(M,person,L,kid);
+  if(metric&&!lmIsView(metric)&&(lmGated(M,metric)||Object.prototype.hasOwnProperty.call(M.lenses[L],metric)))return lmDetail(M,person,L,metric);
+  return lmHome(M,person,L,team);}
+
 /* tabs.Tasks / tabs.Review → {present, tasks, flags}. present=false when the endpoint sent no Tasks tab (null). */
 function lmTasksParse(tabs){tabs=tabs||{};const present=Array.isArray(tabs.Tasks);
   const tasks=present?lmTabObjs(tabs.Tasks).map(t=>{['task_id','owner','visibility','status','kind','source','lead','ask','why','due','date','note','done_at','done_by','snoozed_until','ghl_url','contact_id','opp_id','created_by'].forEach(k=>t[k]=String(t[k]==null?'':t[k]).trim());t.priority=(+t.priority>=1&&+t.priority<=3)?+t.priority:2;return t;}).filter(t=>t.task_id):[];
@@ -375,6 +621,13 @@ function lmTasksParse(tabs){tabs=tabs||{};const present=Array.isArray(tabs.Tasks
 /* the LM's own rows — and never a private (visibility=owner) row, whatever the payload says */
 const lmTasksMine=(T,person)=>(T&&T.tasks||[]).filter(t=>t.owner===person&&t.visibility!=='owner');
 const lmFlagsMine=(T,person)=>(T&&T.flags||[]).filter(f=>f.from===person);
+/* Andrew's phone shows no dollar figure, and tasks_sync keeps a seller's own figures on an LM's task on purpose, so the view masks them
+   for role LM. In lmTasksView, before the buckets, and never in lmTaskRow: the owner deck shares that row, and the flag form repeats
+   this ask. A mask, not the report's dropped sentence (render_memo._withhold): on these rows the figure sits inside the instruction, and
+   the sentence is the task. A figure only: '$/sqft' is his Comparables instruction. A typed `note` stays as written: its box saves back. */
+const LM_FIGURE=/\$\s?\d[\d,]*(?:\.\d+)?(?:\s?(?:k|mm?|thousand|million))?\b/gi;
+const lmNoFigure=s=>String(s==null?'':s).replace(LM_FIGURE,'[figure]');
+const lmTaskClean=(M,t)=>lmRole(M)==='LM'?Object.assign({},t,{ask:lmNoFigure(t.ask),why:lmNoFigure(t.why)}):t;
 /* Overdue (due before today) · Now (priority 1, or due within the hour) · Today · Later (snoozed / priority 3 / future) · Done today */
 function lmTaskBuckets(tasks,now){now=now||new Date();const today=lmDayStr(now),nowMs=now.getTime(),B={overdue:[],now:[],today:[],later:[],done:[]};
   (tasks||[]).forEach(t=>{let st=t.status;
@@ -427,7 +680,7 @@ function lmTasksView(M,person){const T=M&&M.tasks,today=lmDayStr(new Date());
   if(!T||!T.present)return h+'<div class="lm-coach"><div class="lm-d-h">TASKS NOT CONNECTED</div><p>The endpoint did not send a Tasks tab. Ask Michael to redeploy the LM endpoint with the Tasks and Review tabs.</p></div>';
   if(LM_FLAG_CTX)LM_FLAG_CTX.person=M.person||person;     // the identity the token resolved to — the ONLY item_owner a flag ever carries
   h+=lmFlagFormHtml(LM_FLAG_CTX);
-  const B=lmTaskBuckets(lmTasksMine(T,person));
+  const B=lmTaskBuckets(lmTasksMine(T,person).map(t=>lmTaskClean(M,t)));
   h+=lmTaskSection('Overdue',B.overdue,'red',today)+lmTaskSection('Now',B.now,'now',today)+lmTaskSection('Today',B.today,'',today)+lmTaskSection('Later',B.later,'dim',today);
   if(!B.overdue.length&&!B.now.length&&!B.today.length&&!B.later.length)h+='<div class="lm-tsec"><div class="lm-rec none">All clear — nothing open right now.</div></div>';
   if(B.done.length)h+='<details class="lm-tsec dim"><summary>Done today · '+B.done.length+'</summary>'+B.done.map(t=>lmTaskRow(t,today,true)).join('')+'</details>';

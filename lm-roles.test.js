@@ -209,24 +209,30 @@ const NOPAY = 'Pay plan not set';
 const money = h => /\$/.test(h);   // any dollar sign at all: a pay view must carry none
 const KEYS = ['calls', 'conversations', 'qualifying', 'connectRate', 'reached', 'talkTime', 'speed', 'leads', 'apptsBooked', 'apptsShowed', 'offersMade', 'contractsSigned', 'showRate', 'leadToAppt', 'apptToContract'];
 const BUCKETS = ['earned', 'earmarked', 'projected', 'potential'];
-function sweep(label, P) {
+/* The tile, drawn directly: home now shows role tiles, but the engine's tiles stay in code and Dials and Conversations still use it. */
+const tileHtml = (P, pay, key) => vm.runInContext('(function(p,k){var M=LMGamify.gamify(LMEngine.buildModel(p));return lmTile(M,M.person,"week",lmTileDef(k));})', P.ctx)(JSON.parse(JSON.stringify(pay)), key);
+function sweep(label, P, role) {
   const home = P.view();
   ok(label + ': home says it, no pay cards', home.indexOf(NOPAY) > -1 && home.indexOf('lm-cstat') === -1 && !money(home));
-  ok(label + ': the Make More Money button is gone', home.indexOf('Make More Money') === -1);
-  ok(label + ': Deals & Pipeline stays, without the in-play figure', home.indexOf('Deals &amp; Pipeline →') > -1 && home.indexOf('in play') === -1);
+  ok(label + ': Make More Money stays, for the levers, with no figure', home.indexOf('Make More Money — your levers →') > -1);
+  ok(label + ': Deals & Pipeline stays, without the in-play figure (neither tab: source stale)', home.indexOf('Deals &amp; Pipeline — source stale →') > -1 && home.indexOf('in play') === -1);
   const d = P.go('deals');
-  ok(label + ': deals: funnel and deal names, no dollars', d.indexOf(NOPAY) > -1 && d.indexOf('Funnel') > -1 && d.indexOf('Seller Five') > -1 && d.indexOf('Seller Three') > -1 && !money(d));
+  ok(label + ': deals: the funnel, no dollars', d.indexOf(NOPAY) > -1 && d.indexOf('Funnel') > -1 && !money(d));
+  ok(label + ': deals: the board says source stale', d.indexOf('source stale') > -1);
+  if (role === 'AM') ok(label + ': deals: with no board his LM deals stand in, under a label that says what they are, no dollar', d.indexOf('Your LM deals') > -1 && d.indexOf('not the board') > -1 && d.indexOf('Seller Five') > -1 && !money(d));
+  else ok(label + ': deals: an LM never gets those lists', d.indexOf('Your LM deals') === -1 && d.indexOf('Seller Five') === -1 && d.indexOf('Seller Three') === -1);
+  ok(label + ': deals: the funnel fits the role', role === 'AM' ? d.indexOf('>Offers Made<') > -1 && d.indexOf('>Appts Booked<') === -1 : d.indexOf('>Appts Booked<') > -1 && d.indexOf('>Offers Made<') === -1);
   ok(label + ': each bucket says it, no dollars, no deals', BUCKETS.every(b => { const h = P.go(b); return h.indexOf(NOPAY) > -1 && !money(h) && h.indexOf('lm-ladder') === -1; }));
   const f = P.go('focus');
-  ok(label + ': a saved focus link says it, no levers, no dollars', f.indexOf(NOPAY) > -1 && !money(f) && f.indexOf('earning queue') === -1);
+  ok(label + ': focus says it, role levers, no dollars, no earning queue', f.indexOf(NOPAY) > -1 && !money(f) && f.indexOf('earning queue') === -1 && f.indexOf('lm-scen') > -1);
   ok(label + ': no tile detail carries a dollar (the coach lines dropped them)', KEYS.every(k => !money(P.go(k))) && KEYS.every(k => P.go(k).indexOf('RENDER ERROR') === -1));
 }
 (async function () {
   console.log('PHONE (lm.html) — pay hidden');
   const N = phone(jordan()); await new Promise(r => setTimeout(r, 40));
-  sweep('new payload', N);
+  sweep('new payload', N, 'AM');
   const O = phone(oldShape(jordan())); await new Promise(r => setTimeout(r, 40));
-  sweep('old payload', O);
+  sweep('old payload', O, 'LM');
 
   console.log('PHONE — the switch still works');
   const on = jordan(); on.payPlanSet = true; on.splitRate = 0.1;
@@ -268,42 +274,39 @@ function sweep(label, P) {
   const RP = phone(rq); await new Promise(r => setTimeout(r, 40));
   const r = RP.go('reached');
   ok('reach panel: one base for every percentage (27 Speed rows, not the Leads tab\'s 1)', r.indexOf('of 27 speed-tracked leads') > -1 && r.indexOf('touched <b>26</b> (96%)') > -1 && r.indexOf('reached <b>8</b> (30%)') > -1);
-  const rh = RP.view();
-  ok('the tile names the same base', rh.indexOf('Reached (of tracked leads)') > -1 && rh.indexOf('of new leads') === -1);
+  ok('the page names the same base', r.indexOf('Reached (of tracked leads)') > -1 && r.indexOf('of new leads') === -1);
 
   console.log('NO DATA — no value this period is no read, never a 100% drop');
   const nd = jordan();
   nd.tabs['Speed to Lead'] = [SH, row('10/20/2026', 40, 'Y'), row('10/13/2026', 40, 'Y')];
   nd.tabs.Appointments = [AH.concat(['_as']), appt('10/19/2026', '', 'Confirmed', J, J, 'Seller One', 'c1', 'LM,AM'), appt('', '10/20/2026', 'Showed', J, J, 'Seller One', 'c1', 'LM,AM')];
   const ND = phone(nd); await new Promise(r => setTimeout(r, 40));
-  const tile = (h, label) => { const a = h.indexOf('<span class="lm-t-lbl">' + label); return h.slice(a, h.indexOf('</button>', a)); };
-  const nh = ND.view();
-  ok('Show Rate tile: no data, not ▼ 100%', tile(nh, 'Show Rate').indexOf('no data') > -1 && tile(nh, 'Show Rate').indexOf('▼') === -1);
-  ok('Speed tile: no data, not ▼ 100%', tile(nh, 'Speed-to-Lead').indexOf('no data') > -1 && tile(nh, 'Speed-to-Lead').indexOf('▼') === -1);
+  ok('Show Rate tile: no data, not ▼ 100%', tileHtml(ND, nd, 'showRate').indexOf('no data') > -1 && tileHtml(ND, nd, 'showRate').indexOf('▼') === -1);
+  ok('Speed tile: no data, not ▼ 100%', tileHtml(ND, nd, 'speed').indexOf('no data') > -1 && tileHtml(ND, nd, 'speed').indexOf('▼') === -1);
   const ds = ND.go('showRate'), dp = ND.go('speed');
   ok('Show Rate detail + readout: no "slipping"', ds.indexOf('no data') > -1 && ds.indexOf('slipping') === -1 && ds.indexOf('100% down') === -1);
   ok('Speed detail + readout: no "right way"', dp.indexOf('no data') > -1 && dp.indexOf('right way') === -1 && dp.indexOf('100% down') === -1);
-  ok('a real zero on a count tile still reads as the drop it is', tile(nh, 'Appts Booked').indexOf('▼ 100%') > -1);
+  ok('a real zero on a count tile still reads as the drop it is', tileHtml(ND, nd, 'apptsBooked').indexOf('▼ 100%') > -1);
 
-  console.log('AM TILES — new credit reads as a count, never a record (D-10)');
+  console.log('AM PAGES — new credit reads as a count, never a record (D-10)');
   const AMV = phone(jordan()); await new Promise(r => setTimeout(r, 40));
-  const tileOf = (h, label) => { const i = h.indexOf('lm-t-lbl">' + label + '<'); return h.slice(h.lastIndexOf('<button', i), h.indexOf('</button>', i)); };
   const home2 = AMV.view();
-  ['Offers Made', 'Contracts', 'Appt→Contract'].forEach(l => {
-    const t = tileOf(home2, l);
-    ok(l + ': AM view has no badge, no pace colour, no % change, no rails', t.indexOf('lm-none') > -1 && t.indexOf('lm-badge') === -1 && t.indexOf('▲') === -1 && t.indexOf('▼') === -1 && t.indexOf('lm-t-bars') === -1 && t.indexOf('no comparison yet') > -1);
+  [['offersMade', 'Offers Made'], ['contractsSigned', 'Contracts'], ['apptToContract', 'Appt→Contract']].forEach(([k, l]) => {
+    ok(l + ': no longer a home tile', home2.indexOf('lm-t-lbl">' + l + '<') === -1);
+    const t = tileHtml(AMV, jordan(), k);
+    ok(l + ': the tile, where it is still drawn, has no badge, no pace colour, no % change, no rails', t.indexOf('lm-none') > -1 && t.indexOf('lm-badge') === -1 && t.indexOf('▲') === -1 && t.indexOf('▼') === -1 && t.indexOf('lm-t-bars') === -1 && t.indexOf('no comparison yet') > -1);
   });
-  ok('the count itself still shows', /lm-t-val">\d/.test(tileOf(home2, 'Offers Made')));
+  ok('the count itself still shows', /lm-t-val">\d/.test(tileHtml(AMV, jordan(), 'offersMade')));
   ['offersMade', 'contractsSigned', 'apptToContract'].forEach(k => {
     const d = AMV.go(k);
     ok(k + ': detail has no record card, no % line, no trailing-pace line', d.indexOf('Personal record') === -1 && d.indexOf('lm-gcards') === -1 && d.indexOf('vs last') === -1 && d.indexOf('trailing pace') === -1 && d.indexOf('no comparison yet') > -1);
   });
-  ok('a tile that is his LM work still compares', tileOf(AMV.view(), 'Appts Booked').indexOf('no comparison yet') === -1);
+  ok('a tile that is his LM work still compares', tileHtml(AMV, jordan(), 'apptsBooked').indexOf('no comparison yet') === -1);
   const lmOnly = jordan(); lmOnly.teamRole = 'LM';
   const LMV = phone(lmOnly); await new Promise(r => setTimeout(r, 40));
-  ok('the LM view is unchanged: Offers Made still compares', tileOf(LMV.view(), 'Offers Made').indexOf('no comparison yet') === -1 && tileOf(LMV.view(), 'Offers Made').indexOf('vs ') > -1);
+  ok('the LM view: a saved Offers Made link shows no page', LMV.go('offersMade').indexOf('NOT ON THIS PHONE') > -1 && LMV.go('offersMade').indexOf('lm-big') === -1);
   const OLD = phone(oldShape(jordan())); await new Promise(r => setTimeout(r, 40));
-  ok('an old payload has no AM view, so it still compares', tileOf(OLD.view(), 'Offers Made').indexOf('no comparison yet') === -1);
+  ok('an old payload has no AM view, so its tile still compares', tileHtml(OLD, oldShape(jordan()), 'offersMade').indexOf('no comparison yet') === -1);
 
   console.log('OWNER PREVIEW (index.html scopeToLM + VIEWS.lm)');
   const src = fs.readFileSync(__dirname + '/index.html', 'utf8');
@@ -325,10 +328,10 @@ function sweep(label, P) {
   const scoped = D.scopeToLM(RAW, J);
   ok('scoper ships the same switch as the endpoint', scoped.payPlanSet === false && scoped.splitRate === null && scoped.teamRole === 'AM, LM');
   const P = { view: () => { route.c = J + '~week~'; return D.VIEWS.lm().html; }, go: (m, lens) => { route.c = J + '~' + (lens || 'week') + '~' + (m || ''); return D.VIEWS.lm().html; } };
-  sweep('preview', P);
+  sweep('preview', P, 'AM');
   const ph = phone(jordan()); await new Promise(r => setTimeout(r, 40));
-  const tiles = h => (h.match(/lm-t-val">[^<]*/g) || []).join('|');
-  ok('preview and phone render the same tiles for the same rows', tiles(P.view()) === tiles(ph.view()));
+  const tiles = h => (h.match(/lm-t-val[^>]*>[^<]*/g) || []).join('|');
+  ok('preview and phone render the same tiles for the same rows', tiles(P.view()) !== '' && tiles(P.view()) === tiles(ph.view()));
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

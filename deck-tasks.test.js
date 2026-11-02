@@ -41,7 +41,7 @@ const fetch = (url, init) => { calls.post.push({ url, init, body: JSON.parse(ini
 async function load() { calls.load++; }
 const window = {}, document = { querySelectorAll: () => [] };
 const VIEWS = {};
-let RAW = { Tasks: tasksTab, Review: reviewTab, Team: [['Name', 'Role'], [J, 'LM'], [A, 'LM'], [MF, 'AM, DM']] }, META = { role: 'owner', person: MF, approver: true };
+let RAW = { Tasks: tasksTab, Review: reviewTab, Team: [['Name', 'Role'], [J, 'AM, LM'], [A, 'LM'], [MF, 'Owner, DM'], ['Edward Peugh', 'Partner']] }, META = { role: 'owner', person: MF, approver: true };
 function lmTeam() { return [J, A]; }
 eval(viewSrc + '\n' + blockSrc);
 
@@ -54,7 +54,7 @@ const ct = name => 'tcol-h"><span>' + name + '</span>';   // a column title (a p
   console.log('NAV + VERSIONS');
   ok('nav has ✓ TASKS', src.indexOf('<button data-v="tasks"><span class="g">✓</span>TASKS</button>') > -1);
   const swSrc = fs.readFileSync(__dirname + '/sw.js', 'utf8');
-  ok('index.html loads lm-view.js/css at ?v=46, sw.js cache clt-deck-v46 and V=46', (src.match(/\?v=46/g) || []).length === 4 && src.indexOf('v=45') === -1 && swSrc.indexOf("'clt-deck-v46'") > -1 && swSrc.indexOf("const V = '46'") > -1);
+  ok('index.html loads lm-view.js/css at ?v=47, sw.js cache clt-deck-v47 and V=47', (src.match(/\?v=47/g) || []).length === 4 && src.indexOf('v=46') === -1 && swSrc.indexOf("'clt-deck-v47'") > -1 && swSrc.indexOf("const V = '47'") > -1);
   ok('load() keeps role/person/approver from the payload', src.indexOf("META={role:j.role||'',person:j.person||'',approver:j.approver===true}") > -1);
 
   console.log('APPROVER (Michael)');
@@ -65,6 +65,8 @@ const ct = name => 'tcol-h"><span>' + name + '</span>';   // a column title (a p
   const jCol = v.slice(v.indexOf(ct(J)), v.indexOf(ct(A)));   // the ask also appears in the review card above — look inside the column
   ok('Jordan column: overdue row with lead link, 1 open · 1 overdue', jCol.indexOf('ASK-J1') > -1 && jCol.indexOf('contacts/detail/c1"') > -1 && jCol.indexOf('1 open · <span class="late">1 overdue</span>') > -1 && jCol.indexOf('lm-task-due late') > -1);
   ok('Unassigned column holds ASK-U', before(v, ct('Unassigned'), 'ASK-U'));
+  const laneOf = n => { const i = v.indexOf(ct(n)); return v.slice(i, v.indexOf('</div>', i)); };
+  ok('columns labelled by lane: AM wins on AM, LM · LM · Owner on Owner, DM · none for Unassigned', laneOf(J).indexOf('pill c">AM<') > -1 && laneOf(A).indexOf('pill c">LM<') > -1 && laneOf(MF).indexOf('pill c">Owner<') > -1 && laneOf('Michael (private)').indexOf('pill c">Owner<') > -1 && laneOf('Unassigned').indexOf('pill') === -1);
   ok('done/skipped today collapsed per column', v.indexOf('<summary>Done / skipped today · 1</summary>') > -1 && v.indexOf('ASK-J2') > -1 && v.indexOf('ASK-A2') > -1);
   ok('row controls: ✓ done · ⏭ skip · ⇄ reassign select · ✎ note', v.indexOf(`onclick="deckTask('set_status',{task_id:'t1',status:'done'},'lmt-t1')" aria-label="Mark done">✓ done</button>`) > -1 && v.indexOf(`{task_id:'t1',status:'skipped'}`) > -1 && v.indexOf('aria-label="Reassign" onchange="deckTask(\'assign\',{task_id:\'t1\',owner:this.value}') > -1 && v.indexOf('⇄ Unassigned') > -1 && v.indexOf('⇄ ' + A) > -1 && v.indexOf('aria-label="Add a note">✎ note</button>') > -1);
   ok('review queue at the top with the 2 pending flags, newest first', before(v, 'Review queue', ct('Michael (private)')) && before(v, 'FLAG-2', 'FLAG-1') && v.indexOf('2 to review') > -1);

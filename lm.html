@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#050B16">
-<title>CLT · LM Scoreboard</title>
+<title>CLT · Scoreboard</title>
 <link rel="manifest" href="manifest-lm.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="lm-view.css?v=46">
+<link rel="stylesheet" href="lm-view.css?v=47">
 <style>
 /* brand tokens — identical to the owner deck so colors/typography match exactly */
 :root{
@@ -60,7 +60,7 @@ h3{font-family:Sora;font-weight:700}
 <body>
 
 <div id="setup" style="display:none">
-  <div class="nm">CLT BUYERS</div><div class="sub">LM Scoreboard</div>
+  <div class="nm">CLT BUYERS</div><div class="sub">Scoreboard</div>
   <p>Paste your Apps Script <span class="mono">/exec</span> URL and token. They're stored on this device and in the page link — after connecting, use &ldquo;Add to Home Screen.&rdquo;</p>
   <label>LM endpoint URL (ends in /exec)</label>
   <input id="inUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -72,27 +72,28 @@ h3{font-family:Sora;font-weight:700}
 
 <div id="app" style="display:none">
   <div class="hd">
-    <div class="brand"><div class="nm">CLT BUYERS</div><div class="sub">LM Scoreboard</div></div>
+    <div class="brand"><div class="nm">CLT BUYERS</div><div class="sub">Scoreboard</div></div>
     <div class="live"><span class="dot" id="dot"></span><span id="fresh">—</span><button class="icobtn" id="refresh" title="Refresh" onclick="LMApp.refresh()">↻</button></div>
   </div>
   <main id="view"></main>
 </div>
 
-<script src="lm-engine.js?v=46"></script>
-<script src="lm-gamify.js?v=46"></script>
-<script src="lm-view.js?v=46"></script>
+<script src="lm-engine.js?v=47"></script>
+<script src="lm-gamify.js?v=47"></script>
+<script src="lm-view.js?v=47"></script>
 <script>
-/* Jordan's host shell. Data is PRE-SCOPED by Code-LM.gs (server-side); this
+/* The phone's host shell. Data is PRE-SCOPED by Code-LM.gs (server-side); this
    client only fetches → buildModel → renders the shared LM view. No RAW, so
    the team picker / company-goal pace / Michael benchmark auto-hide. */
 (function(){
-  var cfg={url:'',tok:'',role:'lm'}, route={lens:'week',metric:null,person:''}, M=null, charts={};
+  var cfg={url:'',tok:'',role:'lm'}, route={lens:'week',metric:null,person:''}, M=null, charts={}, lastOk=0, busy=false, RESUME_MS=300000;
   function $(id){return document.getElementById(id);}
   function css(v){try{return (getComputedStyle(document.documentElement).getPropertyValue(v)||'').trim()||'#3FD0FF';}catch(e){return '#3FD0FF';}}
   function mk(id,conf){if(charts[id])charts[id].destroy();var el=$(id);if(el&&window.Chart)charts[id]=new Chart(el,conf);}
   function setDot(s,msg){var d=$('dot');if(d)d.className='dot '+(s==='ok'?'ok':s==='err'?'err':'load');var f=$('fresh');if(f)f.textContent=msg;}
 
-  function readHash(){var h=new URLSearchParams(location.hash.slice(1));if(h.get('e'))cfg.url=h.get('e');if(h.get('t'))cfg.tok=h.get('t');cfg.role=h.get('r')||cfg.role||'lm';if(h.get('lens'))route.lens=h.get('lens');route.metric=h.get('m')||null;
+  function readHash(){var h=new URLSearchParams(location.hash.slice(1));if(h.get('e'))cfg.url=h.get('e');if(h.get('t'))cfg.tok=h.get('t');cfg.role=h.get('r')||cfg.role||'lm';if(h.get('lens'))route.lens=lmLensSafe(h.get('lens'));   /* an old link can carry lens=ytd, which the bar has no button for */
+   route.metric=h.get('m')||null;
     /* #flag=<item_key>&type=<item_type>&owner=<Team name>&date=<memo_date> — the email's flag link. The hash only PREFILLS
        the form (owner is a display hint); the flag's item_owner is always M.person, the identity the token resolved to. */
     if(h.get('flag')){LM_FLAG_CTX={item_type:h.get('type')||'task',item_key:h.get('flag'),memo_date:h.get('date')||'',owner_hint:h.get('owner')||'',label:''};route.metric='tasks';}}
@@ -101,31 +102,40 @@ h3{font-family:Sora;font-weight:700}
   function loadCfg(){try{var s=localStorage.getItem('clt_lm');if(s){var o=JSON.parse(s);cfg.url=cfg.url||o.url||'';cfg.tok=cfg.tok||o.tok||'';}}catch(e){}}
 
   /* global nav — the shared view emits onclick="lmGo(...)" */
-  window.lmGo=function(person,lens,metric){route.person=person||route.person;route.lens=lens||route.lens;var m=metric||'';route.metric=m===''?null:m;writeHash();render();try{window.scrollTo(0,0);}catch(e){}};
+  /* A lens tap stays where it is: the home lens bar sits in Activity, far down the page, and only that section follows it. */
+  window.lmGo=function(person,lens,metric){var m=metric||'',stay=m===(route.metric||'')&&(!person||person===route.person);route.person=person||route.person;route.lens=lens||route.lens;route.metric=m===''?null:m;writeHash();render();if(!stay)try{window.scrollTo(0,0);}catch(e){}};
 
   function render(){
     if(!M)return;
     var person=route.person||M.person||'', lens=route.lens||'week', metric=route.metric||'', team=[person];
     var html;
-    try{html=metric==='tasks'?lmTasksView(M,person):metric==='focus'?lmFocusView(M,person):metric==='deals'?lmDealsView(M,person,lens):LM_EARN[metric]?lmEarnView(M,person,lens,metric):(metric?lmDetail(M,person,lens,metric):lmHome(M,person,lens,team));}
+    try{html=lmRoute(M,person,lens,metric,team);}
     catch(err){html='<button class="lm-back" onclick="lmGo(\''+person+'\',\''+lens+'\',\'\')">‹ Scoreboard</button><div class="lm-coach"><div class="lm-d-h">RENDER ERROR (tap to go back)</div><p>'+String((err&&err.message)||err)+'</p></div>';}
     $('view').innerHTML=html;
     lmChartMount('lmchart',M,lens,metric,{mk:mk,css:css});
   }
 
+  function refill(){if(cfg.url)$('inUrl').value=cfg.url;if(cfg.tok)$('inTok').value=cfg.tok;}
+
+  /* the dot's time, with its date once it is not from today */
+  function stamp(ms){var d=new Date(ms),t=d.toLocaleTimeString();return d.toDateString()===new Date().toDateString()?t:(d.getMonth()+1)+'/'+d.getDate()+' '+t;}
   function load(){
-    setDot('load','connecting…');
+    busy=true;setDot('load','connecting…');
     var u=cfg.url+(cfg.url.indexOf('?')>-1?'&':'?')+'token='+encodeURIComponent(cfg.tok)+'&_cb='+Date.now();
     fetch(u,{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
       if(!j||!j.ok)throw new Error((j&&j.error)||'bad payload');
       M=window.LMGamify.gamify(window.LMEngine.buildModel(j));
       M.tasks=lmTasksParse(j.tabs);          // tabs.Tasks / tabs.Review, already scoped by Code-LM.gs; null tab → present:false
+      lmRoleAttach(M,j);                     // Role Scorecard + Deal Board, read at render; Team Start Date
       route.person=M.person||route.person||'';
       $('setup').style.display='none';$('app').style.display='';
-      setDot('ok','live · '+new Date().toLocaleTimeString());
+      busy=false;lastOk=Date.now();setDot('ok','live · '+stamp(lastOk));
       render();
     }).catch(function(err){
-      setDot('err','error');$('app').style.display='none';$('setup').style.display='';
+      busy=false;
+      /* a failed refresh keeps the good screen: the red dot says so. Only a first load falls back to setup, with what was saved in the boxes */
+      if(M){setDot('err','could not refresh · last '+stamp(lastOk));return;}
+      setDot('err','error');$('app').style.display='none';$('setup').style.display='';refill();
       $('setupErr').textContent='Could not load: '+err.message+' — check the /exec URL and token (Web App access must be "Anyone").';
     });
   }
@@ -146,9 +156,22 @@ h3{font-family:Sora;font-weight:700}
     showTasks:function(){route.metric='tasks';writeHash();render();}
   };
 
+  /* Back from the background. iOS can hold this page frozen for hours, and nothing here runs meanwhile, so the tiles' staleness and the
+     dot are as old as the last render. Past RESUME_MS, render first, so a failed fetch still leaves the clock's truth on screen, then
+     fetch. Sooner than that nothing can have changed, and a re-render would close an open form. A half-typed note or flag sits in
+     #view, and render() would wipe it, so that waits and the dot says so. */
+  function drafting(){var f=$('view').querySelectorAll('textarea,input');for(var i=0;i<f.length;i++)if(f[i].value!==f[i].defaultValue)return true;return false;}
+  function resume(){
+    if(document.hidden||!M||busy||Date.now()-lastOk<=RESUME_MS)return;
+    if(drafting()){setDot('load','paused · last '+stamp(lastOk));return;}
+    render();load();
+  }
+  document.addEventListener('visibilitychange',resume);
+  try{window.addEventListener('pageshow',function(e){if(e.persisted)resume();});}catch(e){}
+
   readHash();loadCfg();
   if(cfg.url&&cfg.tok){save();writeHash();$('setup').style.display='none';load();}
-  else{$('setup').style.display='';$('app').style.display='none';if(cfg.url)$('inUrl').value=cfg.url;}
+  else{$('setup').style.display='';$('app').style.display='none';refill();}
 
   if('serviceWorker' in navigator){try{navigator.serviceWorker.register('sw-lm.js');}catch(e){}}
 })();

@@ -1,6 +1,6 @@
 /* CLT LM Scoreboard — shared component styles (deck + Jordan's app). Uses brand CSS vars (--glow,--line,--txt,…) defined by each host's :root. */
 /* ═══════════ LM SCOREBOARD ═══════════ */
-.lm-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin:6px 0 12px}
+.lm-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:10px;margin:6px 0 12px}
 .lm-person{font-family:'IBM Plex Mono';font-size:12px;color:var(--txt);background:var(--raised);border:1px solid var(--line2);padding:7px 11px;border-radius:9px}
 select.lm-person{cursor:pointer}
 .lm-seg{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:14px}
@@ -35,6 +35,7 @@ select.lm-person{cursor:pointer}
 .lm-hero{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:radial-gradient(420px 120px at 18% 0%,var(--glow-dim),transparent),var(--card);border:1px solid var(--line2);border-radius:15px;padding:14px 16px;margin-bottom:16px}
 .lm-hl-streak{font-size:14px;color:var(--txt)} .lm-hl-streak b{font-family:'IBM Plex Mono';color:var(--glow);font-size:17px} .lm-hl-streak .fire{margin-right:6px} .lm-hl-streak.none{color:var(--txt3)}
 .lm-hl-pace{text-align:right;border-left:1px solid var(--line);padding-left:14px}
+@media(max-width:560px){.lm-hero{grid-template-columns:1fr}.lm-hl-pace{text-align:left;border-left:0;padding-left:0}}
 .lm-pl{font-family:'IBM Plex Mono';font-size:8px;letter-spacing:.22em;color:var(--txt3)}
 .lm-pv{font-family:'IBM Plex Mono';font-weight:600;font-size:18px;color:#fff} .lm-pv span{color:var(--txt3);font-size:11px}
 .lm-ps{font-family:'IBM Plex Mono';font-size:9.5px;color:var(--txt2)}
@@ -53,7 +54,6 @@ select.lm-person{cursor:pointer}
 .lm-badge{font-family:'IBM Plex Mono';font-size:9px;font-weight:600;padding:2px 6px;border-radius:7px}
 .lm-badge.fire{background:rgba(242,182,90,.16);color:var(--amber)} .lm-badge.pr{background:rgba(63,208,255,.16);color:var(--glow)}
 .lm-up{color:var(--green)} .lm-dn{color:var(--red)} .lm-flat{color:var(--txt3)}
-.lm-lb{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--txt3);text-align:center;margin-top:16px;padding:11px;border:1px dashed var(--line);border-radius:11px}
 .lm-back{background:var(--raised);border:1px solid var(--line2);color:var(--glow);border-radius:9px;padding:7px 12px;font-family:'IBM Plex Mono';font-size:11px;cursor:pointer;margin-bottom:8px}
 .lm-big{font-family:'IBM Plex Mono';font-weight:600;font-size:clamp(40px,12vw,60px);line-height:1;color:#fff;margin-top:6px}
 .lm-big.lm-ahead{color:var(--green)} .lm-big.lm-on{color:var(--amber)} .lm-big.lm-behind{color:var(--red)}
@@ -167,3 +167,16 @@ details.lm-tsec summary::-webkit-details-marker{display:none} details.lm-tsec[op
 .lm-pill{display:inline-block;font-family:'IBM Plex Mono';font-size:9px;padding:1px 7px;border-radius:99px;letter-spacing:.06em;text-transform:uppercase;margin-left:6px;background:var(--glow-dim);color:var(--glow)}
 .lm-pill.pending{background:rgba(242,182,90,.14);color:var(--amber)} .lm-pill.accepted,.lm-pill.applied{background:rgba(63,222,156,.14);color:var(--green)} .lm-pill.declined{background:rgba(240,97,126,.14);color:var(--red)}
 .lm-flag-dec{margin-top:3px;color:var(--txt);font-size:12.5px} .lm-flag-dec b{color:var(--glow);font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;margin-right:4px}
+
+/* ═══════════ ROLE SCREENS (D2) ═══════════ */
+.lm-tiles .lm-tile{display:flex;flex-direction:column;justify-content:flex-start}   /* a stretched <button> centres its content, so a short tile sat lower than its neighbour */
+.lm-tile.lm-stale{border-left-color:var(--amber);border-left-style:dashed}
+.lm-t-val.stale{font-size:14px;color:var(--amber);margin:9px 0 6px}   /* 'source stale' at the tile's 22px overflows a 375 px phone */
+.lm-t-foot span{overflow-wrap:anywhere}
+.lm-t-note{font-family:'IBM Plex Mono';font-size:9.5px;line-height:1.35;color:var(--txt2);margin-top:5px;overflow-wrap:anywhere}
+.lm-big.stale{font-size:clamp(24px,7vw,32px);color:var(--amber)}
+.lm-cap{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--txt3);margin:0 0 10px}
+.lm-sec2{margin-top:18px}
+.lm-rd.red{color:var(--red);font-weight:600}
+.lm-strip{margin:0 0 14px}
+.lm-rn a.lm-task-lead{font-size:inherit;font-weight:500}

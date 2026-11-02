@@ -33,7 +33,13 @@
  *     with `expired_by_rule` and one `notes` line. For D1 (role scoping +
  *     kpi_feed): an LM GET must carry `teamRole` and `payPlanSet:false`, and
  *     `?action=kpi_feed` with ROUTINE_TOKEN must answer ok:true while either
- *     LM token answers unauthorized (README §2 step 6).
+ *     LM token answers unauthorized (README §2 step 6). For D2 (Role Scorecard
+ *     + Deal Board): an LM GET must carry the KEYS tabs['Role Scorecard'],
+ *     tabs['Deal Board'] and dealBoardAsOf. They are null until P4's tabs
+ *     exist; an absent key means the old version is still serving. Once the
+ *     tab exists, tabs['Deal Board'][0] is 12 cells ending in `_as`, with no
+ *     `Value`, and a row tagged `LM` alone carries Stage as a bare number
+ *     (README §2 step 6).
  *  5. The KPI Staging workbook must have tabs named exactly `Tasks` and
  *     `Review` with the header rows from apps-script/TASKS.md (row 1).
  *     Missing tab -> GET ships tabs.Tasks = null; POST answers
@@ -47,7 +53,10 @@
  *   • a person's OWN rows: Leads/Calls/Speed by their one attribution column,
  *     and Appointments/Offers/Contracts/Closings by the ROLE COLUMNS (D1, since
  *     the 10/15 reorg: Andrew owns new cards, Jordan is the AM on offers), each
- *     row tagged `_as` with the role it is theirs by, and
+ *     row tagged `_as` with the role it is theirs by,
+ *   • their Role Scorecard rows by Person, and their Deal Board rows by the LM
+ *     or AM column their Team role allows (D2), never the board's Value, and
+ *     on a row that is theirs as LM alone, only the number of its Stage, and
  *   • the fee of a deal only where they are its LM.
  *
  * It NEVER serves company revenue / gross profit / cost, the full pipeline,
@@ -139,7 +148,12 @@ var PAY_PLAN_SET = false;      // D-5: pay is deferred and hidden. Flip when Mic
 
    `amNames` marks a DEAL tab: a row is the person's when its Booker (LM) or its AM
    is the person, tagged in a trailing `_as` column. `memberNames` then only decides
-   which OTHER rows ride along for the record lists — see scopeTab_. */
+   which OTHER rows ride along for the record lists — see scopeTab_.
+
+   `byRole` + `ship` mark the Deal Board (D2): see scopeByRole_. `ship` is an ALLOW-LIST
+   of header names, in place of a `cols` width: its first 11 columns on the agreed layout,
+   so a moved or inserted column can never carry Value, or anything new, to a phone. */
+var DEAL_BOARD_SHIP = ['Opp ID', 'Lead', 'Pipeline', 'Stage', 'Days', 'Red', 'LM', 'AM', 'DM', 'Next Contact', 'Appt At'];
 var PERSON_TABS = {
   'Leads':         { attrNames: ['Assigned User'], attr: 6 },
   'Appointments':  { attrNames: ['Booker (LM)'], amNames: ['AM'], memberNames: ['Contact ID'], attr: 3, member: 9 },
@@ -148,7 +162,12 @@ var PERSON_TABS = {
   'Calls':         { attrNames: ['User'], attr: 1 },
   // NOTE: Speed to Lead has its OWN Assigned User column, so it is scoped at-creation
   // exactly like Leads. Reassigned leads stay on the previous owner's speed funnel.
-  'Speed to Lead': { attrNames: ['Assigned User'], attr: 6, cols: 25 }
+  'Speed to Lead': { attrNames: ['Assigned User'], attr: 6, cols: 25 },
+  // D2, written by the routine (P4). No numeric `attr` on either: a renamed header must never
+  // scope off the wrong column. Role Scorecard ships its header alone then; the Deal Board ships
+  // null. Either way the phone says 'source stale'.
+  'Role Scorecard': { attrNames: ['Person'] },
+  'Deal Board':    { attrNames: ['LM'], amNames: ['AM'], byRole: true, ship: DEAL_BOARD_SHIP }
 };
 
 /* A header whose column carries deal money. Applied to the deal tabs and Closings:
@@ -192,14 +211,16 @@ function doGet(e) {
 
     var ss = SpreadsheetApp.openById(SHEET_ID);
 
-    // 1) person-scoped tabs: header row + ONLY this person's rows
+    // 1) Team roster — LM and AM rows only (person selector + leaderboard-ready). First,
+    //    because the Deal Board below is scoped by the role it names.
+    var team = teamRoles_(ss), teamRole = teamRoleOf_(team, person);
+
+    // 2) person-scoped tabs: header row + ONLY this person's rows
     var tabs = {};
     Object.keys(PERSON_TABS).forEach(function (name) {
-      tabs[name] = scopeTab_(ss, name, PERSON_TABS[name], person);
+      tabs[name] = scopeTab_(ss, name, PERSON_TABS[name], person, teamRole);
     });
-
-    // 2) Team roster — LM and AM rows only (person selector + leaderboard-ready)
-    tabs['Team'] = teamRoles_(ss);
+    tabs['Team'] = team;
 
     // 2b) Closings — this person's rows by Booker (LM) / AM / DM, money on LM rows only
     tabs['Closings'] = scopedClosings_(ss, tabs, person);
@@ -218,11 +239,12 @@ function doGet(e) {
       ok: true,
       role: 'lm',                     // the ENDPOINT's role; the person's job is teamRole
       person: person,
-      teamRole: teamRoleOf_(tabs['Team'], person),   // their Team-tab Role, as written: 'AM, LM', 'LM'
+      teamRole: teamRole,             // their Team-tab Role, as written: 'AM, LM', 'LM'
       fetchedAt: new Date().toISOString(),
       tasksAsOf: new Date().toISOString(),
       payPlanSet: PAY_PLAN_SET,
       splitRate: PAY_PLAN_SET ? LM_DEFAULT_SPLIT : null,
+      dealBoardAsOf: dealBoardAsOf_(ss),   // N2 sits outside the shipped columns; null = no board to trust
       tabs: tabs,
       fees: fs.fees,
       stages: fs.stages,              // dispo stage per deal → Earmarked only if "Under Contract"
@@ -258,11 +280,12 @@ function colsByName_(header, names) {
   return out;
 }
 
-function scopeTab_(ss, name, cfg, person) {
+function scopeTab_(ss, name, cfg, person, roleCell) {
   var sh = ss.getSheetByName(name);
   if (!sh) return null;
   var values = sh.getDataRange().getValues();
   if (!values.length) return [];
+  if (cfg.byRole) return scopeByRole_(values, cfg, person, roleCell);
   var width = cfg.cols || values[0].length;
   var want = norm_(person);
   var out = [cfg.amNames ? values[0].slice(0, width).concat(['_as']) : values[0].slice(0, width)];
@@ -324,6 +347,59 @@ function moneyCols_(header, width) {
   return out;
 }
 function blank_(row, cols) { cols.forEach(function (c) { row[c] = ''; }); }
+
+/* The Deal Board, one row per opportunity (D2). A row is the person's by the LM column if Team
+   makes them an LM, and by the AM column if Team makes them an AM, tagged `_as` 'LM', 'AM' or
+   'LM,AM'. The role has to come from Team, not from the row: the sheet has rows naming Andrew
+   in the AM column, and he must not receive those. Jordan is 'AM, LM', so he holds both and the
+   tag tells his clients which is which. Roles are whole words, the one test teamRoles_ and the
+   engine's dealRole use, so 'AM, LM' holds both and 'LMT' holds neither.
+   Only the `ship` columns leave, by name, in that order, so Value never reaches a phone.
+   On a row tagged LM alone the Stage cell ships as its number: past stage 4 the words name offers
+   and contracts, and an LM's phone shows none. An AM's row keeps the words, which are his work.
+   No LM or AM role (a person off the Team tab, a missing tab) is null, not an empty board: the
+   phone must say 'source stale' for it, and 0 deals would read as true. A renamed LM or AM column
+   for a role they hold is null too: dealBoardAsOf_ still has a fresh stamp, so a header-only board
+   would read as a true 0 deals. */
+function scopeByRole_(values, cfg, person, roleCell) {
+  var rc = String(roleCell == null ? '' : roleCell), isLM = /\bLM\b/i.test(rc), isAM = /\bAM\b/i.test(rc);
+  if (!isLM && !isAM) return null;
+  var want = norm_(person), head = values[0];
+  var ship = colsByName_(head, cfg.ship), lm = colsByName_(head, cfg.attrNames), am = colsByName_(head, cfg.amNames);
+  if ((isLM && !lm.length) || (isAM && !am.length)) return null;
+  var stage = colsByName_(head, ['Stage']);
+  function pick(row, lmOnly) { return ship.map(function (c) { return lmOnly && c === stage[0] ? stageNum_(row[c]) : row[c]; }); }
+  var out = [pick(head).concat(['_as'])];
+  for (var i = 1; i < values.length; i++) {
+    var tag = [];
+    if (isLM && norm_(values[i][lm[0]]) === want) tag.push('LM');
+    if (isAM && norm_(values[i][am[0]]) === want) tag.push('AM');
+    if (tag.length) out.push(pick(values[i], tag.join(',') === 'LM').concat([tag.join(',')]));
+  }
+  return out;
+}
+
+/* The number at the front of a stage name, as text; '' when it has none. The twin of lm-view.js lmStageNum. */
+function stageNum_(cell) {
+  var m = String(cell == null ? '' : cell).match(/^\s*(\d+(?:\.\d+)?)/);
+  return m ? m[1] : '';
+}
+
+/* The Deal Board's as-of stamp: 'As Of' in row 1 (N1), the stamp under it (N2), an ISO string. The
+   routine stamps it LAST, so a failed write leaves yesterday's board wearing yesterday's stamp.
+   null when the tab, the stamp or every deal is gone: a phone sees only its own rows, so it cannot
+   tell an empty board from having no deals, and this is what says the board is empty. */
+function dealBoardAsOf_(ss) {
+  var sh = ss.getSheetByName('Deal Board');
+  if (!sh) return null;
+  var v = sh.getDataRange().getValues();
+  if (v.length < 2) return null;
+  var stamp = colsByName_(v[0], ['As Of']), opp = colsByName_(v[0], ['Opp ID']);
+  if (!stamp.length || !opp.length) return null;
+  var cell = v[1][stamp[0]];
+  if (cell == null || cell === '') return null;
+  return v.slice(1).some(function (r) { return tStr_(r[opp[0]]) !== ''; }) ? tOut_(cell) : null;
+}
 
 /* Team rows whose Role names LM or AM (hides Owner/DM/Partner org rows). Whole words, so
    'Team Lead' is not an AM. Role is 'AM, LM' / 'LM' / 'Owner, DM' / 'Partner' on the live tab. */
