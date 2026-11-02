@@ -26,7 +26,7 @@ POST answers `{ok:false,error:'Tasks tab missing'}` — nothing throws.
 
 ## 2. Redeploy each editor (both, same motion)
 
-### Release order, when a release changes the Pages files AND the scripts (D1 did)
+### Release order, when a release changes the Pages files AND the scripts (D1 did, D2 does)
 
 The clients go first. The engine reads a payload with no `_as` column as all-LM, so a new
 client on the old script is correct; an old client on the new script is not (it ignores `_as`
@@ -50,6 +50,17 @@ checkout, so that checkout moves before the scripts do. In this order, all befor
 
 A phone that has not launched since the release can show an old client on the new script
 until its next launch. That is display only, and it clears itself.
+
+**D2 (Role Scorecard + Deal Board).** The same order, with the same reason to put the clients
+first: a new client on the old script finds neither tab and shows `source stale`, while an old
+client on the new script ignores the new keys. The engine files do not change in D2, so step 7 is
+a check, not a risk. The order between this release and P4 does not matter either: both tabs are
+null until P4 creates them, and nothing throws. Until they land, every scorecard tile, the Deals
+count and Jordan's day strip read `source stale` on both phones, and on the owner deck the two
+strips (one line each), the A1 tile and the data-health cells do the same while PIPELINE says
+`Deal Board not published yet` and runs on the Pipeline tab: all of that is correct, not a failed
+deploy. Jordan's Deals page keeps his LM deals under their own label until the board is current. The phone's title is now `CLT · Scoreboard`; an installed icon keeps its old label until it
+is re-added. Run the D2 probes in step 6 with both LM tokens and Michael's owner token.
 
 ### The steps
 
@@ -95,6 +106,23 @@ Follow the REDEPLOY CHECKLIST at the top of each `.gs` file. In short:
      `?action=kpi_feed&token=SET-IN-DEPLOYED-EDITOR-ROUTINE` and again with `?token=SET-IN-DEPLOYED-EDITOR-JORDAN`,
      then `…-ANDREW` → all three answer `{"ok":false,"error":"unauthorized"}`. Those strings are public: one
      left in the editor opens that door to anyone holding the `/exec` URL.
+   - D2, LM GET, with each LM token: the JSON has the keys `tabs["Role Scorecard"]`, `tabs["Deal Board"]`
+     and `dealBoardAsOf`. Before P4 creates the tabs all three are `null`, and `null` is a pass: an
+     **absent** key means the old version is still serving. Once the tabs exist:
+     `tabs["Deal Board"][0]` is 12 cells ending in `_as`, with no `Value`; Andrew's rows are all tagged
+     `LM`, and every one carries `Stage` as a bare number (`5.2`), so no row of his has `offer` or
+     `contract` in it; Jordan's are tagged `AM`, `LM` or `LM,AM`, and only his `LM` rows are bare;
+     `dealBoardAsOf` is the stamp in N2; and `tabs["Role Scorecard"]` holds only the caller's rows, none
+     with a `KPI` starting `M`.
+   - D2, owner GET, with Michael's token: the keys `tabs["Role Scorecard"]`, `tabs["Deal Board"]` and
+     `syncStatus` are present. `syncStatus.day` is the last day daily-sync ran, normally today after
+     about 9 AM, and never a day after today. Once the tabs exist, `tabs["Deal Board"][0]` carries `Value`
+     and `As Of`.
+   - D2, the owner deck, with Michael's token: open every tab and both people under TEAM. The data-health
+     strip on DECK (above the tiles while anything is red, at the foot once all is green) shows Sync Status and
+     Tasks with a date, the ticker shows `1ST CALL` and no `S2L`,
+     and CAPITAL's partner panel says `LM split: pay plan not set`. After P4's first run, PIPELINE lists the
+     Dispositions stages and the `not published yet` note is gone.
 
 ## 3. Hand the routine its token
 
@@ -122,7 +150,7 @@ it gets no scoreboard payload. The owner token never goes on disk for the routin
 ## 4. Ship the clients
 
 `lm.html`, `index.html`, `lm-view.js`, `lm-view.css` are served by GitHub Pages. Asset
-tags are at `?v=46` and both service workers (`sw-lm.js`, `sw.js`) use a `v46` cache name,
+tags are at `?v=47` and both service workers (`sw-lm.js`, `sw.js`) use a `v47` cache name,
 so phones and the deck pick the release up on the next launch. Bump all of those together
 on every release that changes a client file (the cache sweep deletes any cache whose name
 differs). Skip this section when no client file changed — e.g. the 2026-10-21 `expire_rules`
@@ -145,10 +173,94 @@ Since D1 a deal row is the person's by its role columns, not by contact. The new
 | `tabs.Leads` | `Assigned User` only. `Current Owner` no longer scopes anything. |
 | `fees`, `stages` | Only the deals the person is the LM of (Contracts rows tagged `LM`). |
 | `lmTargets` | The caller's rows plus blank-Person rows. |
+| `tabs["Role Scorecard"]` | D2. The person's rows by `Person`, every column. `null` when the tab is missing. Michael's `M` rows reach no phone. |
+| `tabs["Deal Board"]` | D2. The rows that are the person's by **Team role**: the `LM` column if Team makes them an LM, the `AM` column if it makes them an AM, tagged in a trailing `_as` (`LM`, `AM`, `LM,AM`). Twelve cells: the first 11 columns, shipped by name in `DEAL_BOARD_SHIP` order, plus `_as`. `Value` and the as-of block never ship, and neither does a column added later. On a row tagged `LM` alone, `Stage` ships as its leading number, or blank if it has none: the words past it name offers and contracts. `null` when the tab is missing, Team gives the person neither role, or the `LM` or `AM` column of a role they hold was renamed. |
+| `dealBoardAsOf` | D2. The stamp in N2, as ISO. `null` when the tab, the stamp or every deal is gone: a phone sees only its own rows, so this is what tells an empty board from having no deals. |
 
 Read `_as` by splitting on the comma, never by equality. A header with no `_as` column is the old
 shape: treat every row as `LM`. Money ships only on a deal the person is the LM of: on any other
 row of Contracts or Closings, each column whose header matches `MONEY_HEADER` is blank.
+
+**What Andrew's phone holds, and what is left for Michael to decide.** No screen on role LM shows an
+offer, a contract or a dollar figure, and Deal Board carries none on the wire. Two things are held
+back from that on purpose, and each needs a decision before it changes:
+
+- *His own GET still holds dollars and offer counts, outside Deal Board:* `fees`, the Contracts gross
+  and the Closings `Revenue` on his LM rows, `goals.avgWholesaleFee`, the Offers and Contracts tabs,
+  and A8's `Note` and `Source`, which count phone offers. The engine and the nightly read them, and
+  `deck_stats.js` reads `M.comp` off the same token. To take them off, move that nightly read to its
+  own door first, then gate them on the role, here and in `scopeToLM`.
+- *His task text.* `tasks_sync` keeps a seller's own figures on an LM's task on purpose, and the
+  phone masks any `$` figure in `ask` and `why` as `[figure]`. The words `offer` and `contract` stay,
+  because real rows use them in plain English and a dropped sentence loses the task. The raw text
+  still ships in `tabs.Tasks`, and a typed `note` is not masked, because its box saves back to the
+  sheet. Taking the figures out for good is a change in `tasks_sync.py`.
+
+### The owner GET (`?token=<owner token>`), D2
+
+| key | value |
+|---|---|
+| `tabs["Role Scorecard"]` | The whole tab, `null` when missing. |
+| `tabs["Deal Board"]` | The whole tab, `null` when missing: `Value` and the `As Of` block at N1:N2 included. |
+| `syncStatus` | The newest day of the Sync Status tab that is not after today, below. `null` when the tab or a readable `daily-sync` row is missing. |
+
+```jsonc
+"syncStatus": {
+  "day": "2026-11-01",                            // the newest day with a daily-sync row, future rows skipped
+  "lastRun": "2026-11-01T08:43:44.675940-05:00",  // its newest run_ts, as written
+  "ok": ["calls", "pipeline", "speed"],           // steps any run passed that day
+  "failed": [],                                   // steps a run failed and none passed: no data today
+  "covered": ["speed"]                            // failed in one run, passed in another
+}
+```
+
+It is not the tab's last row. A cloud run writes one row per step and a local-fallback run one row
+for all three, so the last row says nothing about the other steps, and the rows are not strictly in
+time order. `covered` keeps a step that fails every morning in view behind its fallback. Step names
+are as written: a `failed_steps` cell can be free text, so escape them.
+
+### Reading the two tabs (D2)
+
+Both clients read them through one reader in `lm-view.js`, `lmRoleTabs()`, then `lmKpi()` and
+`lmBoardCount()` / `lmBoardMine()`. A tab reads `source stale`, and its rows are withheld, when it is
+missing, empty, stale, or missing a column the reader needs (`why` is `header changed`): `Date`,
+`Person`, `KPI`, `Value`, `Target Status`, `Stale` on Role Scorecard; `Opp ID`, `Pipeline`, `Stage`,
+`Days`, `Red`, `LM`, `AM`, plus `Value` on the owner's copy, on Deal Board. Exact names, because the
+readers look cells up by exact name: `Opp Id` is a rename.
+
+- **Role Scorecard** is stale when its newest `Date` is older than yesterday, or older than two days
+  back before 9 AM Eastern, while the nightly may still be running. On top of that, one KPI is stale
+  when it has no row, `Stale` set, `Target Status` of `source stale`, a row older than the tab's
+  newest `Date`, a `Value` that is not a finite number, or a blank `Value` with no status P4 writes.
+  A blank `Value` on a row with `Stale` false and a real `Target Status` is not stale: P4 writes that
+  when a KPI measures nothing tonight (nobody owed a dial). It prints `—` with its status word and
+  `Note`, no colour, and never a 0. A real 0 stays 0, and a stale row's `Note` still shows.
+- **Deal Board** uses the same 9 AM line on its as-of stamp, one day later, because the routine stamps
+  the morning it ran. **N2 must therefore be a run-time timestamp, not the memo date.**
+- Sheet dates are read on the sheet's clock, not the device's. A date cell reaches JSON as a UTC
+  instant, which lands on the day before on a phone west of Eastern.
+
+### What the owner deck adds on top (D2)
+
+- **Data health.** `syncStatus.day` and the nightly's Tasks write use the Deal Board line: today's from
+  9 AM Eastern. `tasksAsOf` is the moment of the GET, so it cannot go stale and is shown only as `read <time>`.
+  The Tasks cell judges the newest `updated_at` on an open routine row instead, because a person's
+  `set_status` bumps `updated_at` too. A `syncStatus.day` after today reads `source stale`, as a backstop to
+  the endpoint skipping such rows. While any cell is red the strip sits above the tiles, and otherwise at the foot.
+- **Scorecards.** A tab that is not current prints one line per person. Otherwise J3 and J10 carry their
+  `Note` on the cell (D-10), on a row that is not stale.
+- **PIPELINE.** `Red` is the board's own cell, so the tracker's 7 / 5 / 14 lines stay in `config.yaml`.
+  Two values have no cell on the board and are repeated in `index.html` as `DISPO_UC_STAGE` and `UC_STALE_DAYS`:
+  change them with `dispo_uc_stage` and `uc_stale_days`. A blank or $0 value is `unvalued`, never added in.
+  A missing or header-only tab says `Deal Board not published yet`; a stale one says `source stale` with its date and
+  withholds the rows. The Pipeline tab stays on the page, under its own label, because the home tiles, the capital
+  bar and PACE read it. Its list and days are live formulas, but its fee comes from the stash only daily-sync writes, so
+  that note names the last run, in red when Sync Status is. `Value` comes right after `Deal` so a phone shows it with no swipe.
+- **FUNNEL.** The lanes count contacts, by `Booker (LM)` and by `AM`, because the three tabs are event logs. A rate is
+  joined on `Contact ID`, so a phone offer does not push walkthrough→offer past 100%. Walkthroughs set are
+  Confirmed rows only: A8 and A10 add phone offers and use a window, so they will not match the lane. A lane missing
+  a column it reads by name says `source stale` and names the column, because it would otherwise print a row of 0s. A
+  header-only tab stays a real 0.
 
 ### `GET ?action=kpi_feed&token=<ROUTINE_TOKEN>` (LM `/exec` only)
 
@@ -199,6 +311,15 @@ stubbed SpreadsheetApp (the second covers role scoping, pay, targets and `kpi_fe
 `lm-roles.test.js` covers the clients' side of D1 (counting by `_as`, one population per ratio,
 pace direction, 'Pay plan not set' on the phone and the owner preview) on both payload shapes;
 `role-scoper-parity.test.js` runs the real `Code-LM.gs` and the real `scopeToLM` side by side, so the
-owner preview and the phone cannot drift (`scoper-parity.test.js` is an older local file, not in git).
+owner preview and the phone cannot drift (`scoper-parity.test.js` is an older local file, not in git);
+`role-tabs.test.js` runs the D2 reader on its own and behind both endpoints and the scoper, then again
+under other device time zones;
+`phone-roles.test.js` boots `lm.html` for both roles on today's live shape and on a fake workbook with both
+tabs, walks every route on every lens (Andrew's phone: no offer, contract or `$` anywhere, and on a salted Tasks
+tab no dollar figure, the task's own words being the one exception, §5), checks a resume from the background, and
+repeats in other zones;
+`owner-render.test.js` boots `index.html` whole on the owner payload in the same two shapes, plus stale, empty and
+pre-D2 ones: home, ticker, data health, PIPELINE, FUNNEL, Activity, Team, TASKS lanes, CAPITAL and the Channel Map
+reset, then repeats in other zones.
 (`lm-smoke.test.js` needs the private `../lm-fixture.js`; `deck-lm-render.test.js`
 is pinned to the real clock against a June-2026 fixture.)

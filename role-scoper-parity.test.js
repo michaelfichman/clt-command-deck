@@ -1,7 +1,8 @@
 /* Proves the in-deck scopeToLM() matches Code-LM.gs: the REAL .gs source runs in a vm on an
  * in-memory workbook, the REAL scoper is lifted out of index.html, and the two payloads are compared
  * tab by tab for each person. Synthetic names and fake dollars, live headers (KPI Staging, read 2026-10-30).
- * Covers AM rows, a Current Owner column and mismatched Leads/Speed populations (audit DECK-10, DECK-18).
+ * Covers AM rows, a Current Owner column and mismatched Leads/Speed populations (audit DECK-10, DECK-18),
+ * and the D2 tabs: Role Scorecard, the Deal Board by Team role, and a workbook with neither tab.
  * A separate name from the gitignored local scoper-parity.test.js, which a tracked file of the same
  * name would overwrite with no warning on `git pull`.
  * DECK_DIR points it at a deck checkout; default this directory. Run: node role-scoper-parity.test.js */
@@ -18,7 +19,24 @@ const J = 'Jordan Mathis', A = 'Andrew Estrada', M = 'Michael Fichman';
 const pad = o => { const r = new Array(26).fill(''); Object.keys(o).forEach(k => r[+k] = o[k]); return r; };
 const SPEED_H = ['Lead Created At', 'First Call At', 'Speed (Min)', 'Lead Source', 'Contact Name', 'Phone', 'Assigned User', 'Contact ID', 'Lead Source', '', 'AVG SPEED BY CHANNEL', '', '', 'Speed Call (min)', 'Speed SMS (min)', 'Speed First Touch (min)', 'First Touch Channel', 'Connected (Y/N)', 'Speed to Connect (min)', 'Connect Basis', 'Connect Channel', 'u', 'v', 'w', 'x', 'y', 'SIDE BLOCK NOT SHIPPED'];
 const sp = (d, src2, who, id, min, conn) => { const r = new Array(27).fill(''); r[0] = d; r[1] = d; r[2] = String(min); r[3] = src2; r[4] = 'Lead ' + id; r[6] = who; r[7] = id; r[8] = src2; r[13] = min; r[15] = min; r[16] = 'Call'; r[17] = conn; r[26] = 'SIDE-BLOCK-CELL'; return r; };
+const SCORE_H = ['Date', 'Person', 'Role', 'KPI', 'Label', 'Value', 'N', 'Target', 'Target Status', 'Vs Last Week', 'Source', 'Stale', 'Note'];
+const BOARD_H = ['Opp ID', 'Lead', 'Pipeline', 'Stage', 'Days', 'Red', 'LM', 'AM', 'DM', 'Next Contact', 'Appt At', 'Value', '', 'As Of'];
+const BOARD_STAMP = '2026-06-19T09:30:00.000Z';
+const bd = (opp, stage, days, red, lm, am, dm, value, stamp) => [opp, 'Lead ' + opp, 'Acquisitions', stage, days, red, lm, am, dm, '2026-06-20', '', value, '', stamp || ''];
 const RAW = {
+  'Role Scorecard': [SCORE_H,
+    ['2026-06-18', A, 'lm', 'A1', 'First call on time', 0.8, 5, 0.8, 'on_track', 0.1, 'first-call ledger', false, 'median 12 min'],
+    ['2026-06-18', A, 'lm', 'A2', 'Untouched leads', 0, '', 0, 'on_track', '', 'pulse', false, ''],
+    ['2026-06-18', J, 'am', 'J3', 'Offer to contract', 0.25, 4, 0.25, 'on_track', '', 'kpi_feed', false, 'AM credit since 6/1'],
+    ['2026-06-18', M, 'owner', 'M4', 'Closings this month', 555111, 1, 555222, 'behind', '', 'kpi_feed', false, '']],
+  'Deal Board': [BOARD_H,
+    bd('b1', '5.2: Offer Sent', 3, '', A, J, M, 777333, BOARD_STAMP),   // the handoff: Andrew's as LM, Jordan's as AM
+    bd('b2', '5.1: Offer Details', 2, 'TRUE', J, M, M, 777444),         // Jordan's by the LM column only
+    bd('b3', '6.1 Contract For Review', 6, 'TRUE', M, J, M, 777555),    // Jordan's by the AM column only
+    bd('b4', '5.3: Negotiating', 9, '', J, J, M, 777666),               // Jordan in both columns
+    bd('b5', '5.2: Offer Sent', 1, '', A, A, M, 777777),                // Andrew in both: Team makes him an LM only
+    bd('b6', '5.4: Follow Up', 1, '', M, A, M, 777888),                 // Andrew in the AM column alone: not his, by Team
+    bd('b7', 'Under Contract', 8, '', M, M, J, 777999)],                // Jordan as DM alone: DM scopes nothing
   Leads: [['Created Date', 'Lead Source', 'Contact Name', 'Phone', 'Email', 'Property Address', 'Assigned User', 'Contact ID', 'Current Owner', '', 'Current Owner synced at'],
     ['6/16/2026', 'Google Ads', 'Lead JL', '', '', '', J, 'JL1', '', '', ''],
     ['6/16/2026', 'PPC', 'Lead ML', '', '', '', M, 'ML1', '', '', ''],
@@ -66,8 +84,8 @@ function fakeSheet(values) {
   return { getDataRange() { return { getValues: () => values.map(r => r.slice()) }; }, getLastRow() { return values.length; },
     getRange(r, c, nr, nc) { return { getValues() { const out = []; for (let i = 0; i < nr; i++) out.push(values[r - 1 + i].slice(c - 1, c - 1 + nc)); return out; } }; } };
 }
-function endpoint() {
-  const sheets = {}; Object.keys(RAW).forEach(k => { sheets[k] = fakeSheet(RAW[k]); });
+function endpoint(raw) {
+  const sheets = {}; Object.keys(raw).forEach(k => { sheets[k] = fakeSheet(raw[k]); });
   const ss = { getSheetByName: n => sheets[n] || null };
   const ctx = { SpreadsheetApp: { openById: () => ss }, ContentService: { createTextOutput(s) { return { _s: s, setMimeType() { return this; } }; }, MimeType: { JSON: 'json' } },
     console, Date, Math, JSON, Object, Array, String, Number, RegExp, parseInt, parseFloat, isNaN, isFinite };
@@ -75,7 +93,7 @@ function endpoint() {
   vm.runInContext(fs.readFileSync(ROOT + '/apps-script/Code-LM.gs', 'utf8'), ctx, { filename: 'Code-LM.gs' });
   return token => JSON.parse(ctx.doGet({ parameter: { token } })._s);
 }
-const GET = endpoint();
+const GET = endpoint(RAW);
 const TOK = { [J]: 'SET-IN-DEPLOYED-EDITOR-JORDAN', [A]: 'SET-IN-DEPLOYED-EDITOR-ANDREW' };
 
 const P = scopeToLM(RAW, J);
@@ -90,7 +108,7 @@ const ok = (l, c) => { console.log((c ? '  ✓ ' : '  ✗ ') + l); c ? pass++ : 
 console.log('SCOPER PARITY (in-deck scopeToLM)');
 ok('role lm, person Jordan', P.role === 'lm' && P.person === J);
 ok('teamRole as written, pay hidden', P.teamRole === 'AM, LM' && P.payPlanSet === false && P.splitRate === null);
-ok('only whitelisted tabs', Object.keys(P.tabs).every(t => ['Leads', 'Appointments', 'Offers', 'Contracts', 'Calls', 'Speed to Lead', 'Team', 'Closings'].includes(t)));
+ok('only whitelisted tabs', Object.keys(P.tabs).every(t => ['Leads', 'Appointments', 'Offers', 'Contracts', 'Calls', 'Speed to Lead', 'Team', 'Closings', 'Role Scorecard', 'Deal Board'].includes(t)));
 ok('Calls only Jordan (no Michael/ALEX)', rows(P.tabs.Calls).every(r => r[1] === J));
 ok('Leads by Assigned User: the stale Current Owner decides nothing', rows(P.tabs.Leads).map(r => r[7]).join() === 'JL1,JL2');
 ok('Appointments: Michael X1 absent', of(P.tabs.Appointments, 'Contact ID', 'X1').length === 0);
@@ -114,6 +132,14 @@ ok('goals.avgWholesaleFee = 20000', P.goals.avgWholesaleFee === 20000);
 ok('goals: no annual revenue', P.goals.annualRevenueGoal === undefined);
 ok('deep scan: no 777111 / 777222 / 999999 / 888888 / 35555 / 31111 / 41111 / 54321', ['777111', '777222', '999999', '888888', '35555', '31111', '41111', '54321'].every(s => blob.indexOf(s) === -1));
 ok('lmTargets: his rows + blank-Person rows, never Andrew\'s', P.lmTargets.every(t => t.Person !== A) && P.lmTargets.some(t => t.Person === J) && P.lmTargets.some(t => t.Metric === 'qualifying'));
+ok('Role Scorecard: his rows only, every column', rows(P.tabs['Role Scorecard']).map(r => r[3]).join() === 'J3' && P.tabs['Role Scorecard'][0].length === 13);
+ok('Deal Board: the first 11 columns plus _as, by name, in order', same(P.tabs['Deal Board'][0], BOARD_H.slice(0, 11).concat(['_as'])));
+ok('Deal Board: LM and AM rows tagged, DM alone and Michael\'s out', rows(P.tabs['Deal Board']).map(r => r[0] + ':' + r[11]).join() === 'b1:AM,b2:LM,b3:AM,b4:LM,AM');
+ok('Deal Board: no Value, no as-of block, no board or M-row dollar anywhere in his payload', !P.tabs['Deal Board'][0].includes('Value') && !P.tabs['Deal Board'][0].includes('As Of') && ['777333', '777444', '777555', '777666', '555111', '555222'].every(s => blob.indexOf(s) === -1));
+ok('the as-of rides at the top level, the stamp reaches no row', P.dealBoardAsOf === BOARD_STAMP && rows(P.tabs['Deal Board']).every(r => r.indexOf(BOARD_STAMP) === -1));
+const PA = scopeToLM(RAW, A);
+ok('Deal Board for Andrew: by the LM column alone, b6 stays home', rows(PA.tabs['Deal Board']).map(r => r[0] + ':' + r[11]).join() === 'b1:LM,b5:LM');
+ok('Andrew\'s network carries no board dollars', ['777333', '777777', '777888'].every(s => JSON.stringify(PA.tabs['Deal Board']).indexOf(s) === -1));
 
 const lmTeam = new Function('RAW', src.slice(src.indexOf('function lmTeam(){'), src.indexOf('function lmState(){')) + '\nreturn lmTeam();');
 ok('owner picker: LM or AM as a whole word, the same people as tabs.Team', lmTeam(RAW).join() === [J, A, 'Sample Am'].join() && lmTeam(RAW).join() === rows(P.tabs.Team).map(r => r[0]).join());
@@ -121,13 +147,59 @@ ok('owner picker: LM or AM as a whole word, the same people as tabs.Team', lmTea
 console.log('LINE FOR LINE WITH Code-LM.gs (the real source, same rows)');
 [J, A].forEach(person => {
   const first = person.split(' ')[0], g = GET(TOK[person]), d = scopeToLM(RAW, person);
-  ['Leads', 'Appointments', 'Offers', 'Contracts', 'Calls', 'Speed to Lead', 'Team', 'Closings'].forEach(t => ok(first + ' ' + t + ' identical', same(g.tabs[t], d.tabs[t])));
-  ['teamRole', 'payPlanSet', 'splitRate', 'fees', 'stages', 'goals', 'lmTargets', 'person', 'role'].forEach(k => ok(first + ' ' + k + ' identical', same(g[k], d[k])));
+  ['Leads', 'Appointments', 'Offers', 'Contracts', 'Calls', 'Speed to Lead', 'Team', 'Closings', 'Role Scorecard', 'Deal Board'].forEach(t => ok(first + ' ' + t + ' identical', same(g.tabs[t], d.tabs[t])));
+  ['teamRole', 'payPlanSet', 'splitRate', 'fees', 'stages', 'goals', 'lmTargets', 'person', 'role', 'dealBoardAsOf'].forEach(k => ok(first + ' ' + k + ' identical', same(g[k], d[k])));
   const gm = E.buildModel(g, '6/19/2026 11:50:00'), dm = E.buildModel(d, '6/19/2026 11:50:00');
   ok(first + ': phone and preview show the same Leads count', gm.lenses.week.leads.current === dm.lenses.week.leads.current && gm.lenses.ytd.leads.current === dm.lenses.ytd.leads.current);
   ok(first + ': the same tiles on every lens', E.LENSES.every(l => Object.keys(gm.lenses[l]).every(k => gm.lenses[l][k].current === dm.lenses[l][k].current)));
   ok(first + ': the same comp', same(gm.comp, dm.comp));
 });
+
+console.log('THE D2 TABS IN EVERY STATE, LINE FOR LINE');
+{
+  const without = (...names) => { const r = Object.assign({}, RAW); names.forEach(n => delete r[n]); return r; };
+  const board = t => Object.assign({}, RAW, { 'Deal Board': t });
+  const STATES = {
+    'neither tab (today\'s live workbook)': without('Role Scorecard', 'Deal Board'),
+    'header only': Object.assign({}, RAW, { 'Role Scorecard': [SCORE_H], 'Deal Board': [BOARD_H] }),
+    'a blank sheet': Object.assign({}, RAW, { 'Role Scorecard': [['']], 'Deal Board': [['']] }),
+    'no stamp': board([BOARD_H, RAW['Deal Board'][2]]),
+    'no deals, only the stamp at N2': board([BOARD_H, ['', '', '', '', '', '', '', '', '', '', '', '', '', BOARD_STAMP]]),
+    'Value moved into the first 11 columns': board(RAW['Deal Board'].map(r => [r[0], r[11], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[12], r[13]])),
+    'a renamed LM header': board(RAW['Deal Board'].map((r, i) => i ? r : r.map(c => c === 'LM' ? 'Lead Manager' : c))),
+    'a renamed AM header': board(RAW['Deal Board'].map((r, i) => i ? r : r.map(c => c === 'AM' ? 'Acq Mgr' : c))),
+    'a renamed Stage header': board(RAW['Deal Board'].map((r, i) => i ? r : r.map(c => c === 'Stage' ? 'Stage Name' : c))),
+    'a stage with no number': board(RAW['Deal Board'].map(r => r[0] === 'b2' ? r.map((c, i) => i === 3 ? 'Contract Review' : c) : r)),
+    'a Team tab with no Role column': Object.assign({}, RAW, { Team: RAW.Team.map(r => [r[0], r[2], r[3]]) }),
+    'LM inside a word on Team': Object.assign({}, RAW, { Team: RAW.Team.map(r => r[0] === A ? [A, 'AM, LMT', r[2], r[3]] : r) }),
+    'roles split by a slash on Team': Object.assign({}, RAW, { Team: RAW.Team.map(r => r[0] === A ? [A, 'AM/LM', r[2], r[3]] : r) }),
+    'no Team tab': without('Team')
+  };
+  Object.keys(STATES).forEach(name => {
+    const g2 = endpoint(STATES[name]);
+    [J, A].forEach(person => {
+      const g = g2(TOK[person]), d = scopeToLM(STATES[name], person), first = person.split(' ')[0];
+      ok(name + ': ' + first + ' identical', same(g.tabs['Role Scorecard'], d.tabs['Role Scorecard']) && same(g.tabs['Deal Board'], d.tabs['Deal Board']) && same(g.dealBoardAsOf, d.dealBoardAsOf) && same(g.teamRole, d.teamRole));
+    });
+  });
+  const boardOf = (name, who) => [endpoint(STATES[name])(TOK[who]).tabs['Deal Board'], scopeToLM(STATES[name], who).tabs['Deal Board']];
+  boardOf('a renamed LM header', A).concat(boardOf('a renamed LM header', J), boardOf('a renamed AM header', J)).forEach((t, i) => ok('a renamed column for a role they hold: null on both sides (' + i + ')', t === null));
+  [[A, 'b1:LM|b5:LM'], [J, 'b1:AM|b2:LM|b3:AM|b4:LM,AM']].forEach(([who, want]) => {
+    const g = endpoint(RAW)(TOK[who]).tabs['Deal Board'], d = scopeToLM(RAW, who).tabs['Deal Board'], si = g[0].indexOf('Stage'), tag = r => r[r.length - 1], first = who.split(' ')[0];
+    ok(first + ': the rows, for the checks below', g.slice(1).map(r => r[0] + ':' + tag(r)).join('|') === want);
+    [['the phone', g], ['the preview', d]].forEach(([side, t]) => {
+      const lmOnly = t.slice(1).filter(r => tag(r) === 'LM'), rest = t.slice(1).filter(r => tag(r) !== 'LM');
+      ok(first + ', ' + side + ': no offer or contract word in an LM-only row', lmOnly.every(r => /^\d+(\.\d+)?$/.test(r[si]) && !/offer|contract/i.test(r.join(' '))));
+      ok(first + ', ' + side + ': a row he holds as AM keeps the stage in words', rest.every(r => /[a-z]/i.test(r[si])));
+    });
+  });
+  ok('a stage with no number ships blank on an LM-only row, not the words', (t => t.slice(1).find(r => r[0] === 'b2')[3] === '')(endpoint(STATES['a stage with no number'])(TOK[J]).tabs['Deal Board']));
+  const n = scopeToLM(STATES['neither tab (today\'s live workbook)'], J);
+  ok('neither tab: null tabs, null as-of, the rest of the payload whole', n.tabs['Role Scorecard'] === null && n.tabs['Deal Board'] === null && n.dealBoardAsOf === null && rows(n.tabs.Offers).length > 0);
+  ok('the model builds on a payload with neither tab', E.buildModel(n, '6/19/2026 11:50:00').person === J);
+  const v = scopeToLM(STATES['Value moved into the first 11 columns'], J);
+  ok('Value moved left: still not shipped, the 11 columns stay in order', same(v.tabs['Deal Board'][0], BOARD_H.slice(0, 11).concat(['_as'])) && JSON.stringify(v.tabs['Deal Board']).indexOf('7776') === -1);
+}
 
 console.log('MISMATCHED LEADS / SPEED POPULATIONS');
 {

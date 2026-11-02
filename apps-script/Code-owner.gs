@@ -38,7 +38,10 @@
  *     {"ok":false,"error":"unauthorized"}. For expire_rules (2026-10-21): the
  *     probe in apps-script/README.md §2 step 6, with Michael's token, must
  *     answer with `expired_by_rule` and one `notes` line. For D1: a GET with
- *     Michael's token and `action=kpi_feed` must answer unauthorized.
+ *     Michael's token and `action=kpi_feed` must answer unauthorized. For D2:
+ *     a GET must carry the keys tabs['Role Scorecard'], tabs['Deal Board'] and
+ *     syncStatus; the two tabs are null until P4 creates them, and an absent
+ *     key means the old version is still serving (README §2 step 6).
  *  5. The KPI Staging workbook must have tabs named exactly `Tasks` and
  *     `Review` with the header rows from apps-script/TASKS.md (row 1).
  *     Missing tab -> GET ships tabs.Tasks = null; POST answers
@@ -78,7 +81,11 @@ var TABS = [
   // RATE table. The deck reads all three from here; without this tab it falls back
   // to a built-in map and can apply no partner rate at all (it says so on screen
   // rather than guessing). REDEPLOY REQUIRED after adding this line.
-  'Channel Map'
+  'Channel Map',
+  // D2: the routine's two tabs (P4), whole. A missing tab ships null, and the deck says
+  // 'source stale'. The owner's Deal Board carries Value and the As Of stamp (N1:N2).
+  'Role Scorecard',
+  'Deal Board'
 ];
 
 /* One token per person: token -> EXACT Team-tab name. Replace BOTH keys with real,
@@ -142,11 +149,58 @@ function doGet(e) {
     tabs['Tasks'] = tt.Tasks;
     tabs['Review'] = tt.Review;
     out = { ok: true, role: 'owner', person: who.person, approver: who.approver,
-      fetchedAt: new Date().toISOString(), tasksAsOf: new Date().toISOString(), tabs: tabs };
+      fetchedAt: new Date().toISOString(), tasksAsOf: new Date().toISOString(),
+      syncStatus: syncStatus_(ss), tabs: tabs };
   } catch (err) {
     out = { ok: false, error: String(err) };
   }
   return json_(out);
+}
+
+/* The newest day of the Sync Status tab, for the deck's data-health strip. A summary, not the tab: it
+   grows four rows a day and this payload is fetched every 60 s.
+   NOT "the last row". A cloud run writes ONE ROW PER STEP (calls, pipeline, speed) and a local-fallback
+   run one row for all three, in either order, and the rows are not strictly in time order. The last
+   row read green 8/19-8/24 while the cloud calls step failed, and reads red on a morning the
+   fallback already passed that step.
+   So, across the newest day's daily-sync rows: `ok` = steps any run passed; `failed` = steps a run failed
+   and none passed, the ones with no data today; `covered` = failed in one run, passed in another, so a
+   step failing every day stays visible behind its fallback. Step names are kept as written (a
+   failed_steps cell can be free text). `day` and `lastRun` come from run_ts. null when the tab or a
+   readable daily-sync row is missing. A run_ts dated after today (a mistyped or wrong-clock row) is
+   skipped, the rule Role Scorecard and Deal Board follow: it would stay the newest day for good and
+   hide every real row after it. */
+function syncStatus_(ss) {
+  var sh = ss.getSheetByName('Sync Status');
+  if (!sh) return null;
+  var v = sh.getDataRange().getValues();
+  if (v.length < 2) return null;
+  var ri = tCol_(v[0], 'routine'), ti = tCol_(v[0], 'run_ts'), oki = tCol_(v[0], 'steps_ok'), fi = tCol_(v[0], 'failed_steps');
+  if (ri < 0 || ti < 0 || oki < 0 || fi < 0) return null;
+  var rows = [], day = '', today = tDayOf_(new Date());
+  for (var i = 1; i < v.length; i++) {
+    if (tNorm_(v[i][ri]) !== 'daily-sync') continue;
+    var d = tDayOf_(v[i][ti]);
+    if (!d || d > today) continue;
+    rows.push({ day: d, row: v[i] });
+    if (d > day) day = d;
+  }
+  if (!rows.length) return null;
+  // Arrays, not object keys: a step named '2' would jump the queue in Object.keys.
+  var add = function (into, cell) {
+    tStr_(cell).split(',').map(tStr_).forEach(function (x) { if (x && into.indexOf(x) < 0) into.push(x); });
+  };
+  var ok = [], bad = [], last = null;
+  rows.forEach(function (r) {
+    if (r.day !== day) return;
+    add(ok, r.row[oki]);
+    add(bad, r.row[fi]);
+    var ms = tMs_(r.row[ti]);
+    if (!last || ms > last.ms) last = { ms: ms, ts: r.row[ti] };
+  });
+  return { day: day, lastRun: tOut_(last.ts), ok: ok,
+    failed: bad.filter(function (x) { return ok.indexOf(x) < 0; }),
+    covered: bad.filter(function (x) { return ok.indexOf(x) > -1; }) };
 }
 
 function json_(obj) {

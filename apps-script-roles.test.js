@@ -334,6 +334,139 @@ console.log('KPI_FEED — lastWrite + missing tabs');
   ok('an empty workbook still answers ok', bare.ok && Object.values(bare.tabs).every(t => t === null));
 }
 
+/* ═══ D2: the two routine tabs. Every lead, dollar and stamp here is fake. ═══ */
+const SCORE_HEAD = ['Date', 'Person', 'Role', 'KPI', 'Label', 'Value', 'N', 'Target', 'Target Status', 'Vs Last Week', 'Source', 'Stale', 'Note'];
+const BOARD_HEAD = ['Opp ID', 'Lead', 'Pipeline', 'Stage', 'Days', 'Red', 'LM', 'AM', 'DM', 'Next Contact', 'Appt At', 'Value'];
+const BOARD_SIDE = ['', 'As Of'], STAMP = '2026-11-01T09:40:00.000Z';
+const board = (opp, lm, am, dm, value, side) => [opp, 'LEAD_' + opp, 'Acquisitions', '5.2: Offer Sent', 3, '', lm, am, dm, '2026-11-04', '', value, ...(side || ['', ''])];
+const score = (person, kpi, value) => ['2026-10-31', person, 'lm', kpi, 'LABEL_' + kpi, value, 4, '', 'target not set', '', 'SOURCE_' + kpi, false, 'NOTE_' + kpi];
+const BOARD_ROWS = () => [[...BOARD_HEAD, ...BOARD_SIDE],
+  board('b1', A, J, M, 700001, ['', STAMP]),   // the handoff
+  board('b2', J, M, M, 700002),                // Jordan by the LM column
+  board('b3', M, J, M, 700003),                // Jordan by the AM column
+  board('b4', J, J, M, 700004),                // Jordan in both
+  board('b5', A, A, M, 700005),                // Andrew in both: Team makes him an LM only
+  board('b6', M, A, M, 700006),                // Andrew in the AM column alone (the sheet has rows like this): not his
+  board('b7', M, M, J, 700007),                // Jordan as DM alone: DM scopes nothing
+  board('b8', M, M, M, 700008)];
+function withTabs(boardRows) {
+  const s = sheets();
+  s['Role Scorecard'] = fakeSheet([SCORE_HEAD, score(A, 'A1', 0.8), score(A, 'A2', 0), score(J, 'J3', 0.25), score(M, 'M4', 700100)]);
+  s['Deal Board'] = fakeSheet(boardRows || BOARD_ROWS());
+  return s;
+}
+const opps = t => t.slice(1).map(r => r[0] + ':' + r[r.length - 1]).join();
+
+console.log('D2 LM ENDPOINT — neither tab, today\'s live workbook');
+{
+  const g = endpoint('lm', sheets()).GET(TOK.andrew), raw = JSON.stringify(g);
+  ok('ok, and the keys are PRESENT as null: an absent key is how a probe spots the old version',
+    g.ok && 'Role Scorecard' in g.tabs && 'Deal Board' in g.tabs && g.tabs['Role Scorecard'] === null && g.tabs['Deal Board'] === null && 'dealBoardAsOf' in g && g.dealBoardAsOf === null);
+  ok('nothing else moved: role, roster and pay as before', g.teamRole === 'LM' && g.payPlanSet === false && g.tabs.Team.length === 3 && raw.indexOf('syncStatus') === -1);
+}
+console.log('D2 LM ENDPOINT — Deal Board by Team role');
+{
+  const jg2 = endpoint('lm', withTabs()).GET(TOK.jordan), ag2 = endpoint('lm', withTabs()).GET(TOK.andrew);
+  const jb = jg2.tabs['Deal Board'], ab = ag2.tabs['Deal Board'], wire = JSON.stringify(ab);
+  ok('header: the first 11 columns plus _as, 12 cells', same(ab[0], [...BOARD_HEAD.slice(0, 11), '_as']) && ab[0].length === 12);
+  ok('every row is 12 cells', ab.concat(jb).every(r => r.length === 12));
+  ok('Value leaves in no form: no header, no dollar, for either person', ![...ab[0], ...jb[0]].includes('Value') && !/7000\d\d/.test(wire + JSON.stringify(jb)));
+  ok('the as-of block stays out of the rows', !ab[0].includes('As Of') && wire.indexOf(STAMP) === -1);
+  ok('Andrew: by the LM column alone, b6 (AM column, no AM role) never leaves', opps(ab) === 'b1:LM,b5:LM');
+  ok('an LM-only row carries Stage as the number alone: no offer or contract word leaves in it', ab.slice(1).every(r => r[3] === '5.2') && !/offer|contract/i.test(ab.slice(1).map(r => r.slice(0, 1).concat(r.slice(2))).join()));
+  ok('Jordan keeps the words on a row that is his as AM, and loses them only where he is LM alone', jb.slice(1).map(r => r[3]).join('|') === '5.2: Offer Sent|5.2|5.2: Offer Sent|5.2: Offer Sent');
+  ok('Jordan (\'AM, LM\'): both columns, tagged, split on the comma by the clients', opps(jb) === 'b1:AM,b2:LM,b3:AM,b4:LM,AM');
+  ok('DM scopes nothing; Michael\'s rows reach no phone', !/b7|b8/.test(JSON.stringify(jb.slice(1).map(r => r[0]))));
+  ok('dealBoardAsOf: the N2 stamp, for both', jg2.dealBoardAsOf === STAMP && ag2.dealBoardAsOf === STAMP);
+
+  const role = (cell, tok) => { const s = withTabs(); s.Team = fakeSheet([HEAD.Team, [A, cell, 'Yes', ''], [J, 'AM, LM', 'Yes', '']]); return endpoint('lm', s).GET(tok); };
+  ok('the role cell is read as words: \' lm , am \' holds both', opps(role(' lm , am ', TOK.andrew).tabs['Deal Board']) === 'b1:LM,b5:LM,AM,b6:AM');
+  ok('role AM alone: by the AM column alone', opps(role('AM', TOK.andrew).tabs['Deal Board']) === 'b5:AM,b6:AM');
+  ok('\'AM, LMT\': LM inside a word is not LM', opps(role('AM, LMT', TOK.andrew).tabs['Deal Board']) === 'b5:AM,b6:AM');
+  ok('\'AM/LM\': whole words, the same answer the engine\'s dealRole gives', opps(role('AM/LM', TOK.andrew).tabs['Deal Board']) === 'b1:LM,b5:LM,AM,b6:AM');
+  ok('a person with no LM or AM role gets null, never an empty board', role('LMT', TOK.andrew).tabs['Deal Board'] === null);
+  const nt = withTabs(); delete nt.Team;
+  ok('no Team tab: null, never a throw, and the scorecard still ships by Person', (g => g.ok && g.tabs['Deal Board'] === null && g.tabs['Role Scorecard'].length === 3)(endpoint('lm', nt).GET(TOK.andrew)));
+}
+console.log('D2 LM ENDPOINT — the allow-list holds when the sheet moves');
+{
+  const R = BOARD_ROWS(), get = (rows, tok) => endpoint('lm', withTabs(rows)).GET(tok || TOK.jordan).tabs['Deal Board'];
+  const moved = get(R.map(r => [r[0], r[11], ...r.slice(1, 11), ...r.slice(12)]));
+  ok('Value moved left of column K: no Value, the 11 columns in order', same(moved[0], [...BOARD_HEAD.slice(0, 11), '_as']) && !/7000\d\d/.test(JSON.stringify(moved)));
+  const ins = get(R.map((r, i) => [r[0], i ? 'SELLER_PHONE' : 'Seller Phone', ...r.slice(1)]));
+  ok('a column inserted tomorrow never leaves, and nothing shifts', !/SELLER_PHONE|Seller Phone/.test(JSON.stringify(ins)) && same(ins[1].slice(0, 4), ['b1', 'LEAD_b1', 'Acquisitions', '5.2: Offer Sent']));
+  const renAM = R.map((r, i) => i ? r : r.map(c => c === 'AM' ? 'Acq Mgr' : c)), renLM = R.map((r, i) => i ? r : r.map(c => c === 'LM' ? 'Lead Manager' : c));
+  ok('a renamed AM column: null for a person who holds AM, never a header-only board under a fresh stamp', get(renAM) === null);
+  ok('a renamed LM column: null for the LM, and for Jordan who is both', get(renLM, TOK.andrew) === null && get(renLM) === null);
+  ok('...the endpoint still ships the rows of a column they do hold (the phone reads source stale off the header: role-tabs)', opps(get(renAM, TOK.andrew)) === 'b1:LM,b5:LM');
+  const hdr = get(R.slice(0, 1).concat([['', '', '', '', '', '', '', '', '', '', '', '', '', STAMP]]));
+  ok('the N2 stamp on an empty board makes no phantom row', hdr.length === 1);
+}
+console.log('D2 LM ENDPOINT — dealBoardAsOf');
+{
+  const asOf = rows => endpoint('lm', withTabs(rows)).GET(TOK.jordan).dealBoardAsOf, R = BOARD_ROWS();
+  const when = new Date('2026-11-01T09:40:00.000Z');
+  ok('a real date cell ships as an ISO string', asOf([R[0], [...R[1].slice(0, 13), when], ...R.slice(2)]) === STAMP);
+  ok('no stamp cell: null', asOf([R[0], [...R[1].slice(0, 13), ''], ...R.slice(2)]) === null);
+  ok('no As Of column: null', asOf(R.map(r => r.slice(0, 12))) === null);
+  ok('a stamp with no deals under it is an empty board: null', asOf([R[0], ['', '', '', '', '', '', '', '', '', '', '', '', '', STAMP]]) === null);
+  ok('header row alone: null', asOf([R[0]]) === null);
+  const blank = withTabs(); blank['Deal Board'] = fakeSheet([['']]);
+  ok('a blank sheet: null, never a throw', (g => g.ok && g.dealBoardAsOf === null && g.tabs['Deal Board'] === null)(endpoint('lm', blank).GET(TOK.jordan)));
+}
+console.log('D2 LM ENDPOINT — Role Scorecard');
+{
+  const ag2 = endpoint('lm', withTabs()).GET(TOK.andrew), jg2 = endpoint('lm', withTabs()).GET(TOK.jordan);
+  ok('his rows only, every column', ag2.tabs['Role Scorecard'].length === 3 && same(ag2.tabs['Role Scorecard'][0], SCORE_HEAD) && ag2.tabs['Role Scorecard'].slice(1).every(r => r[1] === A));
+  ok('Jordan sees his, not Andrew\'s', jg2.tabs['Role Scorecard'].length === 2 && jg2.tabs['Role Scorecard'][1][3] === 'J3');
+  ok('Michael\'s M rows reach no phone', ![ag2, jg2].some(g => /700100|"M4"/.test(JSON.stringify(g.tabs['Role Scorecard']))));
+  ok('a real 0 ships as 0', ag2.tabs['Role Scorecard'][2][5] === 0);
+  const s = withTabs(); s['Role Scorecard'] = fakeSheet([SCORE_HEAD.map(h => h === 'Person' ? 'Who' : h), score(A, 'A1', 0.8), score(J, 'J3', 0.25)]);
+  ok('a renamed Person header ships no rows, not the wrong column', endpoint('lm', s).GET(TOK.andrew).tabs['Role Scorecard'].length === 1);
+}
+console.log('D2 OWNER ENDPOINT');
+{
+  const none = endpoint('owner', sheets()).GET(TOK.michael);
+  ok('neither tab: keys present as null, never a throw', none.ok && 'Role Scorecard' in none.tabs && 'Deal Board' in none.tabs && none.tabs['Role Scorecard'] === null && none.tabs['Deal Board'] === null);
+  ok('no Sync Status tab: syncStatus is null and the key is there', 'syncStatus' in none && none.syncStatus === null);
+  const g = endpoint('owner', withTabs()).GET(TOK.michael), b = g.tabs['Deal Board'];
+  ok('the whole Deal Board: Value, every row, the As Of block', b[0].includes('Value') && b.length === 9 && b[1][11] === 700001 && b[0][13] === 'As Of' && b[1][13] === STAMP);
+  ok('the whole Role Scorecard, M rows included', g.tabs['Role Scorecard'].length === 5 && g.tabs['Role Scorecard'][4][3] === 'M4');
+  ok('Ed reads the same two tabs', (e => e.person === E && e.tabs['Deal Board'].length === 9)(endpoint('owner', withTabs()).GET(TOK.ed)));
+}
+console.log('D2 OWNER ENDPOINT — syncStatus: the newest day, never the last row');
+{
+  const H = ['routine', 'run_ts', 'source', 'steps_ok', 'failed_steps', 'dupes_merged', 'est_basis_connects', 'same_second_groups', 'agg_version'];
+  const R = (ts, src, ok2, bad, who) => [who || 'daily-sync', ts, src, ok2, bad, '', '', 0, 2];
+  const sync = rows => { const s = sheets(); s['Sync Status'] = fakeSheet(rows); return endpoint('owner', s).GET(TOK.michael).syncStatus; };
+  /* the shapes of the live tab: the 8/19 week, 10/30 and 11/1 */
+  const hidden = sync([H, R('2026-08-19T03:23:04.472344-04:00', 'cloud', '', 'calls'), R('2026-08-19T03:23:09.255158-04:00', 'cloud', 'pipeline', ''), R('2026-08-19T03:26:49.784134-04:00', 'cloud', 'speed', '')]);
+  ok('a failed step above a green last row is failed (the 8/19 outage the last row hid)', same(hidden.failed, ['calls']) && same(hidden.ok, ['pipeline', 'speed']) && same(hidden.covered, []));
+  const bare = sync([H, R('2026-10-30T09:27:18.750377-04:00', 'cloud', 'calls', ''), R('2026-10-30T09:27:23.185124-04:00', 'cloud', 'pipeline', ''), R('2026-10-30T09:41:30.588109-04:00', 'cloud', '', 'speed')]);
+  ok('no fallback that day: the failed step is failed', same(bare.failed, ['speed']) && bare.day === '2026-10-30');
+  const cov = sync([H, R('2026-10-30T09:41:30-04:00', 'cloud', '', 'calls'), R('2026-11-01T07:01:09-05:00', 'local-fallback', 'calls,pipeline,speed', ''), R('2026-11-01T08:43:38.973386-05:00', 'cloud', 'calls', ''),
+    R('2026-11-01T08:43:43.149775-05:00', 'cloud', 'pipeline', ''), R('2026-11-01T08:43:44.675940-05:00', 'cloud', '', 'speed')]);
+  ok('a red last row the fallback already passed is covered, not failed', same(cov.failed, []) && same(cov.covered, ['speed']));
+  ok('...and an older day\'s failure does not leak into the newest day', cov.day === '2026-11-01' && cov.failed.indexOf('calls') === -1 && cov.covered.indexOf('calls') === -1);
+  ok('lastRun: the newest run_ts as written', cov.lastRun === '2026-11-01T08:43:44.675940-05:00');
+  const ooo = sync([H, R('2026-10-17T07:20:00-04:00', 'local-fallback', 'calls,pipeline,speed', ''), R('2026-10-17T07:19:39.156574-04:00', 'cloud', 'speed', '')]);
+  ok('rows out of time order (the live R308/R309): lastRun is the newest, not the last', ooo.lastRun === '2026-10-17T07:20:00-04:00');
+  const days = sync([H, R('2026-11-01T07:01:09-05:00', 'local-fallback', 'calls', ''), R('2026-10-31T08:59:59-04:00', 'cloud', '', 'speed')]);
+  ok('a late-written older day is not the newest day', days.day === '2026-11-01' && same(days.failed, []) && same(days.ok, ['calls']));
+  const text = '1b(GHL stall x2; cloud 07:50 current),2,3,7 (skipped — cloud speed ok)';
+  ok('a free-text failed_steps cell survives', same(sync([H, R('2026-10-16T08:40:00-04:00', 'local-fallback', '', text)]).failed, ['1b(GHL stall x2; cloud 07:50 current)', '2', '3', '7 (skipped — cloud speed ok)']));
+  ok('another routine\'s newer row is not daily-sync\'s', sync([H, R('2026-10-30T09:00:00-04:00', 'cloud', 'calls', ''), R('2026-11-01T09:00:00-05:00', 'cloud', '', 'x', 'other-routine')]).day === '2026-10-30');
+  ok('a real date cell in run_ts ships as ISO', /^\d{4}-\d{2}-\d{2}T.*Z$/.test(sync([H, R(new Date('2026-10-30T13:00:00Z'), 'cloud', 'calls', '')]).lastRun));
+  ok('header only: null', sync([H]) === null);
+  ok('no daily-sync row: null', sync([H, R('2026-10-30T09:00:00-04:00', 'cloud', 'calls', '', 'other-routine')]) === null);
+  ok('an unreadable run_ts: null, never a throw', sync([H, R('not a date', 'cloud', 'calls', '')]) === null);
+  ok('a renamed column: null, never a throw', sync([H.map(h => h === 'run_ts' ? 'ran' : h), R('2026-10-30T09:00:00-04:00', 'cloud', 'calls', '')]) === null);
+  const ahead = sync([H, R('2026-10-30T09:00:00-04:00', 'cloud', 'calls', 'speed'), R('2099-11-03T09:00:00-05:00', 'cloud', 'calls,pipeline,speed', '')]);
+  ok('a run_ts after today does not hide the real day: the failure stays in view', ahead.day === '2026-10-30' && same(ahead.failed, ['speed']));
+  ok('only future rows: null, so the deck says source stale', sync([H, R('2099-11-03T09:00:00-05:00', 'cloud', 'calls', '')]) === null);
+  ok('the LM endpoint has no syncStatus', !('syncStatus' in endpoint('lm', Object.assign(sheets(), { 'Sync Status': fakeSheet([H, R('2026-10-30T09:00:00-04:00', 'cloud', 'calls', '')]) })).GET(TOK.jordan)));
+}
+
 /* ═══ end to end: the real rows through Code-LM.gs into the engine the phones and the nightly run ═══ */
 console.log('END TO END — Code-LM.gs payload → lm-engine + lm-gamify');
 {

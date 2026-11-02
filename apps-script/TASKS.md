@@ -190,7 +190,7 @@ before 2026-10-21 ignores `expire_rules` silently and answers without that field
   `#flag=<item_key>&type=<item_type>&owner=<Team name>&date=<memo_date>` — the email carries these links. On load, if
   the hash has `flag`, open the Tasks view with the form prefilled; the token still comes from localStorage.
 - Writes go through `LMApp.post(action, fields)` in the host shell: `fetch(cfg.url, {method:'POST', body: JSON.stringify({token: cfg.tok, action, ...fields}), headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow'})` → on `ok` re-run `load()`. Optimistic UI is fine; errors show inline.
-- The item's dollar figures are NOT the client's concern: the producer already withholds them for an LM who is not on the AM track.
+- The producer withholds figures of ours for an LM who is not on the AM track, and keeps the seller's own on purpose. Role LM's phone masks whatever `$` figure is left in `ask` and `why` (D2, `lmTaskClean`), because that phone shows no dollar figure. The text still ships whole in `tabs.Tasks`.
 - Bump `?v=` on the three script tags and the `sw-lm.js` cache name (v44 → v45) so phones pick up the change.
 
 ### Owner deck (`index.html`)
