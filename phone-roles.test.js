@@ -66,7 +66,7 @@ function fullRaw() {
     sc(J, 'am', 'J10', 4, { Note: 'AM credit since 9/30 · team 6' }),
     sc(J, 'am', 'J11', 3, { N: 7, Label: 'New Lead Offers', Note: '3 of 7 offers, last 4 weeks, team' }),
     sc(J, 'am', 'J12', 4, { N: 7, Label: 'Follow-Up Offers', Note: '4 of 7 offers, last 4 weeks, team' }),
-    sc(J, 'am', 'J13', 0.75, { N: 3, Target: 1, 'Target Status': 'behind', Label: 'Contracts Signed', Note: '3 in the last 4 weeks · since 4/27: 9 signed, 5 pending, 1 closed, $11,111, 2 fell, team only' }),
+    sc(J, 'am', 'J13', 0.75, { N: 3, Target: 1, 'Target Status': 'behind', Label: 'Contracts Signed', Note: '3 in the last 4 weeks · since 4/27: 9 signed, 5 pending, 1 closed, 2 fell, team only' }),
     sc(J, 'am', 'JB1', 3, { Note: '2 due today' }),
     sc(J, 'am', 'JB2', 1),
     sc(MF, 'owner', 'M8', 2, { Label: 'Deals to Sell' }), sc(MF, 'owner', 'M9', 22222, { Label: 'Pending Revenue' }), sc(MF, 'owner', 'M10', 0.75, { Label: 'Contracts Signed', Note: '$11,111 closed' })];
@@ -115,6 +115,8 @@ const tileBy = (h, label) => { const i = h.indexOf('lm-t-lbl">' + label + '<'); 
 const has = (h, x) => h.indexOf(x) > -1;
 const LM_LABELS = ['Contracts Signed', 'Appts Set', 'Speed to Lead', 'Lead to Appt', 'New Lead Offers', 'Follow-Up Offers', 'Untouched leads', 'Sellers waiting on us', 'Holding past 1 hour', 'Cadence behind', '15 touches in the first 72 hours', 'Dials made vs required'];
 const AM_LABELS = ['Contracts Signed', 'Offers Sent', 'Late Offers', 'Offer to Contract', 'New Lead Offers', 'Follow-Up Offers', 'Hours, 5.1 to offer', 'Next Contact current', 'MAO accuracy', 'Walkthrough status not set'];
+/* what a phone leads with before P0's first run: its own tiles wait for their first row */
+const P0_LABELS = ['Contracts Signed', 'New Lead Offers', 'Follow-Up Offers'], LM_LABELS_NOW = LM_LABELS.filter(l => !P0_LABELS.includes(l)), AM_LABELS_NOW = AM_LABELS.filter(l => !P0_LABELS.includes(l));
 /* the three names Michael's KPI list puts on Andrew's phone. Everything else on it stays bare of the words */
 const LM_COUNT_NAMES = /New Lead Offers|Follow-Up Offers|Contracts Signed/g, WALL = /offer|contract|\$/i;
 const inOrder = (h, ls) => ls.every((l, i) => i === 0 || (h.indexOf('lm-t-lbl">' + ls[i - 1] + '<') > -1 && h.indexOf('lm-t-lbl">' + ls[i - 1] + '<') < h.indexOf('lm-t-lbl">' + l + '<')));
@@ -128,14 +130,14 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
   {
     const a = await boot(andrew(liveRaw())), j = await boot(jordan(liveRaw()));
     const ah = a.view(), jh = j.view();
-    ok('Andrew: 12 scorecard tiles + Conversations + Dials', count(ah, /class="lm-tile /g) === 14 && inOrder(ah, LM_LABELS) && has(ah, '>Dials<') && has(ah, '>Conversations ≥75s<'));
+    ok('m6: Andrew: the 9 older scorecard tiles + Conversations + Dials, P0\'s tiles waiting on their first row', count(ah, /class="lm-tile /g) === 11 && inOrder(ah, LM_LABELS_NOW) && !has(ah, 'New Lead Offers') && has(ah, '>Dials<') && has(ah, '>Conversations ≥75s<'));
     ok('Andrew: Michael\'s order, Conversations third, between Appts Set and Speed to Lead', ah.indexOf('lm-t-lbl">Appts Set<') < ah.indexOf('>Conversations ≥75s<') && ah.indexOf('>Conversations ≥75s<') < ah.indexOf('lm-t-lbl">Speed to Lead<'));
-    ok('Andrew: every scorecard tile says source stale, with its own label', count(ah, /lm-t-val stale">source stale</g) === 12 && LM_LABELS.every(l => has(tileBy(ah, l), STALE)));
-    ok('Andrew: no number on a stale tile', LM_LABELS.every(l => { const t = tileBy(ah, l); return !/\d/.test(t.slice(t.indexOf('lm-t-val'))); }));
+    ok('Andrew: every scorecard tile says source stale, with its own label', count(ah, /lm-t-val stale">source stale</g) === 9 && LM_LABELS_NOW.every(l => has(tileBy(ah, l), STALE)));
+    ok('Andrew: no number on a stale tile', LM_LABELS_NOW.every(l => { const t = tileBy(ah, l); return !/\d/.test(t.slice(t.indexOf('lm-t-val'))); }));
     ok('Andrew: the section says it too', has(ah, 'Scorecard') && has(ah, '<span class="tag">source stale</span>'));
     ok('Andrew: the Deals button says it', has(ah, 'Deals &amp; Pipeline — source stale →'));
     ok('Andrew: no Offers/Contracts tile, no $', !/Offers Made|>Contracts<|Appt→Contract/.test(ah) && !has(ah, '$'));
-    ok('Jordan: the 10 AM tiles in order, all source stale', count(jh, /class="lm-tile /g) === 10 && inOrder(jh, AM_LABELS) && count(jh, /lm-t-val stale">source stale</g) === 10);
+    ok('m6: Jordan: the 7 older AM tiles in order, all source stale', count(jh, /class="lm-tile /g) === 7 && inOrder(jh, AM_LABELS_NOW) && count(jh, /lm-t-val stale">source stale</g) === 7);
     ok('Jordan: the Deals button and the day strip say it', has(jh, 'Deals &amp; Pipeline — source stale →') && /Today &amp; tomorrow<\/div><div class="lm-rec none">source stale/.test(jh));
     ok('Jordan: My book is there', has(jh, 'My book'));
     const bk = j.go('book');
@@ -154,10 +156,10 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
   {
     const old = clone(andrew(liveRaw())); delete old.tabs['Role Scorecard']; delete old.tabs['Deal Board']; delete old.dealBoardAsOf; delete old.teamRole; delete old.payPlanSet;
     const P = await boot(old);
-    ok('a new client on the old script: LM view, source stale, no throw', count(P.view(), /lm-t-val stale">source stale</g) === 12 && !has(P.view(), 'RENDER ERROR'));
+    ok('a new client on the old script: LM view, source stale, no throw', count(P.view(), /lm-t-val stale">source stale</g) === 9 && !has(P.view(), 'RENDER ERROR'));
     const empty = fullRaw(); empty['Role Scorecard'] = [HS]; empty['Deal Board'] = [HB];
     const E = await boot(jordan(empty));
-    ok('header-only tabs read source stale', count(E.view(), /lm-t-val stale">source stale</g) === 10 && has(E.view(), 'Deals &amp; Pipeline — source stale →'));
+    ok('header-only tabs read source stale', count(E.view(), /lm-t-val stale">source stale</g) === 7 && has(E.view(), 'Deals &amp; Pipeline — source stale →'));
     const stale = fullRaw(); stale['Role Scorecard'] = stale['Role Scorecard'].map((r, i) => i ? [...r.slice(0, 0), '2026-10-31', ...r.slice(1)] : r);
     stale['Deal Board'] = stale['Deal Board'].map(r => r.map(c => c === STAMP ? '2026-11-01T10:40:00.000Z' : c));
     const S = await boot(jordan(stale)), SA = await boot(andrew(stale));
@@ -282,16 +284,31 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
     ok('the top line leads both phones, in the sheet\'s number', inOrder(ah, ['Contracts Signed', 'Appts Set']) && inOrder(jh, ['Contracts Signed', 'Offers Sent']) && has(tileBy(ah, 'Contracts Signed'), 'lm-t-val">0.8<') && has(tileBy(jh, 'Contracts Signed'), '🎯 <b>1</b>'));
     ok('New Lead and Follow-Up Offers print as counts, Andrew\'s and Jordan\'s alike', has(tileBy(ah, 'New Lead Offers'), 'lm-t-val">3<') && has(tileBy(ah, 'Follow-Up Offers'), 'lm-t-val">4<') && has(tileBy(jh, 'New Lead Offers'), 'lm-t-val">3<') && has(tileBy(jh, 'Follow-Up Offers'), 'lm-t-val">4<'));
     ok('the top line keeps pending, closed and fell beside it, on Andrew\'s with no dollar', has(tileBy(ah, 'Contracts Signed'), '5 pending, 1 closed, 2 fell') && !has(ah, '$'));
-    ok('...and Jordan\'s carries the fee', has(tileBy(jh, 'Contracts Signed'), '1 closed, $11,111, 2 fell'));
+    ok('...and Jordan\'s holds no dollar either: the endpoint serves no company revenue, and his email reads the fee from detail', has(tileBy(jh, 'Contracts Signed'), '5 pending, 1 closed, 2 fell') && !has(tileBy(jh, 'Contracts Signed'), '$'));
     ok('Conversations on the list is the lens tile, once, with Dials alone left in Activity', count(ah, />Conversations ≥75s</g) === 1 && has(a.go('', 'month').slice(a.go('', 'month').indexOf('<h2>Activity')), '>Dials<') && !has(a.go('', 'month').slice(a.go('', 'month').indexOf('<h2>Activity')), 'Conversations'));
     a.go('');
     ok('each new tile opens its page, with coach text', [['kpi-A11', 'New Lead Offers'], ['kpi-A12', 'Follow-Up Offers'], ['kpi-A13', 'Contracts Signed']].every(([m, l]) => { const d = a.go(m); return has(d, '<h1>' + l + '</h1>') && has(d, 'COACH'); }) && has(j.go('kpi-J11'), '<h1>New Lead Offers</h1>') && has(j.go('kpi-J12'), '<h1>Follow-Up Offers</h1>') && has(j.go('kpi-J13'), '<h1>Contracts Signed</h1>'));
     ok('Jordan\'s top line opens his Contracts page', has(j.go('kpi-J13'), "'contractsSigned'"));
     ok('a role\'s page never opens on the other phone', has(a.go('kpi-J13'), '<h2>Scorecard</h2>') && has(j.go('kpi-A11'), '<h2>Scorecard</h2>') && has(a.go('kpi-M9'), '<h2>Scorecard</h2>') && has(j.go('kpi-M9'), '<h2>Scorecard</h2>'));
-    const none = fullRaw(); none['Role Scorecard'] = none['Role Scorecard'].filter(r => r[3] !== 'A11');
-    const t = tileBy((await boot(andrew(none))).view(), 'New Lead Offers');
-    ok('a night before P0 ran: no row reads source stale, never 0', has(t, 'lm-t-val stale">source stale') && has(t, 'no number for this KPI'));
+    const pre = fullRaw(); pre['Role Scorecard'] = pre['Role Scorecard'].filter(r => !['A11', 'A12', 'A13', 'J11', 'J12', 'J13', 'M8', 'M9', 'M10'].includes(r[3]));
+    const ba = (await boot(andrew(pre))).view(), bj = (await boot(jordan(pre))).view();
+    ok('m6: before P0\'s first run a new tile with no row yet waits: both phones lead with what they lead with today, no source stale', !has(ba, 'New Lead Offers') && !has(ba, 'Follow-Up Offers') && !has(ba, '>Contracts Signed<') && !has(bj, 'New Lead Offers') && !has(bj, '>Contracts Signed<') && !has(ba, 'no number for this KPI') && !has(bj, 'no number for this KPI'));
+    ok('m6: the rest of the list stands', has(ba, '>Appts Set<') && has(bj, '>Offers Sent<'));
+    const one = fullRaw(); one['Role Scorecard'] = one['Role Scorecard'].filter(r => r[3] !== 'A2');
+    ok('m6: an older tile with no row still reads source stale, never gone', has(tileBy((await boot(andrew(one))).view(), 'Untouched leads'), 'lm-t-val stale">source stale'));
+    const lost = fullRaw();
+    lost['Role Scorecard'] = lost['Role Scorecard'].map(r => r[3] === 'A13' ? ['10/28/2026', ...r.slice(1)] : r);
+    ok('m6: a new tile whose row was written and then lost reads source stale: it has been seen, so it never vanishes', has(tileBy((await boot(andrew(lost))).view(), 'Contracts Signed'), 'lm-t-val stale">source stale'));
     ok('Michael\'s rows reach no phone, on the scoper', [andrew(fullRaw()), jordan(fullRaw())].every(p => p.tabs['Role Scorecard'].slice(1).every(r => !/^M/.test(r[3]))));
+  }
+
+  console.log('A DEAL NO RUN HAS READ YET');
+  {
+    const lag = (p, n) => Object.assign(p, { teamNotRead: n });
+    const one = (await boot(lag(andrew(fullRaw()), 1))).go('deals', 'month'), two = (await boot(lag(jordan(fullRaw()), 2))).go('deals', 'month');
+    ok('the Deals page says so under the funnel, where the count would show', has(one, '1 deal not read yet · counts after the next morning run') && has(two, '2 deals not read yet') && one.indexOf('lm-funnel') < one.indexOf('not read yet'));
+    ok('no such rows, or an old endpoint: nothing prints', !has((await boot(lag(andrew(fullRaw()), 0))).go('deals', 'month'), 'not read yet') && !has((await boot(andrew(fullRaw()))).go('deals', 'month'), 'not read yet'));
+    ok('the wall: the line holds no word and no figure of ours', !WALL.test('1 deal not read yet · counts after the next morning run') && !has(one, '$'));
   }
 
   console.log("THE WALL ON ANDREW'S NEW TILES");

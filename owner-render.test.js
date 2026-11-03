@@ -76,7 +76,7 @@ function fullRaw() {
     sc(J, 'am', 'J9', 0, { Target: 0, 'Target Status': 'on_track' }),
     sc(J, 'am', 'J10', 4, { Note: 'AM credit since 9/30 · team 6' }),
     sc(J, 'am', 'J11', 3, { N: 7, Label: 'New Lead Offers' }), sc(J, 'am', 'J12', 4, { N: 7, Label: 'Follow-Up Offers' }),
-    sc(J, 'am', 'J13', 0.75, { N: 3, Target: 1, 'Target Status': 'behind', Label: 'Contracts Signed', Note: '3 in the last 4 weeks · since 4/27: 9 signed, 5 pending, 1 closed, $11,111, 2 fell, team only' }),
+    sc(J, 'am', 'J13', 0.75, { N: 3, Target: 1, 'Target Status': 'behind', Label: 'Contracts Signed', Note: '3 in the last 4 weeks · since 4/27: 9 signed, 5 pending, 1 closed, 2 fell, team only' }),
     sc(MF, 'owner', 'M1', 9),
     sc(MF, 'owner', 'M8', 2, { N: 5, Label: 'Deals to Sell', Note: 'every deal, no owner split' }),
     sc(MF, 'owner', 'M9', 22222, { N: 2, Label: 'Pending Revenue', Note: 'gross, nothing presumed' }),
@@ -144,9 +144,9 @@ const AM_LABELS = ['Contracts Signed', 'Offers Sent', 'Late Offers', 'Offer to C
   {
     const P = await boot(payload(liveRaw())), h = P.view();
     ok('boots to a home with no throw and no broken value', has(h, 'Path to') && clean(h));
-    ok('the speed tile is gone, First call on time stands in its place, and says source stale', !has(h, 'Speed to lead') && has(h, '>First call on time</div><div class="t-val stale">' + STALE + '<'));
-    ok('both strips, Team order, never ranked: Jordan before Andrew, one line each, not 16 identical cells', before(h, J + ' ›', A + ' ›') && !has(h, 'sc-grid') && count(h, /class="stale">source stale<\/b> · not published yet/g) === 3);
-    ok('Owner\'s strip has no role screen behind it, and Partner gets none', !has(h, MF + ' ›') && has(h, 'strip-nm" style="cursor:default">' + MF + '<') && !has(h, ED));
+    ok('m4: the old speed tile is gone, the A1 tile reads Speed to Lead, and says source stale', !has(h, 'Speed to lead') && !has(h, 'First call on time') && has(h, '>Speed to Lead</div><div class="t-val stale">' + STALE + '<'));
+    ok('both strips, Team order, never ranked: Jordan before Andrew, one line each, not 16 identical cells', before(h, J + ' ›', A + ' ›') && !has(h, 'sc-grid') && count(h, /class="stale">source stale<\/b> · not published yet/g) === 2);
+    ok('m6: no Owner strip before his rows exist, and Partner gets none', !has(h, MF + ' ›') && !has(h, 'strip-nm" style="cursor:default">') && !has(h, ED));
     ok('a name still opens the role screen', has(h, `lmGo('${A}','week','')`) && has(h, `lmGo('${J}','week','')`));
     ok('the reader\'s code reaches nobody: the tile says it in plain words', !/= tab missing/.test(h) && has(h, '= not published yet'));
     ok('something is red, so Data health leads the page, above the tiles', before(h, 'Data health', 'Revenue YTD'));
@@ -207,7 +207,7 @@ const AM_LABELS = ['Contracts Signed', 'Offers Sent', 'Late Offers', 'Offer to C
     ok('...and the ticker neutral, not a red source stale', has(P.tape(), '1ST CALL <b class="">—</b>'));
     ok('...while Data health is green beside it: nothing false to chase', has(hc(n, 'Role Scorecard'), 'hc ok') && !has(n, 'class="stale">source stale'));
     const ac = P.go('activity');
-    ok('Activity: the head a dash, the diagnosis says nothing to measure, not a rate with no number', has(ac, '<span class="hm-big">—</span>') && has(ac, 'First call on time: nothing to measure') && !has(ac, 'First call on time <b class="m">—'));
+    ok('Activity: the head a dash, the diagnosis says nothing to measure, not a rate with no number', has(ac, '<span class="hm-big">—</span>') && has(ac, 'Speed to Lead: nothing to measure') && !has(ac, 'Speed to Lead <b class="m">—'));
     ok('the Role row: a dash and the Note', has(ac, '<b class="m">—</b><br>0 of 0 · 0 pending') && !has(ac, 'class="wrap fit late"'));
     const txt = fullRaw(); txt['Role Scorecard'][1] = sc(A, 'lm', 'A1', '#N/A', { Target: 0.8, 'Target Status': 'on_track' });
     const T = await boot(payload(txt));
@@ -341,16 +341,23 @@ const AM_LABELS = ['Contracts Signed', 'Offers Sent', 'Late Offers', 'Offer to C
   {
     const P = await boot(payload(fullRaw())), h = P.view(), strip = name => { const i = h.indexOf(name + (name === MF ? '</span>' : ' ›')), e = h.indexOf('class="card strip"', i); return h.slice(i, e < 0 ? undefined : e); };
     const own = strip(MF), andrew = strip(A), jordan = strip(J);
+    ok('Owner\'s strip has no role screen behind it', !has(h, MF + ' ›') && has(h, 'strip-nm" style="cursor:default">' + MF + '<'));
+    const pre = fullRaw(); pre['Role Scorecard'] = pre['Role Scorecard'].filter(r => !['A11', 'A12', 'A13', 'J11', 'J12', 'J13', 'M8', 'M9', 'M10'].includes(r[3]));
+    const ph = (await boot(payload(pre))).view();
+    ok('m6: before P0\'s first run the strips carry no cell for a row not yet written, and no Owner strip, so nothing new reads source stale', !has(ph, 'Contracts Signed') && !has(ph, 'New Lead Offers') && !has(ph, 'no number for this KPI') && !has(ph, 'strip-nm" style="cursor:default">') && has(ph, 'sc-l">Appts Set<') && has(ph, 'sc-l">Offers Sent<'));
     ok('Owner\'s strip: the top line, Deals to Sell, Pending Revenue, in that order', before(own, 'sc-l">Contracts Signed<', 'sc-l">Deals to Sell<') && before(own, 'sc-l">Deals to Sell<', 'sc-l">Pending Revenue<') && count(own, /class="sc /g) === 3);
     ok('Pending Revenue prints as dollars, gross, the rest as counts', has(cell(own, 'Pending Revenue'), '$22,222') && has(cell(own, 'Deals to Sell'), 'sc-v">2<') && has(cell(own, 'Contracts Signed'), 'sc-v">0.8<'));
     ok('its cells open the owner\'s own pages, never a role screen', has(cell(own, 'Pending Revenue'), `go('pipeline')`) && has(cell(own, 'Deals to Sell'), `go('pipeline')`) && has(cell(own, 'Contracts Signed'), `go('funnel')`) && !has(own, 'lmGo('));
-    ok('the top line carries pending, closed and fell on each strip', ['5 pending, 1 closed, $11,111, 2 fell'].every(x => has(cell(own, 'Contracts Signed'), x) && has(cell(jordan, 'Contracts Signed'), x)) && has(cell(andrew, 'Contracts Signed'), '5 pending, 1 closed, 2 fell'));
+    ok('the top line carries pending, closed and fell on each strip, the fee on the owner\'s alone', has(cell(own, 'Contracts Signed'), '5 pending, 1 closed, $11,111, 2 fell') && has(cell(jordan, 'Contracts Signed'), '5 pending, 1 closed, 2 fell') && has(cell(andrew, 'Contracts Signed'), '5 pending, 1 closed, 2 fell'));
     ok('both role strips hold the decided tiles, in order, and tap through to the role screen', has(cell(andrew, 'New Lead Offers'), "'kpi-A11'") && has(cell(jordan, 'Follow-Up Offers'), "'kpi-J12'") && before(andrew, 'sc-l">Contracts Signed<', 'sc-l">Appts Set<') && before(jordan, 'sc-l">Offers Sent<', 'sc-l">Late Offers<'));
     ok('Conversations is a lens tile with no scorecard row, so no strip cell, and no throw', !has(andrew, 'conversations') && clean(h));
     ok('Andrew\'s screen in preview still drops his sheet text, past the names', has(P.team(A), 'lm-t-lbl">New Lead Offers<') && !has(P.team(A), '$'));
     const none = fullRaw(); none['Role Scorecard'] = none['Role Scorecard'].filter(r => !/^M(8|9|10)$/.test(r[3]));
     const n = (await boot(payload(none))).view();
-    ok('no M rows yet: each cell reads source stale, never $0', has(cell(n, 'Pending Revenue'), STALE) && !has(cell(n, 'Pending Revenue'), '$0'));
+    ok('m6: no M rows yet: no Owner strip at all, so never a $0 cell', !has(n, 'sc-l">Pending Revenue<') && !has(n, 'strip-nm" style="cursor:default">'));
+    const gone = fullRaw(); gone['Role Scorecard'] = gone['Role Scorecard'].map(r => /^M(8|9|10)$/.test(r[3]) ? ['2026-10-28', ...r.slice(1)] : r);
+    const g = (await boot(payload(gone))).view();
+    ok('m6: a row written and then lost: each cell reads source stale, never $0', has(cell(g, 'Pending Revenue'), STALE) && !has(cell(g, 'Pending Revenue'), '$0'));
   }
 
   console.log('TEAM DEALS: THE LANES, OUTSIDE, THE COMPANY TILES, DATA HEALTH');
@@ -363,6 +370,8 @@ const AM_LABELS = ['Contracts Signed', 'Offers Sent', 'Late Offers', 'Offer to C
       return raw; };
     const cards = stamp => [HT, ['k-op-1', 'c1', A + ', ' + J, '', stamp || STAMP], ['k-op-2', 'c8', A, '', ''], ['k-op-3', 'c5', J, '', ''], ['g-2', 'c2', A + ', ' + J, '', ''], ['g-3', 'c3', A, '', ''], ['g-4', 'c4', A, '', ''], ['k-op-jv', 'cjv', '', '', '']];
     const live = stamp => { const raw = jv(); raw['Team Deals'] = cards(stamp); return raw; };
+    /* live, with a blank card for every other contact on the deal tabs, so nothing is off the tab */
+    const whole = () => { const raw = live(), have = new Set(raw['Team Deals'].map(r => r[1])); ['Appointments', 'Offers', 'Contracts'].forEach(t => { const i = raw[t][0].indexOf('Contact ID'); raw[t].slice(1).forEach(r => { if (r[i] && !have.has(r[i])) { have.add(r[i]); raw['Team Deals'].push(['x-' + r[i], r[i], '', '', '']); } }); }); return raw; };
     const off = await boot(payload(jv())), on = await boot(payload(live())), fo = off.go('funnel'), fl = on.go('funnel');
     const amOff = lane(fo, 'Jordan · AM', 'Andrew · LM'), amOn = lane(fl, 'Jordan · AM', 'Andrew · LM');
     ok('no tab: the outside row counts in his lane, as today', has(amOff, 'Contracts<b>2</b>') && has(amOff, 'Offers<b>3</b>') && has(amOff, 'Walkthroughs<b>3</b>'));
@@ -386,8 +395,16 @@ const AM_LABELS = ['Contracts Signed', 'Offers Sent', 'Late Offers', 'Offer to C
     ok('company tiles say so, once the tab is live', has(h, 'closings summed · company, outside deals included') && has(h, ' signed · company, outside deals included'));
     ok('no tab: the tiles read as today', !has(ho, 'company, outside') && has(ho, 'closings summed</div>'));
     ok('the numbers on them do not move', (h.match(/>Revenue YTD<\/div><div class="t-val br">([^<]+)/) || [])[1] === (ho.match(/>Revenue YTD<\/div><div class="t-val br">([^<]+)/) || [])[1]);
-    ok('data health: a Team Deals cell once it has rows, green with its count', has(hc(h, 'Team Deals'), 'hc ok') && has(hc(h, 'Team Deals'), 'as of 11/3') && has(hc(h, 'Team Deals'), '7 cards'));
+    const wr = whole(), wh = (await boot(payload(wr))).go('home');
+    ok('data health: a Team Deals cell once it has rows, green with its count', has(hc(wh, 'Team Deals'), 'hc ok') && has(hc(wh, 'Team Deals'), 'as of 11/3') && has(hc(wh, 'Team Deals'), (wr['Team Deals'].length - 1) + ' cards'));
     ok('no tab: no cell, nothing new turns red', !has(ho, 'hc-l">Team Deals<'));
+    const newRow = whole(); newRow.Appointments.push(['11/3/2026', '', 'Confirmed', A, J, 'S', 'P', '', '', 'cNEW', '']);
+    const nh = (await boot(payload(newRow))).go('home');
+    ok('T1: a fresh tab with a new booking on a card no run has read: the cell is not green, and says how many', has(hc(nh, 'Team Deals'), 'hc warn') && has(hc(nh, 'Team Deals'), 'as of 11/3') && has(hc(nh, 'Team Deals'), '1 deal not read yet, not counted'));
+    const twoRows = whole(); twoRows.Appointments.push(['11/3/2026', '', 'Confirmed', A, J, 'S', 'P', '', '', 'cNEW', '']); twoRows.Offers.push(['11/3/2026', '', 'Made', A, J, 'S', 'P', '', '', 'cNEW', '']); twoRows.Offers.push(['11/3/2026', '', 'Made', A, J, 'S', 'P', '', '', 'cNEW2', '']);
+    ok('T1: by contact, across the tabs', has(hc((await boot(payload(twoRows))).go('home'), 'Team Deals'), '2 deals not read yet'));
+    const nobody = whole(); nobody.Offers.push(['6/3/2025', '', 'Made', MF, MF, 'S', 'P', '', '', 'cMINE', '']);
+    ok('T1: a row of nobody\'s lane with no card is M7\'s to say, and stays off this cell', has(hc((await boot(payload(nobody))).go('home'), 'Team Deals'), 'hc ok'));
     const old = await boot(payload(live('2026-10-30T10:40:00.000Z')));
     ok('a stale stamp is red and says what it costs', has(hc(old.view(), 'Team Deals'), 'hc bad') && has(hc(old.view(), 'Team Deals'), STALE) && has(hc(old.view(), 'Team Deals'), 'last ran 10/30 · new deals not counted'));
     ok('...and the rule keeps holding: a stale tab does not put the outside row back', has(lane(old.go('funnel'), 'Jordan · AM', 'Andrew · LM'), 'Contracts<b>1</b>'));
@@ -431,7 +448,7 @@ const AM_LABELS = ['Contracts Signed', 'Offers Sent', 'Late Offers', 'Offer to C
     ok('the chart labels him too, from Team', labels.indexOf(J + ' · AM calls') > -1 && labels.indexOf(A) > -1);
     ok('the old speed lines and the hard-coded CPL are gone', !has(a, 'industry contact-rate') && !has(a, 'Priority inversion') && !has(a, 'Triage holds') && !has(a, 'CPL) are being reached') && !has(a, 'fastest dots'));
     ok('the legacy column keeps saying first dial, never calls + texts', has(a, 'First dial by source, calls only') && has(a, 'minutes to first dial, calls only'));
-    ok('A1 in the diagnosis', has(a, 'First call on time <b class="m">85%</b> inside 30 working minutes'));
+    ok('A1 in the diagnosis', has(a, 'Speed to Lead <b class="m">85%</b> inside 30 working minutes'));
   }
 
   console.log('TEAM, TASKS, CAPITAL');

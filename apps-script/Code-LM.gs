@@ -186,7 +186,9 @@ var MONEY_HEADER = /revenue|fee|gross|profit|cost/i;
    it fails closed: nobody is attached to it. A Contracts row names its own card; the other tabs join through the contact, the union of
    its cards, the rule render_memo.team_of reads. The tab holds no Dispositions or Transaction Coordination card, so a union picks none up.
    null is no tab to go by: missing, no rows, or a column renamed. Every reader then reads as it did before P0d. A stale stamp is
-   not null: the old names stand and a new deal fails closed, because dropping the tab for a day would put a dispo deal back on a phone. */
+   not null: the old names stand and a new deal fails closed, because dropping the tab for a day would put a dispo deal back on a phone.
+   A fresh tab fails closed the same way on a card the last run never read, which is the usual same-day lead: its row takes no tag until
+   the next run. So the rule never reads as a quiet 0, the person's count of such deals ships as teamNotRead, a number with no id on it. */
 var TEAM_DEALS_TAB = 'Team Deals';
 var TEAM_DEALS_SHIP = ['Opp ID', 'Contact ID'];     // a phone's copy says which cards are theirs, never who else is on them
 function teamDeals_(ss) {
@@ -195,7 +197,7 @@ function teamDeals_(ss) {
   var v = sh.getDataRange().getValues(), head = v.length ? v[0] : [];
   var oi = colsByName_(head, ['Opp ID']), ci = colsByName_(head, ['Contact ID']), pi = colsByName_(head, ['Attached People']);
   if (!oi.length || !ci.length || !pi.length) return null;
-  var deals = { opps: Object.create(null), contacts: Object.create(null), cards: [] };
+  var deals = { opps: Object.create(null), contacts: Object.create(null), cards: [], notRead: Object.create(null) };
   for (var i = 1; i < v.length; i++) {
     var opp = tStr_(v[i][oi[0]]), cid = tStr_(v[i][ci[0]]);
     if (!opp && !cid) continue;                     // the stamp at E2 makes a phantom row on an empty tab
@@ -214,6 +216,12 @@ function teamDeals_(ss) {
 function onDeal_(deals, opp, contact, want) {
   var o = tStr_(opp), c = tStr_(contact), people = (o && deals.opps[o]) || (c && deals.contacts[c]) || [];
   return people.indexOf(want) > -1;
+}
+
+/* Was any card behind this row read. False is a row the tab cannot answer for, which is not the same as a row read as outside. */
+function dealRead_(deals, opp, contact) {
+  var o = tStr_(opp), c = tStr_(contact);
+  return !!((o && deals.opps[o]) || (c && deals.contacts[c]));
 }
 
 /* The person's cards, ids only, for the engine's own check. Header alone = the tab is live and they are on nothing. */
@@ -296,6 +304,7 @@ function doGet(e) {
       payPlanSet: PAY_PLAN_SET,
       splitRate: PAY_PLAN_SET ? LM_DEFAULT_SPLIT : null,
       dealBoardAsOf: dealBoardAsOf_(ss),   // N2 sits outside the shipped columns; null = no board to trust
+      teamNotRead: deals ? Object.keys(deals.notRead).length : undefined,   // no key at all with no tab to go by: the payload reads as it did
       tabs: tabs,
       fees: fs.fees,
       stages: fs.stages,              // dispo stage per deal → Earmarked only if "Under Contract"
@@ -377,7 +386,10 @@ function scopeTab_(ss, name, cfg, person, roleCell, deals) {
   var ids = {}, lmIds = {}, tags = [];               // ids: any role (record lists); lmIds: LM (money)
   for (var a = 1; a < values.length; a++) {
     var isLM = ownerOf(values[a]) === want, isAM = amIdx.length > 0 && norm_(values[a][amIdx[0]]) === want;
-    if ((isLM || isAM) && deals && !onDeal_(deals, oppIdx.length ? values[a][oppIdx[0]] : '', values[a][memberIdx], want)) isLM = isAM = false;
+    if ((isLM || isAM) && deals && !onDeal_(deals, oppIdx.length ? values[a][oppIdx[0]] : '', values[a][memberIdx], want)) {
+      if (!dealRead_(deals, oppIdx.length ? values[a][oppIdx[0]] : '', values[a][memberIdx])) deals.notRead[tStr_(values[a][memberIdx]) || name + a] = true;
+      isLM = isAM = false;
+    }
     tags[a] = isLM && isAM ? 'LM,AM' : (isLM ? 'LM' : (isAM ? 'AM' : ''));
     var k = values[a][memberIdx];
     if (k && tags[a]) ids[k] = true;

@@ -543,6 +543,17 @@ console.log('TEAM DEALS — a row ships only to a person attached to it');
   ok('his LM deal read as outside: no tag, no fee, no stage', !('cg' in j2.fees) && !('cg' in j2.stages) && rowsWhere(j2.tabs.Contracts, 'Contact ID', 'cg').length === 0);
   ok('names match in any case and spacing', (() => { const r = TEAM_ROWS().map(x => x[1] === 'cc' ? [x[0], x[1], '  jordan MATHIS ,andrew estrada ', '', ''] : x), g = endpoint('lm', teamSheets(r)).GET(TOK.andrew), h = endpoint('lm', teamSheets(r)).GET(TOK.jordan); return contacts(h.tabs.Appointments).includes('cc') && rowsWhere(g.tabs['Team Deals'], 'Contact ID', 'cc').length === 1; })());
 }
+console.log('TEAM DEALS — a row no run has read yet, on a fresh tab');
+{
+  const L = endpoint('lm', teamSheets()), j = L.GET(TOK.jordan), a = L.GET(TOK.andrew);
+  ok('the row fails closed, and the payload says how many of the person\'s deals that took', j.teamNotRead === 1 && a.teamNotRead === 1 && !contacts(a.tabs.Appointments).includes('cd'));
+  const rows = TEAM_ROWS().concat([['a-cd', 'cd', A + ', ' + J, '', '']]), L2 = endpoint('lm', teamSheets(rows)), j2 = L2.GET(TOK.jordan), a2 = L2.GET(TOK.andrew);
+  ok('the next run reads the card: the row is back, its tag with it, and the count clears', j2.teamNotRead === 0 && a2.teamNotRead === 0 && contacts(a2.tabs.Appointments).includes('cd') && rowsWhere(a2.tabs.Appointments, 'Contact ID', 'cd').some(r => r[col(a2.tabs.Appointments, '_as')] !== ''));
+  ok('a deal read as outside is not "not read": the JV row is not in the count', !contacts(j.tabs.Contracts).includes('cu') && j.teamNotRead === 1);
+  ok('another person\'s row on an off-tab contact is not this person\'s to count', endpoint('lm', teamSheets(TEAM_ROWS())).GET(TOK.andrew).teamNotRead === 1);
+  ok('it is a count: no id or name of the row on the wire', typeof j.teamNotRead === 'number');
+  ok('no tab: the key is not on the payload, so every reader reads as today', !('teamNotRead' in endpoint('lm', sheets()).GET(TOK.jordan)));
+}
 console.log('TEAM DEALS — Closings');
 {
   const L = endpoint('lm', teamSheets()), j = L.GET(TOK.jordan), a = L.GET(TOK.andrew);

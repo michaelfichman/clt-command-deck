@@ -66,9 +66,10 @@ is re-added. Run the D2 probes in step 6 with both LM tokens and Michael's owner
 step 7 is a real check. A new client on the old script finds no `Team Deals` key and reads as it does
 today. The new script reads as today too until the tab has rows, and with no tab, an empty one or a
 renamed column, both endpoints serve what they served. So the order between this release and P0 does not
-matter for the rule. It does for the tiles: until P0's first run A11, A12, A13, J11, J12, J13, M8, M9 and
-M10 have no row and read `source stale`, and the feed's Leads must be live before P0 can read
-`New Lead Offers`. This redeploy also covers P4's Marketing Spend, so P4 needs none of its own. Create the
+matter for the rule, nor for the tiles: until P0's first run A11, A12, A13, J11, J12, J13, M8, M9 and M10
+have no row, so each waits, off both phones and the owner's strips, and the Owner strip with them. The first
+row a run writes brings its tile, and from then on a lost row reads `source stale`. The feed's Leads must be
+live before P0 can read `New Lead Offers`. This redeploy also covers P4's Marketing Spend, so P4 needs none of its own. Create the
 `Team Deals` tab by hand with `Opp ID`, `Contact ID`, `Attached People` in A1:C1; P0 never creates it. Run the P0d
 probes in step 6.
 
@@ -134,6 +135,7 @@ Follow the REDEPLOY CHECKLIST at the top of each `.gs` file. In short:
    - P0d, LM GET, with each LM token: the key `tabs["Team Deals"]` is present. `null` is a pass until the tab has rows: an
      **absent** key means the old version is still serving. Once it has rows, `tabs["Team Deals"][0]` is `["Opp ID","Contact ID"]`,
      no name is on it, and the row that started this, the JV deal on Jordan's Contracts, is gone from his payload.
+     `teamNotRead` is a number once the tab has rows, and is not on the payload before that.
    - P0d, owner GET, with Michael's token: the key `tabs["Team Deals"]` is present, the whole tab, as-of at E1:E2.
    - D2, the owner deck, with Michael's token: open every tab and both people under TEAM. The data-health
      strip on DECK (above the tiles while anything is red, at the foot once all is green) shows Sync Status and
@@ -192,6 +194,7 @@ Since D1 a deal row is the person's by its role columns, not by contact. The new
 | `lmTargets` | The caller's rows plus blank-Person rows. |
 | `tabs["Role Scorecard"]` | D2. The person's rows by `Person`, every column. `null` when the tab is missing. Michael's `M` rows reach no phone. |
 | `tabs["Team Deals"]` | P0d. The cards the person is attached to, ids only: `Opp ID`, `Contact ID`, never who else is on them. A header alone means the tab is live and they are on nothing. `null` with no tab to go by, below. |
+| `teamNotRead` | P0d. How many of this person's deals took no tag because no run has read the card, by contact. A number, no id. Not on the payload with no tab to go by. |
 | `tabs["Deal Board"]` | D2. The rows that are the person's by **Team role**: the `LM` column if Team makes them an LM, the `AM` column if it makes them an AM, tagged in a trailing `_as` (`LM`, `AM`, `LM,AM`). Twelve cells: the first 11 columns, shipped by name in `DEAL_BOARD_SHIP` order, plus `_as`. `Value` and the as-of block never ship, and neither does a column added later. On a row tagged `LM` alone, `Stage` ships as its leading number, or blank if it has none: the words past it name offers and contracts. `null` when the tab is missing, Team gives the person neither role, or the `LM` or `AM` column of a role they hold was renamed. |
 | `dealBoardAsOf` | D2. The stamp in N2, as ISO. `null` when the tab, the stamp or every deal is gone: a phone sees only its own rows, so this is what tells an empty board from having no deals. |
 
@@ -219,9 +222,16 @@ both endpoints serve exactly what they served before P0d. A stale stamp is not t
 a new deal fails closed, because reverting would put a dispo deal back on a phone. The owner deck's Data health
 says so.
 
-The tab carries no card side, so a contact with both an Acquisitions card and a moved card reads the union here,
-where `team_of` reads the Acquisitions card alone for an Offers or Appointments row. No contact read differently
-on 11/1: 14 of 161 hold two or more cards, and none mixes a blank with a name.
+**A fresh tab fails closed too** on a card the last run never read. The tab holds every card on the four KPI tabs,
+tonight's board and every open Acquisitions card, so that is a lead that arrives and books between two runs: 6 of
+Andrew's 8 Confirmed rows in the last 60 days sat on a card made that same day. Its row takes no tag until the next
+morning's run, so it is off that person's phone and the lanes. The rule is not bent for it. The run says so: `teamNotRead`
+puts one line under the Deals funnel on the phone, the owner's Team Deals cell turns amber with the count, and
+the routine pulls the deck again after it writes the tab, so the email reads the coaching day whole. Whether such a
+row should keep its tag until a run has read it is Michael's call, because it pulls against fail closed.
+
+A contact with both an Acquisitions card and a moved card reads the union here, as `team_of` does for an Offers or
+Appointments row: an unowned duplicate left in Acquisitions cannot outvote the real card that moved.
 
 Read `_as` by splitting on the comma, never by equality. A header with no `_as` column is the old
 shape: treat every row as `LM`. Money ships only on a deal the person is the LM of: on any other
@@ -302,7 +312,8 @@ readers look cells up by exact name: `Opp Id` is a rename.
   live there. Michael's strip holds his own rows, M10, M8 and M9. They have no role screen, so they open FUNNEL and
   PIPELINE. Conversations is on Andrew's phone list as a lens tile with no Role Scorecard row, so it has no strip cell.
 - **Team Deals (P0d).** Nothing below prints until the tab has rows. Data health gains a `Team Deals` cell on Deal
-  Board's line, and it goes red with `new deals not counted` on a stale stamp. Revenue YTD and Close rate say they are
+  Board's line, and it goes red with `new deals not counted` on a stale stamp, amber with a count when a fresh tab has
+  not read a deal of the LM or AM lanes. Revenue YTD and Close rate say they are
   company totals, outside deals included, and their numbers do not change. FUNNEL's lanes count team rows only, with the
   scorecard's test, Andrew or Jordan on the card, not the phone's stricter one, the person on the card. One line under
   the lanes shows what is outside the team, and any signed deal with no card read, counted apart.

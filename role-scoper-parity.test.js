@@ -237,6 +237,7 @@ console.log('TEAM DEALS IN EVERY STATE, LINE FOR LINE');
     [J, A].forEach(person => {
       const g = g2(TOK[person]), d = scopeToLM(STATES[name], person), first = person.split(' ')[0];
       ok(name + ': ' + first + ', every deal tab, Team Deals, fees and stages identical', ['Appointments', 'Offers', 'Contracts', 'Closings', 'Team Deals'].every(t => same(g.tabs[t], d.tabs[t])) && same(g.fees, d.fees) && same(g.stages, d.stages));
+      ok(name + ': ' + first + ', the same count of deals not read', g.teamNotRead === d.teamNotRead);
       const gm = E.buildModel(g, '6/19/2026 11:50:00'), dm = E.buildModel(d, '6/19/2026 11:50:00');
       ok(name + ': ' + first + ', the same tiles and the same comp', E.LENSES.every(l => Object.keys(gm.lenses[l]).every(k => gm.lenses[l][k].current === dm.lenses[l][k].current)) && same(gm.comp, dm.comp));
     });

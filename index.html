@@ -694,7 +694,7 @@ function insightsActivity(m){const out=[];
     const first=String(lm).split(' ')[0];
     out.push({s:ch>=0?'good':'warn',t:`${esc(first)}'s ${deckLane(lm)==='AM'?'AM calls':'dials'}: last-4-week avg <b class="m">${Math.round(recent)}/wk</b> vs prior <b class="m">${Math.round(prior)}/wk</b> — ${ch!=null?(ch>=0?'▲ up ':'▼ down ')+pct(Math.abs(ch),0):''}.`})});
   const a1=deckA1(deckTabs());
-  out.push({s:a1.good?'good':a1.bad?'bad':'info',t:a1.k.stale?`First call on time: <b class="m">${LM_SOURCE_STALE}</b> (${esc(a1.word)}).`:a1.k.value==null?`First call on time: nothing to measure${a1.first?' · '+esc(a1.first):''}${a1.note?' — '+esc(a1.note):''}.`:`First call on time <b class="m">${a1.val}</b> inside 30 working minutes${a1.first?' · '+esc(a1.first):''}${a1.note?' — '+esc(a1.note):''}.`});
+  out.push({s:a1.good?'good':a1.bad?'bad':'info',t:a1.k.stale?`${esc(a1.label)}: <b class="m">${LM_SOURCE_STALE}</b> (${esc(a1.word)}).`:a1.k.value==null?`${esc(a1.label)}: nothing to measure${a1.first?' · '+esc(a1.first):''}${a1.note?' — '+esc(a1.note):''}.`:`${esc(a1.label)} <b class="m">${a1.val}</b> inside 30 working minutes${a1.first?' · '+esc(a1.first):''}${a1.note?' — '+esc(a1.note):''}.`});
   const chAvg=Object.entries(m.speedByCh||{}).map(([c,v])=>({c,avg:v.sum/v.n,n:v.n})).filter(x=>x.c!=='(untagged)');
   if(chAvg.length)out.push({s:'info',t:`First dial by source, calls only: ${chAvg.sort((a,b)=>a.avg-b.avg).map(x=>`<b>${esc(x.c)}</b> <span class="m">${Math.round(x.avg)}m</span> (${x.n})`).join(' · ')}.`});
   out.push({s:m.leadsWkNow>=(m.leadsNeededWk||0)?'good':'bad',t:`Lead intake <b class="m">${m.leadsWkNow.toFixed(1)}/wk</b> vs <b class="m">${m.leadsNeededWk?.toFixed(1)??'—'}/wk</b> the goal demands at current conversions.`});
@@ -714,7 +714,7 @@ function scopeToLM(RAW, person){
   const norm=x=>String(x==null?'':x).trim().toLowerCase();
   const ix=(h,n)=>h.findIndex(c=>String(c).trim().toLowerCase()===n.toLowerCase());
   const nl=s=>String(s==null?'':s).toLowerCase().replace(/[^a-z0-9%$]/g,'');
-  const want=norm(person),deals=teamDealsOf(RAW['Team Deals']);
+  const want=norm(person),deals=teamDealsOf(RAW['Team Deals']),notRead=Object.create(null);
   const moneyCols=h=>h.reduce((o,c,i)=>{if(MONEY.test(String(c)))o.push(i);return o;},[]);
   // single-attribution tab: header + rows where attr col == person (optionally cap width)
   const single=(name,attr,cols)=>{const t=RAW[name];if(!t||!t.length)return null;const ai=ix(t[0],attr),w=cols||t[0].length;const o=[t[0].slice(0,w)];for(let i=1;i<t.length;i++)if(ai>-1&&norm(t[i][ai])===want)o.push(t[i].slice(0,w));return o;};
@@ -722,7 +722,7 @@ function scopeToLM(RAW, person){
   // for the record lists, and money ships only on a deal they are the LM of
   // a row on a deal the person is not attached to takes no tag, so it neither counts nor brings its contact's other rows along
   const roled=name=>{const t=RAW[name];if(!t||!t.length)return null;const h=t[0],bi=ix(h,'Booker (LM)'),ai=ix(h,'AM'),ci=ix(h,'Contact ID'),oi=ix(h,'Opportunity ID'),ids={},lmIds={},tags=[],money=moneyCols(h),o=[h.concat(['_as'])];
-    for(let i=1;i<t.length;i++){let lm=bi>-1&&norm(t[i][bi])===want,am=ai>-1&&norm(t[i][ai])===want;const k=t[i][ci];if((lm||am)&&deals&&!onDeal(deals,oi>-1?t[i][oi]:'',k,want))lm=am=false;tags[i]=lm&&am?'LM,AM':lm?'LM':am?'AM':'';if(k&&tags[i])ids[k]=1;if(k&&lm)lmIds[k]=1;}
+    for(let i=1;i<t.length;i++){let lm=bi>-1&&norm(t[i][bi])===want,am=ai>-1&&norm(t[i][ai])===want;const k=t[i][ci],op=oi>-1?t[i][oi]:'';if((lm||am)&&deals&&!onDeal(deals,op,k,want)){if(!teamCard(deals,op,k))notRead[String(k==null?'':k).trim()||name+i]=1;lm=am=false;}tags[i]=lm&&am?'LM,AM':lm?'LM':am?'AM':'';if(k&&tags[i])ids[k]=1;if(k&&lm)lmIds[k]=1;}
     for(let i=1;i<t.length;i++){const k=t[i][ci];if(!tags[i]&&!(k&&ids[k]))continue;const r=t[i].slice();if(!(k&&lmIds[k])&&tags[i].indexOf('LM')<0)money.forEach(c=>{r[c]='';});r.push(tags[i]);o.push(r);}
     return o;};
   // Deal Board, the twin of scopeByRole_: a row is the person's by the LM or AM column their Team role allows, tagged `_as`.
@@ -766,7 +766,7 @@ function scopeToLM(RAW, person){
   const goals={},g=RAW['Goals & Assumptions']||[];for(let i=0;i<g.length;i++){const k=GA[nl(g[i][0])];if(k)goals[k]=g[i][1];}
   // fixed targets: the person's rows plus blank-Person rows, as the phone gets them
   let lmTargets=[];const lt=RAW['LM Targets'];if(lt&&lt.length>1){const hd=lt[0];for(let i=1;i<lt.length;i++){const o={};for(let j=0;j<hd.length;j++)o[String(hd[j])]=lt[i][j];if(Object.prototype.hasOwnProperty.call(o,'Person')&&(norm(o.Person)===''||norm(o.Person)===want))lmTargets.push(o);}}
-  return {ok:true,role:'lm',person,teamRole,payPlanSet:PAY_PLAN_SET,splitRate:PAY_PLAN_SET?0.10:null,dealBoardAsOf:boardAsOf(),tabs,fees,stages,goals,lmTargets};
+  return Object.assign({ok:true,role:'lm',person,teamRole,payPlanSet:PAY_PLAN_SET,splitRate:PAY_PLAN_SET?0.10:null,dealBoardAsOf:boardAsOf(),tabs,fees,stages,goals,lmTargets},deals?{teamNotRead:Object.keys(notRead).length}:{});
 }
 /* Team Deals, the twin of teamDeals_ and onDeal_ in Code-LM.gs, read for the scoper and the owner's lanes. {opps, contacts, cards}, or null
    with no tab to go by (missing, no rows, a column renamed), and every reader then reads as it did before P0d. Names are lowercase, the way
@@ -794,7 +794,7 @@ const deckPeople=()=>lmTeam().map(name=>({name,lane:deckLane(name)})).filter(p=>
 const deckKpiText=k=>lmKpiText({dealRole:'AM'},k);
 /* A1, the plan's stand-in for the old speed tile: the first LM's on-time share, one KPI, three places (tile, ticker, Activity). */
 function deckA1(R){const p=deckPeople().find(x=>x.lane==='LM'),k=lmKpi(p?R.score:null,p?p.name:'','A1'),st=lmKpiStatus(k);
-  return {k,first:p?lmFirst(p.name):'',val:k.stale?LM_SOURCE_STALE:lmKpiShow(k.shown,LM_KPI.A1.fmt),note:deckKpiText(k).note,word:st[1],good:!k.stale&&st[0]==='lm-ahead',bad:k.stale||st[0]==='lm-behind'};}
+  return {k,first:p?lmFirst(p.name):'',label:deckKpiText(k).label,val:k.stale?LM_SOURCE_STALE:lmKpiShow(k.shown,LM_KPI.A1.fmt),note:deckKpiText(k).note,word:st[1],good:!k.stale&&st[0]==='lm-ahead',bad:k.stale||st[0]==='lm-behind'};}
 /* D-10: Jordan's AM rates carry their label, from the Note: the start date and the team rate beside his. A stale row keeps its Note, and that team figure is not today's. */
 /* The top line's pending, closed and fell live in its Note, so its three rows carry one too. */
 const DECK_STRIP_NOTE={J3:1,J10:1,A13:1,J13:1,M10:1};
@@ -804,8 +804,8 @@ function deckStripCell(person,R,id){const d=LM_KPI[id],k=lmKpi(R.score,person,id
   return `<button class="sc ${st[0]}" onclick="${open}"><span class="sc-l">${lmEsc(deckKpiText(k).label)}</span><span class="sc-v${k.stale?' stale':''}">${k.stale?LM_SOURCE_STALE:lmKpiShow(k.shown,d.fmt)}</span><span class="sc-s">${lmEsc(st[1])}${!k.stale&&tg!=null?' · 🎯 '+lmKpiShow(tg,d.fmt):''}</span>${note?`<span class="sc-n">${lmEsc(note)}</span>`:''}</button>`;}
 /* A tab that is not current has one thing to say, so each person gets it once, not 16 identical cells with the same page behind each. */
 function deckStrips(R){const people=deckPeople();if(!people.length)return '';
-  const owner=lmTabObjs(RAW&&RAW.Team).find(x=>lmLaneOf(x.Role)==='Owner'),all=owner?[{name:lmCellTxt(owner.Name),lane:'Owner'}].concat(people):people;
-  const body=p=>R.score.ok?`<div class="sc-grid">${LM_SCORE_TILES[p.lane].filter(id=>LM_KPI[id]).map(id=>deckStripCell(p.name,R,id)).join('')}</div>`:`<p class="csub"><b class="stale">${LM_SOURCE_STALE}</b> · ${lmEsc(lmKpiStatus(lmKpi(R.score,p.name,LM_SCORE_TILES[p.lane][0]))[1])}</p>`;
+  const owner=lmTabObjs(RAW&&RAW.Team).find(x=>lmLaneOf(x.Role)==='Owner'),oName=owner?lmCellTxt(owner.Name):'',oRows=owner&&lmTilesNow(R,oName,'Owner').length,all=oRows?[{name:oName,lane:'Owner'}].concat(people):people;
+  const body=p=>R.score.ok?`<div class="sc-grid">${lmTilesNow(R,p.name,p.lane).filter(id=>LM_KPI[id]).map(id=>deckStripCell(p.name,R,id)).join('')}</div>`:`<p class="csub"><b class="stale">${LM_SOURCE_STALE}</b> · ${lmEsc(lmKpiStatus(lmKpi(R.score,p.name,LM_SCORE_TILES[p.lane][0]))[1])}</p>`;
   return `<section><div class="sec-h"><h2>Scorecards</h2><span class="tag">${lmScoreTag(R,'tap for the role screen')}</span></div><div class="strips">${all.map(p=>`<div class="card strip"><div class="strip-h">${p.lane==='Owner'?`<span class="strip-nm" style="cursor:default">${lmEsc(p.name)}</span>`:`<button class="strip-nm" onclick="lmGo(${lmJsq(p.name)},'week','')">${lmEsc(p.name)} ›</button>`}<span class="pill c">${p.lane}</span></div>${body(p)}</div>`).join('')}</div></section>`;}
 
 /* The four things that decide whether this page can be believed. 'due' is the Deal Board line (lm-view.js): a stamp from the
@@ -820,10 +820,15 @@ function deckSyncCell(now){const s=HEALTH.syncStatus,due=lmDayShift(lmStaleFloor
   if(s.day<due)return deckStaleCell('Sync Status','last ran '+lmMD(s.day));
   if(bad.length)return deckStaleCell('Sync Status',lmMD(s.day)+' failed: '+bad.join(', '));
   return deckCell('Sync Status',lmMD(s.day),cov.length?'failed, then covered: '+cov.join(', '):list(s.ok).length+' steps ok',cov.length?'warn':'ok');}
+/* Deals of the LM and AM lanes with no card on the tab, by contact. A fresh stamp says nothing about these: usually a lead that arrived and booked after the last run,
+   read at the next one. Until then the rule fails closed, the phones and the lanes do not count them, and this is the run saying so. Anyone else's old row is M7's to say. */
+function deckNotRead(T,D){const who=new Set(deckPeople().map(p=>lmNameKey(p.name))),out=new Set();
+  ['Appointments','Offers','Contracts'].forEach(t=>lmTabObjs(T[t]).forEach(r=>{if((who.has(lmNameKey(r['Booker (LM)']))||who.has(lmNameKey(r.AM)))&&teamVerdict(D,r['Opportunity ID'],r['Contact ID'])===null)out.add(lmCellTxt(r['Contact ID']));}));
+  return out.size;}
 /* Team Deals gets a cell once it has rows. Its stamp is a run-time stamp, read on Deal Board's line. A stale tab keeps being read, so a new deal
    fails closed, and this cell is what says so. */
-function deckTeamCell(now){const t=RAW&&RAW['Team Deals'],D=teamDealsOf(t);if(!D)return null;const n=D.cards.length+' cards',i=t[0].findIndex(c=>lmCellTxt(c)==='As Of'),raw=i<0||!t[1]?'':t[1][i],day=lmSheetDay(raw);
-  return !day?deckStaleCell('Team Deals','no as-of · '+n):day<lmDayShift(lmStaleFloor(now),1)?deckStaleCell('Team Deals','last ran '+lmMD(day)+' · new deals not counted'):deckCell('Team Deals','as of '+lmMD(day),n,'ok');}
+function deckTeamCell(now){const T=RAW||{},t=T['Team Deals'],D=teamDealsOf(t);if(!D)return null;const lag=deckNotRead(T,D),n=D.cards.length+' cards'+(lag?' · '+lag+' deal'+(lag===1?'':'s')+' not read yet, not counted':''),i=t[0].findIndex(c=>lmCellTxt(c)==='As Of'),raw=i<0||!t[1]?'':t[1][i],day=lmSheetDay(raw);
+  return !day?deckStaleCell('Team Deals','no as-of · '+n):day<lmDayShift(lmStaleFloor(now),1)?deckStaleCell('Team Deals','last ran '+lmMD(day)+' · new deals not counted'):deckCell('Team Deals','as of '+lmMD(day),n,lag?'warn':'ok');}
 function deckHealthCells(R){const now=new Date(),due=lmDayShift(lmStaleFloor(now),1),T=lmTasksParse(RAW),out=[deckSyncCell(now)],cell=deckCell,stale=deckStaleCell;
   out.push(R.score.ok?cell('Role Scorecard','as of '+lmMD(R.score.asOf),'','ok'):stale('Role Scorecard',R.score.why+(R.score.asOf?' · last '+lmMD(R.score.asOf):'')));
   out.push(R.board.ok?cell('Deal Board','as of '+lmMD(R.board.day),R.board.rows.length+' deals','ok'):stale('Deal Board',deckBoardUnpublished(R.board)?'not published yet':R.board.why+(R.board.day?' · last '+lmMD(R.board.day):'')));
@@ -922,7 +927,7 @@ function deckSpeedByRole(R){const rows=deckPeople().map(p=>{const head=`<td styl
     if(p.lane!=='LM')return `<tr>${head}<td class="wrap fit">no first-call KPI: first call is the LM's</td></tr>`;
     const k=lmKpi(R.score,p.name,'A1'),st=lmKpiStatus(k),note=deckKpiText(k).note;
     return `<tr>${head}<td class="wrap fit${k.stale||st[0]==='lm-behind'?' late':''}"><b class="m">${k.stale?LM_SOURCE_STALE:lmKpiShow(k.shown,LM_KPI.A1.fmt)}</b><br>${lmEsc(note||st[1])}</td></tr>`;}).join('');
-  return rows?`<div class="card" style="margin-top:14px"><h3 class="ch3">First call on time, by role</h3><p class="csub">share of new leads called inside 30 working minutes · Role Scorecard A1 · ${lmScoreTag(R)}</p><div class="tbl" style="margin-top:8px"><table><tr><th>Person</th><th>Role</th><th>On time</th></tr>${rows}</table></div></div>`:'';}
+  return rows?`<div class="card" style="margin-top:14px"><h3 class="ch3">${esc(deckA1(R).label)}, by role</h3><p class="csub">share of new leads called inside 30 working minutes · Role Scorecard A1 · ${lmScoreTag(R)}</p><div class="tbl" style="margin-top:8px"><table><tr><th>Person</th><th>Role</th><th>On time</th></tr>${rows}</table></div></div>`:'';}
 const deckCaller=u=>deckLane(u)==='AM'?u+' · AM calls':u;
 
 function tile(lbl,val,cls,why,v,c){return `<button class="tile ${cls&&cls.includes('br')?'hero':''}" onclick="go('${v}'${c?`,'${c}'`:''})">
@@ -954,7 +959,7 @@ home(m){const R=deckTabs(),a1=deckA1(R),sick=deckHealthCells(R).some(c=>c.c==='b
     ${tile('Blended ROAS',(m.spendYTD?(m.revYTD/m.spendYTD).toFixed(2)+'×':'—'),'br',`÷ ${fmtK(m.spendYTD)} spend`,'channels')}
     ${tile('Close rate',pct(m.conv.conClose),m.conv.conClose>=m.targets.conClose?'gr':'rd',`${m.nClosed} ÷ ${m.signed} signed${co}`,'funnel')}
     ${tile('Closings need /mo',m.closingsNeededMo?m.closingsNeededMo.toFixed(1):'—','',`÷ ${fmtK(m.avgGross)} avg gross`,'pace')}
-    ${tile('First call on time',a1.val,a1.k.stale?'stale':a1.good?'gr':a1.bad?'rd':a1.k.value==null?'':'br',esc(a1.k.stale?a1.word:a1.note||a1.word),'activity')}
+    ${tile(esc(a1.label),a1.val,a1.k.stale?'stale':a1.good?'gr':a1.bad?'rd':a1.k.value==null?'':'br',esc(a1.k.stale?a1.word:a1.note||a1.word),'activity')}
     ${tile('Awaiting value',String(m.pipeZero),m.pipeZero?'rd':'gr',`signed deals at $0`,'pipeline')}
   </div>
   ${deckStrips(R)}

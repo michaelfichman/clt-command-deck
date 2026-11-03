@@ -83,7 +83,7 @@ h+='<div class="lm-reach-never">Reach depends on lead mix (inbound answers; cold
 function lmHome(M,person,lens,team){const role=lmRole(M),am=role==='AM',R=lmTabsNow(M),count=lmBoardCount(R.board,role,person),nav=(l,to,cls)=>'<button class="lm-deals-btn'+(cls?' '+cls:'')+'" onclick="lmGo('+lmJsq(person)+','+lmJsq(lens)+','+lmJsq(to)+')">'+l+' →</button>';
   let h='<div class="lm-head"><div><p class="eyebrow">Scoreboard</p><h1>'+person+'</h1></div>'+lmPicker(person,team)+'</div><div class="lm-clockbar">this device&rsquo;s clock → <span id="lm-clock">'+lmNowLbl()+'</span></div>'+lmComp(M,person,lens);
   if(am)h+=lmDayStrip(M,person,R);
-  h+='<div class="sec-h"><h2>Scorecard</h2><span class="tag">'+lmScoreTag(R,'tap a tile')+'</span></div><section class="lm-tiles">'+LM_SCORE_TILES[role].map(id=>lmListTile(M,person,lens,R,id)).join('')+'</section>';
+  h+='<div class="sec-h"><h2>Scorecard</h2><span class="tag">'+lmScoreTag(R,'tap a tile')+'</span></div><section class="lm-tiles">'+lmTilesNow(R,person,role).map(id=>lmListTile(M,person,lens,R,id)).join('')+'</section>';
   /* the lens, the streak and the pace of the day are all about dials, and an AM gets no dial coaching */
   if(!am)h+='<div class="sec-h lm-sec2"><h2>Activity</h2><span class="tag">'+LM_LBL[lens]+' · tap a tile</span></div>'+lmLensBar(person,lens)+'<section class="lm-hero">'+lmStreakHL(M,lens)+lmPaceDay(M)+'</section><section class="lm-tiles">'+LM_ACTIVITY_TILES.map(k=>lmTile(M,person,lens,lmTileDef(k))).join('')+'</section>';
   h+=lmTasksBtn(M,person,lens)+nav('💰 Make More Money — your '+(lmPayOn(M)?'earning ':'')+'levers','focus','focusbtn');
@@ -214,7 +214,7 @@ function lmDealsView(M,person,lens){
   h+='<div class="lm-head"><div><p class="eyebrow">Deals &amp; Pipeline</p><h1>'+(pay?'Funnel &amp; Money':'Your deals')+'</h1></div>'+lmLensBar(person,lens,'deals')+'</div>';
   h+=lmComp(M,person,lens);
   if(am)h+=lmDayStrip(M,person,R)+lmAmDeals(M,person,R);
-  h+='<div class="sec-h lm-sec2"><h2>Funnel</h2><span class="tag">'+LM_LBL[lens]+'</span></div><div class="lm-funnel">'+funnel.map(f=>'<div class="lm-frow"><span class="lm-fl">'+f[0]+'</span><span class="lm-fv">'+lmNum(f[1])+'</span></div>').join('')+'</div>';
+  h+='<div class="sec-h lm-sec2"><h2>Funnel</h2><span class="tag">'+LM_LBL[lens]+'</span></div><div class="lm-funnel">'+funnel.map(f=>'<div class="lm-frow"><span class="lm-fl">'+f[0]+'</span><span class="lm-fv">'+lmNum(f[1])+'</span></div>').join('')+'</div>'+lmTeamLag(M);
   if(!am)return h+lmWithList(person,R);
   if(!pay)return R.board.ok?h:h+lmNoBoardLists(c);
   h+=lmDealList('Under contract — earmarked',c.earmarkedDeals)+lmDealList('Projected — pre-contract',c.projectedDeals)+lmOfferList('Offers out — potential',c.openOffers);
@@ -421,12 +421,12 @@ const lmHeadMiss=(head,need)=>head.some(Boolean)&&need.some(n=>head.indexOf(n)<0
 /* The Target Status words scorecard.py writes on a row it stands behind */
 const LM_STATUS_KNOWN={on_track:1,behind:1,'target not set':1,weekend:1};
 
-function lmScoreRead(tab,now){const out={ok:false,why:'tab missing',asOf:'',latest:{}};if(!Array.isArray(tab))return out;
+function lmScoreRead(tab,now){const out={ok:false,why:'tab missing',asOf:'',latest:{},ids:{}};if(!Array.isArray(tab))return out;
   if(lmHeadMiss(lmHeadOf(tab),LM_SCORE_NEED)){out.why='header changed';return out;}
   const today=lmSheetClock(now).day,rows=[];
   lmTabObjs(tab).forEach(r=>{const id=lmCellTxt(r.KPI).toUpperCase(),date=lmSheetDay(r.Date);if(lmNameKey(r.Person)&&id&&date&&date<=today)rows.push({r,id,date});});   // a future date is not a write, and must not hide a stale tab
   if(!rows.length){out.why='tab empty';return out;}
-  rows.forEach(x=>{if(x.date>out.asOf)out.asOf=x.date;});
+  rows.forEach(x=>{if(x.date>out.asOf)out.asOf=x.date;out.ids[lmNameKey(x.r.Person)+'|'+x.id]=1;});   // ids: every KPI a run has written, on a stale tab too
   if(out.asOf<lmStaleFloor(now)){out.why='stale';return out;}
   rows.forEach(x=>{const k=lmNameKey(x.r.Person)+'|'+x.id,was=out.latest[k];if(!was||x.date>=was.date)out.latest[k]=x;});
   out.ok=true;out.why='';return out;}
@@ -488,7 +488,10 @@ function lmStartOf(tabs,person){const want=lmNameKey(person),team=lmTabObjs(tabs
   if(day)return new Date(+day.slice(0,4),+day.slice(5,7)-1,+day.slice(8,10));
   let first=null;lmTabObjs(tabs.Calls).forEach(r=>{if(lmNameKey(r.User)!==want)return;const d=LMEngine.parseDate(r.Date);if(d&&(!first||d<first))first=d;});return first;}
 /* The host's one call after buildModel. It keeps the raw tabs and not a parsed copy, for the same reason as lmTabsNow. */
-function lmRoleAttach(M,p){if(!M)return M;const s=p||{},t=s.tabs||{};M.roleSrc={tabs:{'Role Scorecard':t['Role Scorecard'],'Deal Board':t['Deal Board']},dealBoardAsOf:s.dealBoardAsOf};M.startDate=lmStartOf(t,M.person);return M;}
+function lmRoleAttach(M,p){if(!M)return M;const s=p||{},t=s.tabs||{};M.roleSrc={tabs:{'Role Scorecard':t['Role Scorecard'],'Deal Board':t['Deal Board']},dealBoardAsOf:s.dealBoardAsOf};M.startDate=lmStartOf(t,M.person);M.teamNotRead=+s.teamNotRead||0;return M;}
+/* The team rule fails closed on a card no run has read, the usual same-day lead, so a deal can be missing from these counts until morning. The endpoint counts them, and this says so
+   where the count would show. No id and no figure of ours, on either phone. */
+const lmTeamLag=M=>{const n=M&&M.teamNotRead||0;return n?'<p class="lm-fnote">'+n+' deal'+(n===1?'':'s')+' not read yet · counts after the next morning run</p>':'';};
 
 /* role scopes the id: a saved link can never open another role's page. fmt: pct (scorecard.py's ratio(), a 0 to 1 fraction), hrs, num.
    The Label cell wins over label; a missing tab has no Label cell, so every id has its own. */
@@ -526,6 +529,10 @@ const LM_KPI={
    the one KPI on a list that follows the lens and has no Role Scorecard row. The Owner list is the deck's alone: its rows reach no phone. */
 const LM_SCORE_TILES={LM:['A13','A8','conversations','A1','A10','A11','A12','A2','A3','A4','A5','A6','A7'],AM:['J13','J10','J6','J3','J11','J12','J1','J5','J4','J9'],Owner:['M10','M8','M9']};
 const LM_ACTIVITY_TILES=['calls'];
+/* P0's tiles wait for their first row. Until P0's first run these have none, and a list led by source stale is not a reader reading as it does today. Once a row has been written,
+   losing it reads 'row is behind the tab' and the tile stands, stale: only a row never written hides one. Every older id keeps source stale for no row. */
+const LM_NEW_TILES={A11:1,A12:1,A13:1,J11:1,J12:1,J13:1,M8:1,M9:1,M10:1};
+const lmTilesNow=(R,person,role)=>LM_SCORE_TILES[role].filter(id=>LM_NEW_TILES[id]!==1||R.score.ids[lmNameKey(person)+'|'+id]===1);
 const LM_BOOK_TILES=['JB1','JB2'];
 const LM_SPEED_CAP='first touch, calls + texts, clock minutes';
 const LM_NOT_LM={offersMade:1,contractsSigned:1,apptToContract:1};
