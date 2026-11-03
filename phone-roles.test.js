@@ -284,7 +284,7 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
     ok('the top line leads both phones, in the sheet\'s number', inOrder(ah, ['Contracts Signed', 'Appts Set']) && inOrder(jh, ['Contracts Signed', 'Offers Sent']) && has(tileBy(ah, 'Contracts Signed'), 'lm-t-val">0.8<') && has(tileBy(jh, 'Contracts Signed'), '🎯 <b>1</b>'));
     ok('New Lead and Follow-Up Offers print as counts, Andrew\'s and Jordan\'s alike', has(tileBy(ah, 'New Lead Offers'), 'lm-t-val">3<') && has(tileBy(ah, 'Follow-Up Offers'), 'lm-t-val">4<') && has(tileBy(jh, 'New Lead Offers'), 'lm-t-val">3<') && has(tileBy(jh, 'Follow-Up Offers'), 'lm-t-val">4<'));
     ok('the top line keeps pending, closed and fell beside it, on Andrew\'s with no dollar', has(tileBy(ah, 'Contracts Signed'), '5 pending, 1 closed, 2 fell') && !has(ah, '$'));
-    ok('...and Jordan\'s holds no dollar either: the endpoint serves no company revenue, and his email reads the fee from detail', has(tileBy(jh, 'Contracts Signed'), '5 pending, 1 closed, 2 fell') && !has(tileBy(jh, 'Contracts Signed'), '$'));
+    ok('...and Jordan\'s, off a Note with no fee in it, adds none of its own: the deck prints the routine\'s Note and computes no figure', has(tileBy(jh, 'Contracts Signed'), '5 pending, 1 closed, 2 fell') && !has(tileBy(jh, 'Contracts Signed'), '$'));
     ok('Conversations on the list is the lens tile, once, with Dials alone left in Activity', count(ah, />Conversations ≥75s</g) === 1 && has(a.go('', 'month').slice(a.go('', 'month').indexOf('<h2>Activity')), '>Dials<') && !has(a.go('', 'month').slice(a.go('', 'month').indexOf('<h2>Activity')), 'Conversations'));
     a.go('');
     ok('each new tile opens its page, with coach text', [['kpi-A11', 'New Lead Offers'], ['kpi-A12', 'Follow-Up Offers'], ['kpi-A13', 'Contracts Signed']].every(([m, l]) => { const d = a.go(m); return has(d, '<h1>' + l + '</h1>') && has(d, 'COACH'); }) && has(j.go('kpi-J11'), '<h1>New Lead Offers</h1>') && has(j.go('kpi-J12'), '<h1>Follow-Up Offers</h1>') && has(j.go('kpi-J13'), '<h1>Contracts Signed</h1>'));
@@ -302,13 +302,32 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
     ok('Michael\'s rows reach no phone, on the scoper', [andrew(fullRaw()), jordan(fullRaw())].every(p => p.tabs['Role Scorecard'].slice(1).every(r => !/^M/.test(r[3]))));
   }
 
+  console.log("JORDAN'S TOP LINE SHOWS ITS CLOSED FEES (Michael 11/3)");
+  {
+    /* The fee is the routine's: top_line() writes the closed gross of the same team closings it counts into the Note, as M10's does. Synthetic figures. */
+    const NOTE = '3 in the last 4 weeks · since 4/27: 9 signed, 5 pending, 1 closed, $11,111, 2 fell, team only';
+    const fee = () => { const raw = fullRaw(), at = id => raw['Role Scorecard'].findIndex(r => r[3] === id);
+      raw['Role Scorecard'][at('J13')] = sc(J, 'am', 'J13', 0.75, { N: 3, Target: 1, 'Target Status': 'behind', Label: 'Contracts Signed', Note: NOTE });
+      return raw; };
+    const j = await boot(jordan(fee())), jt = tileBy(j.view(), 'Contracts Signed');
+    ok('Jordan\'s top line shows the Closed figure with its fee beside it', has(jt, '1 closed, $11,111, 2 fell') && has(jt, 'lm-t-val">0.8<'));
+    ok('...and so does its page', has(j.go('kpi-J13'), '1 closed, $11,111'));
+    ok('the fee reaches his payload on his own row alone: Andrew\'s wire never holds it', has(JSON.stringify(jordan(fee())), '11,111') && !has(JSON.stringify(andrew(fee())), '11,111'));
+    const both = fee(), at = both['Role Scorecard'].findIndex(r => r[3] === 'A13');
+    both['Role Scorecard'][at] = sc(A, 'lm', 'A13', 0.75, { N: 3, Target: 1, 'Target Status': 'behind', Label: 'Contracts Signed', Note: NOTE.replace('$11,111', '$22,222') });
+    const a = await boot(andrew(both)), ah = a.view(), ap = a.go('kpi-A13');
+    ok('the wall: a fee on Andrew\'s top line Note, were the routine to slip one in, is dropped on the tile and its page', !has(ah, '$') && !has(ap, '$') && !has(ah, '22,222') && has(tileBy(ah, 'Contracts Signed'), 'lm-t-val">0.8<'));
+    ok('pay stays hidden on both: no money stat, the plan not set', !has(j.go(''), 'lm-cstat') && !has(ah, 'lm-cstat') && has(j.go(''), 'Pay plan not set') && has(ah, 'Pay plan not set'));
+  }
+
   console.log('A DEAL NO RUN HAS READ YET');
   {
     const lag = (p, n) => Object.assign(p, { teamNotRead: n });
     const one = (await boot(lag(andrew(fullRaw()), 1))).go('deals', 'month'), two = (await boot(lag(jordan(fullRaw()), 2))).go('deals', 'month');
-    ok('the Deals page says so under the funnel, where the count would show', has(one, '1 deal not read yet · counts after the next morning run') && has(two, '2 deals not read yet') && one.indexOf('lm-funnel') < one.indexOf('not read yet'));
-    ok('no such rows, or an old endpoint: nothing prints', !has((await boot(lag(andrew(fullRaw()), 0))).go('deals', 'month'), 'not read yet') && !has((await boot(andrew(fullRaw()))).go('deals', 'month'), 'not read yet'));
-    ok('the wall: the line holds no word and no figure of ours', !WALL.test('1 deal not read yet · counts after the next morning run') && !has(one, '$'));
+    ok('the Deals page says so under the funnel, where the count would show', has(one, '1 deal the last run did not read · not counted') && has(two, '2 deals the last run did not read') && one.indexOf('lm-funnel') < one.indexOf('did not read'));
+    ok('no such rows, or an old endpoint: nothing prints', !has((await boot(lag(andrew(fullRaw()), 0))).go('deals', 'month'), 'did not read') && !has((await boot(andrew(fullRaw()))).go('deals', 'month'), 'did not read'));
+    ok('the wall: the line holds no word and no figure of ours', !WALL.test('1 deal the last run did not read · not counted') && !has(one, '$'));
+    ok('a same-day booking counts, so the line makes no promise of the next run', !has(one, 'next morning run'));
   }
 
   console.log("THE WALL ON ANDREW'S NEW TILES");

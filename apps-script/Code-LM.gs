@@ -42,7 +42,10 @@
  *     (README §2 step 6). For P0d: an LM GET must carry the KEY
  *     tabs['Team Deals'] (null until the tab has rows; an absent key means the
  *     old version is still serving), and kpi_feed must carry tabs.Leads and
- *     tabs['Marketing Spend'] with an empty `missing` (README §2 step 6).
+ *     tabs['Marketing Spend'] with an empty `missing` (README §2 step 6). For the
+ *     same-day booking (11/3): within a day of the tab's stamp, a booking since the
+ *     run on a brand-new lead the tab does not hold ships tagged, with a Team Deals
+ *     row for its contact and a blank Opp ID; the old version ships it untagged.
  *  5. The KPI Staging workbook must have tabs named exactly `Tasks` and
  *     `Review` with the header rows from apps-script/TASKS.md (row 1).
  *     Missing tab -> GET ships tabs.Tasks = null; POST answers
@@ -62,17 +65,23 @@
  *     on a row that is theirs as LM alone, only the number of its Stage, and
  *   • the fee of a deal only where they are its LM.
  * Once the Team Deals tab has rows (P0d), a deal row ships only to a person attached
- * to that deal: owner or follower on its Acquisitions opportunity. See teamDeals_.
+ * to that deal: owner or follower on its Acquisitions opportunity, or, for the one day
+ * after the run, a row of theirs on a brand-new lead no run has read yet (11/3). See teamDeals_.
  *
- * It NEVER serves company revenue / gross profit / cost, the full pipeline,
- * or any other person's deals. Those tabs are not referenced here, and a fee
- * column on a row the person is not the LM of ships blank, so the r=lm network
+ * It NEVER serves company revenue / gross profit / cost (save the AM's top line
+ * below), the full pipeline, or any other person's deals. Those tabs are not
+ * referenced here, and a fee column on a row the person is not the LM of ships
+ * blank, so the r=lm network
  * response cannot contain company money — the boundary holds by construction,
  * not by client-side hiding.
  *
  * WHAT DOLLARS DO ship (by design, per Michael 2026-06-16):
- *   • the LM's own per-deal wholesale fee (their offers/contracts out), and
- *   • the business avg wholesale fee, used only as a projection basis.
+ *   • the LM's own per-deal wholesale fee (their offers/contracts out),
+ *   • the business avg wholesale fee, used only as a projection basis, and
+ *   • on an AM's own top line (J13), the gross fees of the team closings it counts,
+ *     written by the routine into the Role Scorecard Note (Michael 11/3). Role
+ *     Scorecard rows ship whole by Person, so nothing here adds it; the LM's row
+ *     (A13) carries none, and role LM's phone drops any Note with a `$`.
  *   The dispo STAGE per deal also ships (non-dollar) so the client can mark a
  *   fee "earmarked" only once the deal reaches "Under Contract".
  *
@@ -187,17 +196,28 @@ var MONEY_HEADER = /revenue|fee|gross|profit|cost/i;
    its cards, the rule render_memo.team_of reads. The tab holds no Dispositions or Transaction Coordination card, so a union picks none up.
    null is no tab to go by: missing, no rows, or a column renamed. Every reader then reads as it did before P0d. A stale stamp is
    not null: the old names stand and a new deal fails closed, because dropping the tab for a day would put a dispo deal back on a phone.
-   A fresh tab fails closed the same way on a card the last run never read, which is the usual same-day lead: its row takes no tag until
-   the next run. So the rule never reads as a quiet 0, the person's count of such deals ships as teamNotRead, a number with no id on it. */
+   SAME-DAY BOOKING (Michael's ruling 11/3): a booking on a brand-new lead counts on the phone that same day. A row on a card the last
+   run never read keeps its own tag when its contact is new since the run: every row of it on Appointments, Offers and Contracts dated
+   after the tab's as-of stamp and not in the future (newSinceRun_). The risk he took is an outside deal on a phone for that one day, so
+   the stamp counts for one day only (SAME_DAY_MS): past it the next run has not landed, and every unread card fails closed again, as P0d
+   had it. Its card ships on the person's Team Deals copy so the engine counts it too (sameDay). An unread card whose contact has a row from
+   before the stamp still fails closed: the run had the row to read and wrote no card, because it skipped it or because the tab holds no
+   card of that contact's (a deal with only a Dispositions card). So does every unread card with no stamp to go by. So the rule never reads
+   as a quiet 0, the person's count of those deals ships as teamNotRead, a number with no id on it. A contact is either new or not, so one
+   deal is never both counted there and shown. A card on the tab follows the team rule whatever its rows' dates, and a closing never takes this. */
 var TEAM_DEALS_TAB = 'Team Deals';
 var TEAM_DEALS_SHIP = ['Opp ID', 'Contact ID'];     // a phone's copy says which cards are theirs, never who else is on them
+var SAME_DAY_MS = 24 * 3600e3;                      // "that one day": how long a run's stamp lets a brand-new lead keep its tag. Epoch ms, any time zone
+var DEAL_TABS = ['Appointments', 'Offers', 'Contracts'];   // the tabs a contact's history is read on for the same-day booking
 function teamDeals_(ss) {
   var sh = ss.getSheetByName(TEAM_DEALS_TAB);
   if (!sh) return null;
   var v = sh.getDataRange().getValues(), head = v.length ? v[0] : [];
-  var oi = colsByName_(head, ['Opp ID']), ci = colsByName_(head, ['Contact ID']), pi = colsByName_(head, ['Attached People']);
+  var oi = colsByName_(head, ['Opp ID']), ci = colsByName_(head, ['Contact ID']), pi = colsByName_(head, ['Attached People']), ai = colsByName_(head, ['As Of']);
   if (!oi.length || !ci.length || !pi.length) return null;
-  var deals = { opps: Object.create(null), contacts: Object.create(null), cards: [], notRead: Object.create(null) };
+  var deals = { opps: Object.create(null), contacts: Object.create(null), cards: [], notRead: Object.create(null), sameDay: Object.create(null),
+    fresh: Object.create(null), values: Object.create(null),   // newSinceRun_ fills both: the new contacts, and the deal tabs it read
+    asOf: ai.length && v.length > 1 ? tMs_(v[1][ai[0]]) : NaN };   // E2, the run's stamp. NaN: no row since the run can be told
   for (var i = 1; i < v.length; i++) {
     var opp = tStr_(v[i][oi[0]]), cid = tStr_(v[i][ci[0]]);
     if (!opp && !cid) continue;                     // the stamp at E2 makes a phantom row on an empty tab
@@ -224,11 +244,53 @@ function dealRead_(deals, opp, contact) {
   return !!((o && deals.opps[o]) || (c && deals.contacts[c]));
 }
 
-/* The person's cards, ids only, for the engine's own check. Header alone = the tab is live and they are on nothing. */
+/* Is the stamp today's run: no older than SAME_DAY_MS and not ahead of now. A run that stopped leaves a stamp that grows old, and from
+   then on no row can be shown to be since a run that still stands. */
+function stampFresh_(deals) {
+  var now = Date.now();
+  return !!deals && !isNaN(deals.asOf) && deals.asOf <= now && now - deals.asOf <= SAME_DAY_MS;
+}
+
+/* Did this row happen since the run that wrote the tab: its latest date cell after the stamp. A future-dated cell is not a write. */
+function sinceRun_(deals, row, dates) {
+  var ms = NaN;
+  dates.forEach(function (c) { var m = tMs_(row[c]); if (!isNaN(m) && (isNaN(ms) || m > ms)) ms = m; });
+  return !isNaN(deals.asOf) && ms > deals.asOf && ms <= Date.now();
+}
+
+/* A deal tab's own date columns, by header: 'Confirmed Date', 'Signed Date' and the rest. */
+function dateCols_(head) {
+  var out = [];
+  head.forEach(function (h, i) { if (/ date$/i.test(tStr_(h))) out.push(i); });
+  return out;
+}
+
+/* The contacts new since the run, the twin of index.html newSinceRun: every row of theirs on the deal tabs passes sinceRun_ under a
+   fresh stamp. A contact with any row from before the stamp, undated, or ahead of now is not new, so none of its rows takes the same-day
+   booking. Each deal tab read here is kept for scopeTab_, so the GET reads it once. A stale or missing stamp reads nothing: nobody is new. */
+function newSinceRun_(ss, deals) {
+  if (!stampFresh_(deals)) return;
+  DEAL_TABS.forEach(function (name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) return;
+    var v = deals.values[name] = sh.getDataRange().getValues();
+    if (!v.length) return;
+    var ci = memberCol_(v[0], PERSON_TABS[name]), dates = dateCols_(v[0]);
+    if (ci < 0) return;
+    for (var i = 1; i < v.length; i++) {
+      var cid = tStr_(v[i][ci]);
+      if (cid) deals.fresh[cid] = deals.fresh[cid] !== false && sinceRun_(deals, v[i], dates);
+    }
+  });
+}
+
+/* The person's cards, ids only, for the engine's own check, then the unread cards their same-day rows sit on. Header alone = the tab
+   is live and they are on nothing. */
 function teamDealsOf_(deals, want) {
   if (!deals) return null;
   var out = [TEAM_DEALS_SHIP.slice()];
   deals.cards.forEach(function (c) { if (c[2].indexOf(want) > -1) out.push([c[0], c[1]]); });
+  Object.keys(deals.sameDay).forEach(function (k) { out.push(deals.sameDay[k]); });
   return out;
 }
 
@@ -272,6 +334,7 @@ function doGet(e) {
     // 1) Team roster — LM and AM rows only (person selector + leaderboard-ready). First,
     //    because the Deal Board below is scoped by the role it names.
     var team = teamRoles_(ss), teamRole = teamRoleOf_(team, person), deals = teamDeals_(ss);
+    if (deals) newSinceRun_(ss, deals);   // the same-day booking: which unread contacts are brand-new leads
 
     // 2) person-scoped tabs: header row + ONLY this person's rows
     var tabs = {};
@@ -329,7 +392,8 @@ function doGet(e) {
    for nothing. Only the person's OWN opportunities are included, and fee columns
    ship only on a deal they are the LM of (D-5).
    P0d: with a Team Deals tab to go by, a row on a deal the person is not attached to takes no tag, so it neither counts nor
-   brings the contact's other rows with it. A deal is on a phone only if the person is on the card, whatever a role cell says. */
+   brings the contact's other rows with it. A deal is on a phone only if the person is on the card, whatever a role cell says. The one
+   exception is a brand-new lead no run has read yet: a row of theirs on it keeps its tag for the day of the stamp (teamDeals_). */
 /* Header-name → column index. Returns EVERY named column that exists, in the
    order named, so the caller can coalesce across them per row. */
 function colsByName_(header, names) {
@@ -342,10 +406,19 @@ function colsByName_(header, names) {
   return out;
 }
 
+/* The Contact ID column of a deal tab: by header name, the numeric `member` only if none matched. -1: no member column. */
+function memberCol_(head, cfg) {
+  if (cfg.memberNames) {
+    var m = colsByName_(head, cfg.memberNames);
+    return m.length ? m[0] : (cfg.member == null ? -1 : cfg.member);
+  }
+  return cfg.member != null ? cfg.member : -1;
+}
+
 function scopeTab_(ss, name, cfg, person, roleCell, deals) {
   var sh = ss.getSheetByName(name);
   if (!sh) return null;
-  var values = sh.getDataRange().getValues();
+  var values = (deals && deals.values[name]) || sh.getDataRange().getValues();   // newSinceRun_ may have read it already
   if (!values.length) return [];
   if (cfg.byRole) return scopeByRole_(values, cfg, person, roleCell);
   var width = cfg.cols || values[0].length;
@@ -366,13 +439,7 @@ function scopeTab_(ss, name, cfg, person, roleCell, deals) {
     return '';
   }
 
-  var memberIdx = -1;
-  if (cfg.memberNames) {
-    var m = colsByName_(values[0], cfg.memberNames);
-    memberIdx = m.length ? m[0] : (cfg.member == null ? -1 : cfg.member);
-  } else if (cfg.member != null) {
-    memberIdx = cfg.member;
-  }
+  var memberIdx = memberCol_(values[0], cfg);
 
   if (memberIdx < 0) {                      // single-attribution
     for (var i = 1; i < values.length; i++) {
@@ -386,9 +453,11 @@ function scopeTab_(ss, name, cfg, person, roleCell, deals) {
   var ids = {}, lmIds = {}, tags = [];               // ids: any role (record lists); lmIds: LM (money)
   for (var a = 1; a < values.length; a++) {
     var isLM = ownerOf(values[a]) === want, isAM = amIdx.length > 0 && norm_(values[a][amIdx[0]]) === want;
-    if ((isLM || isAM) && deals && !onDeal_(deals, oppIdx.length ? values[a][oppIdx[0]] : '', values[a][memberIdx], want)) {
-      if (!dealRead_(deals, oppIdx.length ? values[a][oppIdx[0]] : '', values[a][memberIdx])) deals.notRead[tStr_(values[a][memberIdx]) || name + a] = true;
-      isLM = isAM = false;
+    var opp = tStr_(oppIdx.length ? values[a][oppIdx[0]] : ''), cid = tStr_(values[a][memberIdx]);
+    if ((isLM || isAM) && deals && !onDeal_(deals, opp, cid, want)) {
+      var unread = !dealRead_(deals, opp, cid);
+      if (unread && cid && deals.fresh[cid] === true) deals.sameDay[opp + '|' + cid] = [opp, cid];   // a brand-new lead keeps its tag that day
+      else { if (unread) deals.notRead[cid || name + a] = true; isLM = isAM = false; }
     }
     tags[a] = isLM && isAM ? 'LM,AM' : (isLM ? 'LM' : (isAM ? 'AM' : ''));
     var k = values[a][memberIdx];

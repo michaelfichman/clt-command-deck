@@ -554,6 +554,58 @@ console.log('TEAM DEALS — a row no run has read yet, on a fresh tab');
   ok('it is a count: no id or name of the row on the wire', typeof j.teamNotRead === 'number');
   ok('no tab: the key is not on the payload, so every reader reads as today', !('teamNotRead' in endpoint('lm', sheets()).GET(TOK.jordan)));
 }
+console.log('TEAM DEALS — a same-day booking on a card no run has read keeps its tag (Michael 11/3)');
+{
+  /* synthetic: cn arrived and booked after the run's stamp, so no card of it is on the tab; cz is the same, dated in the future (a typo). Dates
+     carry their offset, so every time zone reads them the same side of the stamp. The stamp counts for one day, so each GET runs on a clock
+     pinned to the evening of the stamp (at), never the machine's: these dates do not rot. */
+  const ENG = require('./lm-engine.js'), SINCE = '2026-11-02T14:15:00-05:00', LATER = '2026-11-02T16:00:00-05:00', EVENING = Date.parse('2026-11-02T18:00:00-05:00');
+  const at = (ms, f) => { const real = Date.now; Date.now = () => ms; try { return f(); } finally { Date.now = real; } };
+  const sameDay = (rows, more) => { const s = teamSheets(rows), x = more || {};
+    s.Appointments = fakeSheet([HEAD.Appointments, ...APPT.map(apptRow), apptRow(['new', SINCE, '', 'Confirmed', A, J, 'cn']), apptRow(['new-jv', LATER, '', 'Confirmed', M, J, 'cu']),
+      apptRow(['new-n9', LATER, '', 'Confirmed', A, J, 'cm']), apptRow(['typo', '2099-01-01T10:00:00-05:00', '', 'Confirmed', A, J, 'cz'])]);
+    s.Offers = fakeSheet([HEAD.Offers, ...OFFER.map(apptRow), apptRow(['new', LATER, '', 'Made', A, J, 'cn']), ...(x.offers || []).map(apptRow)]);
+    s.Contracts = fakeSheet([HEAD.Contracts, ...CONTRACT.map(contractRow), contractRow(['new', '', LATER, '', 'Signed', A, J, 'cn', 'o-cn', 9191]), ...(x.contracts || []).map(contractRow)]);
+    s.Closings = fakeSheet([HEAD.Closings, ...CLOSING.map(closingRow), closingRow(['new', LATER, 4321, A, J, M, 'cn', 4321])]);
+    return s; };
+  const tag = (t, c) => rowsWhere(t, 'Contact ID', c).map(r => r[col(t, '_as')]).join();
+  const GET2 = (s, ms) => at(ms || EVENING, () => { const L = endpoint('lm', s); return [L.GET(TOK.jordan), L.GET(TOK.andrew)]; });
+  const [j, a] = GET2(sameDay());
+  ok('the booking keeps its tag on both phones, each by their own role', tag(a.tabs.Appointments, 'cn') === 'LM' && tag(j.tabs.Appointments, 'cn') === 'AM');
+  ok('...and so do its offer and contract rows since the stamp', tag(a.tabs.Offers, 'cn') === 'LM' && tag(j.tabs.Offers, 'cn') === 'AM' && tag(a.tabs.Contracts, 'cn') === 'LM' && tag(j.tabs.Contracts, 'cn') === 'AM');
+  ok('money still follows the LM role: no gross on Jordan\'s AM row', rowsWhere(j.tabs.Contracts, 'Contact ID', 'cn')[0][col(j.tabs.Contracts, 'Gross Assignment Fee (derived)')] === '');
+  ok('its card rides on their Team Deals copy, ids only', [a, j].every(g => g.tabs['Team Deals'].some(r => same(r, ['', 'cn'])) && g.tabs['Team Deals'].some(r => same(r, ['o-cn', 'cn']))) && !/Mathis|Estrada|2026-11-02/.test(wire(j, 'Team Deals')));
+  const strip = g => { const p = JSON.parse(JSON.stringify(g)); p.tabs['Team Deals'] = p.tabs['Team Deals'].filter(r => r[1] !== 'cn'); return p; };
+  const booked = g => ENG.buildModel(g, '11/3/2026 10:00:00').lenses.ytd.apptsBooked.current;
+  ok('so the engine counts it: one booked more on Andrew\'s phone than without its card', booked(a) === booked(strip(a)) + 1);
+  ok('a closing on that card does not ship: no dollar rides on the same-day rule', rowsWhere(a.tabs.Closings, 'Contact ID', 'cn').length === 0 && rowsWhere(j.tabs.Closings, 'Contact ID', 'cn').length === 0);
+  ok('a card the run read as outside stays off, whatever the date (the JV deal)', !contacts(j.tabs.Appointments).includes('cu'));
+  ok('a card read with only the other person on it stays off, whatever the date (N9)', !contacts(j.tabs.Appointments).includes('cm') && contacts(a.tabs.Appointments).includes('cm'));
+  ok('teamNotRead counts only what still fails closed: the row before the stamp and the one dated in the future', j.teamNotRead === 2 && a.teamNotRead === 2 && !contacts(a.tabs.Appointments).includes('cd') && !contacts(a.tabs.Appointments).includes('cz'));
+  const none = TEAM_ROWS(); none[1][4] = '';
+  const n = GET2(sameDay(none))[1];
+  ok('no stamp to go by: no row can be shown to be since the run, so it fails closed and is counted', !contacts(n.tabs.Appointments).includes('cn') && n.teamNotRead === 3 && !n.tabs['Team Deals'].some(r => r[1] === 'cn'));
+  const r = GET2(sameDay(TEAM_ROWS().concat([['a-cn', 'cn', A + ', ' + J, '', '']])))[1];
+  ok('the next run reads the card: the team rule decides, the tag stands, and the id is the card\'s own', tag(r.tabs.Appointments, 'cn') === 'LM' && r.teamNotRead === 2 && r.tabs['Team Deals'].some(x => same(x, ['a-cn', 'cn'])) && !r.tabs['Team Deals'].some(x => same(x, ['', 'cn'])));
+  const o = GET2(sameDay(TEAM_ROWS().concat([['a-cn', 'cn', '', '', '']])))[1];
+  ok('...and read as outside, it leaves the phone', !contacts(o.tabs.Appointments).includes('cn') && !contacts(o.tabs.Contracts).includes('cn'));
+  /* review 11/3, 1: the stamp counts for one day. A run that stops does not stretch it: past a day, every unread card fails closed again, as P0d had it */
+  const stale = TEAM_ROWS(); stale[1][4] = '2026-09-01T05:40:00-05:00';
+  const s = GET2(sameDay(stale))[1];
+  ok('a stale stamp: nothing on an unread card keeps its tag, whatever its date, and all of it is counted', tag(s.tabs.Appointments, 'cd') === '' && tag(s.tabs.Appointments, 'cn') === '' && !contacts(s.tabs.Appointments).includes('cn') && s.teamNotRead === 3 && !s.tabs['Team Deals'].some(x => x[1] === 'cn'));
+  const DAY = 24 * 3600e3, STAMP_MS = Date.parse(TEAM_STAMP);
+  const [, inDay] = GET2(sameDay(), STAMP_MS + DAY - 60e3), [, pastDay] = GET2(sameDay(), STAMP_MS + DAY + 60e3);
+  ok('the day is 24 hours from the stamp: a minute before, the booking still counts', tag(inDay.tabs.Appointments, 'cn') === 'LM' && inDay.teamNotRead === 2);
+  ok('...a minute past, with no new run, it fails closed and is counted', !contacts(pastDay.tabs.Appointments).includes('cn') && pastDay.teamNotRead === 3 && !pastDay.tabs['Team Deals'].some(x => x[1] === 'cn'));
+  /* review 11/3, 2 and 4: only a brand-new lead takes the rule. cd had a row the run could read (9/28) and no card on the tab; a new row on it
+     is not a new lead, so it fails closed with the old one, and the deal is counted once, never counted and shown */
+  const [jd, ad] = GET2(sameDay(null, { offers: [['new-cd', LATER, '', 'Made', A, J, 'cd']] }));
+  ok('a contact with a row from before the stamp: its row since the stamp fails closed too, on both phones', !contacts(ad.tabs.Offers).includes('cd') && !contacts(jd.tabs.Offers).includes('cd') && !contacts(ad.tabs.Appointments).includes('cd'));
+  ok('...it is counted once, and its card is not on their Team Deals copy', ad.teamNotRead === 2 && jd.teamNotRead === 2 && ![ad, jd].some(g => g.tabs['Team Deals'].some(x => x[1] === 'cd')));
+  /* a deal whose only card is in Dispositions (a JV) is never on the tab. Its old Signed row, and each new row it gets, stay off Jordan's phone */
+  const [jv] = GET2(sameDay(null, { contracts: [['jv-sign', '', '10/19/2026 10:49 AM', '', 'Signed', M, J, 'cv', 'o-cv', 7171], ['jv-close', '', '', LATER, 'Closed', M, J, 'cv', 'o-cv', 7171]] }));
+  ok('a deal with only a Dispositions card: its new row does not reach his phone, and it is one deal on the count', !contacts(jv.tabs.Contracts).includes('cv') && jv.teamNotRead === 3 && !('cv' in jv.fees) && !/7171/.test(JSON.stringify(jv)));
+}
 console.log('TEAM DEALS — Closings');
 {
   const L = endpoint('lm', teamSheets()), j = L.GET(TOK.jordan), a = L.GET(TOK.andrew);

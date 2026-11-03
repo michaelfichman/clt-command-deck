@@ -249,6 +249,54 @@ console.log('TEAM DEALS IN EVERY STATE, LINE FOR LINE');
   const ck = RAW.Contracts[0].indexOf('Contact ID'), co = RAW.Contracts[0].indexOf('Opportunity ID'), odd = RAW.Contracts[1].slice(); odd[ck] = 'constructor'; odd[co] = 'constructor';
   const inherited = team([TEAM_H, ...cards]); inherited.Contracts = RAW.Contracts.concat([odd]);
   [J, A].forEach(person => ok('an id that is an inherited name: ' + person.split(' ')[0] + ', no throw, identical', same(endpoint(inherited)(TOK[person]).tabs.Contracts, scopeToLM(inherited, person).tabs.Contracts)));
+
+  /* Michael 11/3: a booking on a brand-new lead no run has read keeps its tag for the day of the stamp. N1 is that lead; N2 is unread and
+     dated before the stamp, a card the run skipped; N3 is dated in the future. The dates carry their offset, so every time zone reads them
+     alike, and both sides run on one clock pinned to the evening of the stamp (at), never the machine's, so they do not rot. */
+  const DAY = 24 * 3600e3, STAMP_MS = Date.parse(STAMPED), EVENING = Date.parse('2026-06-19T20:00:00-04:00');
+  const at = (ms, f) => { const real = Date.now; Date.now = () => ms; try { return f(); } finally { Date.now = real; } };
+  const N = (d, out, id) => [d, '', out, A, J, 'Seller ' + id, '', '', '', id, ''];
+  const sameDay = (td, more) => { const x = more || {}; return Object.assign({}, RAW, { 'Team Deals': td,
+    Appointments: RAW.Appointments.concat([N('2026-06-19T15:00:00-04:00', 'Confirmed', 'N1'), N('2026-06-18T14:00:00-04:00', 'Confirmed', 'N2'), N('2099-01-01T10:00:00-05:00', 'Confirmed', 'N3')]),
+    Offers: RAW.Offers.concat([N('2026-06-19T16:00:00-04:00', 'Made', 'N1')], x.offers || []),
+    Contracts: RAW.Contracts.concat([['', '2026-06-19T17:00:00-04:00', '', 'Signed', A, J, 'Seller N1', '', '', '', 'N1', 'opN1', '', '', '', 13131, 'NOTE-N1']], x.contracts || []),
+    Closings: RAW.Closings.concat([['2026-06-20T10:00:00-04:00', 13131, A, J, M, 'Seller N1', '', '', '', 'N1', 13131]]) }); };
+  /* V1 is a deal whose only card is in Dispositions, so the tab never holds it: an old Signed row with Jordan the AM, and a new Closed row since the stamp */
+  const V = [['', '5/27/2026 2:00 PM', '', 'Signed', M, J, 'Seller V1', '', '', '', 'V1', 'opV1', '', '', '', 17171, 'NOTE-V1'], ['', '', '2026-06-19T18:00:00-04:00', 'Closed', M, J, 'Seller V1', '', '', '', 'V1', 'opV1', '', '', '', 17171, 'NOTE-V1']];
+  const SAME = {
+    'a same-day row on a card no run has read': sameDay([TEAM_H, ...cards]),
+    'the same, with no stamp': sameDay([TEAM_H, ...cards.map(r => r.slice(0, 4).concat(['']))]),
+    'the same, under a stale stamp': sameDay([TEAM_H, ...cards.map((r, i) => i ? r : [r[0], r[1], r[2], r[3], '2026-01-01T09:40:00-05:00'])]),
+    'the same, once the run reads the card': sameDay([TEAM_H, ...cards, ['opN1', 'N1', A + ', ' + J, '', '']]),
+    'the same, the card read as outside': sameDay([TEAM_H, ...cards, ['opN1', 'N1', '', '', '']]),
+    'the same, with a row since the stamp on N2, which has an older one': sameDay([TEAM_H, ...cards], { offers: [N('2026-06-19T16:30:00-04:00', 'Made', 'N2')] }),
+    'the same, with a deal whose only card is in Dispositions': sameDay([TEAM_H, ...cards], { contracts: V })
+  };
+  const AT = '6/30/2026 12:00:00';
+  [['on the evening of the stamp', EVENING], ['a minute past its day', STAMP_MS + DAY + 60e3]].forEach(([when, ms]) => Object.keys(SAME).forEach(name => {
+    const g2 = endpoint(SAME[name]);
+    [J, A].forEach(person => {
+      const g = at(ms, () => g2(TOK[person])), d = at(ms, () => scopeToLM(SAME[name], person)), first = person.split(' ')[0];
+      ok(name + ', ' + when + ': ' + first + ', every deal tab, Team Deals, fees, stages and the not-read count identical', ['Appointments', 'Offers', 'Contracts', 'Closings', 'Team Deals'].every(t => same(g.tabs[t], d.tabs[t])) && same(g.fees, d.fees) && same(g.stages, d.stages) && g.teamNotRead === d.teamNotRead);
+      const gm = E.buildModel(g, AT), dm = E.buildModel(d, AT);
+      ok(name + ', ' + when + ': ' + first + ', the same tiles and the same comp', E.LENSES.every(l => Object.keys(gm.lenses[l]).every(k => gm.lenses[l][k].current === dm.lenses[l][k].current)) && same(gm.comp, dm.comp));
+    });
+  }));
+  const tagOf = (t, id) => t.slice(1).filter(r => r[t[0].indexOf('Contact ID')] === id).map(r => r[r.length - 1]).join();
+  const sc = (name, p, ms) => at(ms || EVENING, () => scopeToLM(SAME[name], p));
+  const base = p => scopeToLM(STATES['a live tab'], p), sa = sc('a same-day row on a card no run has read', A), sj = sc('a same-day row on a card no run has read', J);
+  ok('the same-day states are not vacuous: N1 keeps its tag on both, by each one\'s role', tagOf(sa.tabs.Appointments, 'N1') === 'LM' && tagOf(sj.tabs.Appointments, 'N1') === 'AM' && tagOf(sa.tabs.Contracts, 'N1') === 'LM' && tagOf(sj.tabs.Offers, 'N1') === 'AM');
+  ok('...the count of deals not read takes N2 and N3 alone', sa.teamNotRead === base(A).teamNotRead + 2 && sj.teamNotRead === base(J).teamNotRead + 2);
+  ok('...its closing does not ship, and Andrew\'s phone books one more', tagOf(sa.tabs.Closings, 'N1') === '' && E.buildModel(sa, AT).lenses.ytd.apptsBooked.current === E.buildModel(base(A), AT).lenses.ytd.apptsBooked.current + 1);
+  ok('...with no stamp, N1 fails closed and is counted', tagOf(sc('the same, with no stamp', A).tabs.Appointments, 'N1') === '' && sc('the same, with no stamp', A).teamNotRead === scopeToLM(STATES['no stamp'], A).teamNotRead + 3);
+  ok('...read as outside, it leaves both phones', [A, J].every(p => tagOf(sc('the same, the card read as outside', p).tabs.Appointments, 'N1') === ''));
+  ok('...under a stale stamp, N1 fails closed and is counted: a run that stops does not stretch the day', [A, J].every(p => tagOf(sc('the same, under a stale stamp', p).tabs.Appointments, 'N1') === '' && sc('the same, under a stale stamp', p).teamNotRead === base(p).teamNotRead + 3));
+  const late = p => sc('a same-day row on a card no run has read', p, STAMP_MS + DAY + 60e3);
+  ok('...and so it does a minute past the stamp\'s day, with no new run', [A, J].every(p => tagOf(late(p).tabs.Appointments, 'N1') === '' && late(p).teamNotRead === base(p).teamNotRead + 3 && !late(p).tabs['Team Deals'].some(r => r[1] === 'N1')));
+  const n2 = p => sc('the same, with a row since the stamp on N2, which has an older one', p);
+  ok('...N2\'s row since the stamp fails closed with its older one, and N2 counts once, never counted and shown', [A, J].every(p => tagOf(n2(p).tabs.Offers, 'N2') === '' && n2(p).teamNotRead === base(p).teamNotRead + 2 && !n2(p).tabs['Team Deals'].some(r => r[1] === 'N2')));
+  const v1 = sc('the same, with a deal whose only card is in Dispositions', J);
+  ok('...a deal with only a Dispositions card stays off Jordan\'s phone, its new row too, and is one deal on the count', tagOf(v1.tabs.Contracts, 'V1') === '' && v1.teamNotRead === base(J).teamNotRead + 3 && JSON.stringify(v1).indexOf('17171') === -1);
 }
 
 console.log('MISMATCHED LEADS / SPEED POPULATIONS');

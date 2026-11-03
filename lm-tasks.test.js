@@ -78,8 +78,8 @@ const before = (h, a, b) => h.indexOf(a) > -1 && h.indexOf(b) > -1 && h.indexOf(
 (async function () {
   console.log('ASSET VERSIONS');
   const html = fs.readFileSync(__dirname + '/lm.html', 'utf8'), sw = fs.readFileSync(__dirname + '/sw-lm.js', 'utf8');
-  ok('lm.html: engine/gamify/view tags + css link at ?v=48, no v=47 left', (html.match(/\?v=48/g) || []).length === 4 && html.indexOf('v=47') === -1);
-  ok('sw-lm.js: cache name clt-lm-v48 and V=48', sw.indexOf("'clt-lm-v48'") > -1 && sw.indexOf("const V = '48'") > -1);
+  ok('lm.html: engine/gamify/view tags + css link at ?v=49, no v=48 left', (html.match(/\?v=49/g) || []).length === 4 && html.indexOf('v=48') === -1);
+  ok('sw-lm.js: cache name clt-lm-v49 and V=49', sw.indexOf("'clt-lm-v49'") > -1 && sw.indexOf("const V = '49'") > -1);
 
   console.log('HOME — the ✓ Today button');
   const B = boot(); await tick(60);
