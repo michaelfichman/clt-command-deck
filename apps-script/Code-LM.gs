@@ -39,7 +39,10 @@
  *     exist; an absent key means the old version is still serving. Once the
  *     tab exists, tabs['Deal Board'][0] is 12 cells ending in `_as`, with no
  *     `Value`, and a row tagged `LM` alone carries Stage as a bare number
- *     (README §2 step 6).
+ *     (README §2 step 6). For P0d: an LM GET must carry the KEY
+ *     tabs['Team Deals'] (null until the tab has rows; an absent key means the
+ *     old version is still serving), and kpi_feed must carry tabs.Leads and
+ *     tabs['Marketing Spend'] with an empty `missing` (README §2 step 6).
  *  5. The KPI Staging workbook must have tabs named exactly `Tasks` and
  *     `Review` with the header rows from apps-script/TASKS.md (row 1).
  *     Missing tab -> GET ships tabs.Tasks = null; POST answers
@@ -58,6 +61,8 @@
  *     or AM column their Team role allows (D2), never the board's Value, and
  *     on a row that is theirs as LM alone, only the number of its Stage, and
  *   • the fee of a deal only where they are its LM.
+ * Once the Team Deals tab has rows (P0d), a deal row ships only to a person attached
+ * to that deal: owner or follower on its Acquisitions opportunity. See teamDeals_.
  *
  * It NEVER serves company revenue / gross profit / cost, the full pipeline,
  * or any other person's deals. Those tabs are not referenced here, and a fee
@@ -174,6 +179,59 @@ var PERSON_TABS = {
    on a row the person is not the LM of, such a cell ships blank. */
 var MONEY_HEADER = /revenue|fee|gross|profit|cost/i;
 
+/* THE TEAM RULE (P0d, Michael's ruling 11/2): a deal is team when Andrew or Jordan is owner or follower on its Acquisitions
+   opportunity, wherever that card went. This script has no GHL read, so the routine writes the answer on one tab, one row per card:
+   Opp ID | Contact ID | Attached People (Team-tab names, comma-separated, owner first), as-of stamp at E1:E2.
+   A blank Attached People is a card that was read with neither of them on it, an outside deal. A card off the tab was not read, and
+   it fails closed: nobody is attached to it. A Contracts row names its own card; the other tabs join through the contact, the union of
+   its cards, the rule render_memo.team_of reads. The tab holds no Dispositions or Transaction Coordination card, so a union picks none up.
+   null is no tab to go by: missing, no rows, or a column renamed. Every reader then reads as it did before P0d. A stale stamp is
+   not null: the old names stand and a new deal fails closed, because dropping the tab for a day would put a dispo deal back on a phone.
+   A fresh tab fails closed the same way on a card the last run never read, which is the usual same-day lead: its row takes no tag until
+   the next run. So the rule never reads as a quiet 0, the person's count of such deals ships as teamNotRead, a number with no id on it. */
+var TEAM_DEALS_TAB = 'Team Deals';
+var TEAM_DEALS_SHIP = ['Opp ID', 'Contact ID'];     // a phone's copy says which cards are theirs, never who else is on them
+function teamDeals_(ss) {
+  var sh = ss.getSheetByName(TEAM_DEALS_TAB);
+  if (!sh) return null;
+  var v = sh.getDataRange().getValues(), head = v.length ? v[0] : [];
+  var oi = colsByName_(head, ['Opp ID']), ci = colsByName_(head, ['Contact ID']), pi = colsByName_(head, ['Attached People']);
+  if (!oi.length || !ci.length || !pi.length) return null;
+  var deals = { opps: Object.create(null), contacts: Object.create(null), cards: [], notRead: Object.create(null) };
+  for (var i = 1; i < v.length; i++) {
+    var opp = tStr_(v[i][oi[0]]), cid = tStr_(v[i][ci[0]]);
+    if (!opp && !cid) continue;                     // the stamp at E2 makes a phantom row on an empty tab
+    var names = tStr_(v[i][pi[0]]).split(',').map(norm_).filter(Boolean);
+    if (opp) deals.opps[opp] = names;
+    if (cid) {
+      var all = deals.contacts[cid] || (deals.contacts[cid] = []);
+      names.forEach(function (n) { if (all.indexOf(n) < 0) all.push(n); });
+    }
+    deals.cards.push([opp, cid, names]);
+  }
+  return deals.cards.length ? deals : null;
+}
+
+/* Is the person (norm_ form) on this deal. The row's own card if it names one that was read, else the contact's cards. */
+function onDeal_(deals, opp, contact, want) {
+  var o = tStr_(opp), c = tStr_(contact), people = (o && deals.opps[o]) || (c && deals.contacts[c]) || [];
+  return people.indexOf(want) > -1;
+}
+
+/* Was any card behind this row read. False is a row the tab cannot answer for, which is not the same as a row read as outside. */
+function dealRead_(deals, opp, contact) {
+  var o = tStr_(opp), c = tStr_(contact);
+  return !!((o && deals.opps[o]) || (c && deals.contacts[c]));
+}
+
+/* The person's cards, ids only, for the engine's own check. Header alone = the tab is live and they are on nothing. */
+function teamDealsOf_(deals, want) {
+  if (!deals) return null;
+  var out = [TEAM_DEALS_SHIP.slice()];
+  deals.cards.forEach(function (c) { if (c[2].indexOf(want) > -1) out.push([c[0], c[1]]); });
+  return out;
+}
+
 /* Curated Goals allow-list (default-DENY): ONLY these labels leave the
    endpoint. Matched on a normalized label so the arrow glyph / spacing can't
    break it. No revenue / gross-profit / cost row is referenced, so none can
@@ -213,17 +271,18 @@ function doGet(e) {
 
     // 1) Team roster — LM and AM rows only (person selector + leaderboard-ready). First,
     //    because the Deal Board below is scoped by the role it names.
-    var team = teamRoles_(ss), teamRole = teamRoleOf_(team, person);
+    var team = teamRoles_(ss), teamRole = teamRoleOf_(team, person), deals = teamDeals_(ss);
 
     // 2) person-scoped tabs: header row + ONLY this person's rows
     var tabs = {};
     Object.keys(PERSON_TABS).forEach(function (name) {
-      tabs[name] = scopeTab_(ss, name, PERSON_TABS[name], person, teamRole);
+      tabs[name] = scopeTab_(ss, name, PERSON_TABS[name], person, teamRole, deals);
     });
     tabs['Team'] = team;
+    tabs['Team Deals'] = teamDealsOf_(deals, norm_(person));
 
     // 2b) Closings — this person's rows by Booker (LM) / AM / DM, money on LM rows only
-    tabs['Closings'] = scopedClosings_(ss, tabs, person);
+    tabs['Closings'] = scopedClosings_(ss, tabs, person, deals);
 
     // 3) scoped fees + dispo stage — ONLY the deals this person is the LM of (D-5: AM rows never add fees)
     var fs = scopedFees_(ss, tabs);
@@ -245,6 +304,7 @@ function doGet(e) {
       payPlanSet: PAY_PLAN_SET,
       splitRate: PAY_PLAN_SET ? LM_DEFAULT_SPLIT : null,
       dealBoardAsOf: dealBoardAsOf_(ss),   // N2 sits outside the shipped columns; null = no board to trust
+      teamNotRead: deals ? Object.keys(deals.notRead).length : undefined,   // no key at all with no tab to go by: the payload reads as it did
       tabs: tabs,
       fees: fs.fees,
       stages: fs.stages,              // dispo stage per deal → Earmarked only if "Under Contract"
@@ -267,7 +327,9 @@ function doGet(e) {
    Cancelled on the deal). Without it a deal's terminal status would be invisible
    and a declined offer would wrongly read as "open." A blank `_as` row counts
    for nothing. Only the person's OWN opportunities are included, and fee columns
-   ship only on a deal they are the LM of (D-5). */
+   ship only on a deal they are the LM of (D-5).
+   P0d: with a Team Deals tab to go by, a row on a deal the person is not attached to takes no tag, so it neither counts nor
+   brings the contact's other rows with it. A deal is on a phone only if the person is on the card, whatever a role cell says. */
 /* Header-name → column index. Returns EVERY named column that exists, in the
    order named, so the caller can coalesce across them per row. */
 function colsByName_(header, names) {
@@ -280,7 +342,7 @@ function colsByName_(header, names) {
   return out;
 }
 
-function scopeTab_(ss, name, cfg, person, roleCell) {
+function scopeTab_(ss, name, cfg, person, roleCell, deals) {
   var sh = ss.getSheetByName(name);
   if (!sh) return null;
   var values = sh.getDataRange().getValues();
@@ -320,9 +382,14 @@ function scopeTab_(ss, name, cfg, person, roleCell) {
   }
 
   var amIdx = colsByName_(values[0], cfg.amNames);   // no AM header -> nobody tagged AM; Booker still scopes
+  var oppIdx = colsByName_(values[0], ['Opportunity ID']);   // Contracts alone: a row that names its own card
   var ids = {}, lmIds = {}, tags = [];               // ids: any role (record lists); lmIds: LM (money)
   for (var a = 1; a < values.length; a++) {
     var isLM = ownerOf(values[a]) === want, isAM = amIdx.length > 0 && norm_(values[a][amIdx[0]]) === want;
+    if ((isLM || isAM) && deals && !onDeal_(deals, oppIdx.length ? values[a][oppIdx[0]] : '', values[a][memberIdx], want)) {
+      if (!dealRead_(deals, oppIdx.length ? values[a][oppIdx[0]] : '', values[a][memberIdx])) deals.notRead[tStr_(values[a][memberIdx]) || name + a] = true;
+      isLM = isAM = false;
+    }
     tags[a] = isLM && isAM ? 'LM,AM' : (isLM ? 'LM' : (isAM ? 'AM' : ''));
     var k = values[a][memberIdx];
     if (k && tags[a]) ids[k] = true;
@@ -468,8 +535,9 @@ function scopedFees_(ss, tabs) {
    comma join in that order. The LM tag also covers a deal matched to their LM Contracts (the Booker
    membership that always drove Earned at actual revenue — live, no nightly dependency).
    D-5: Revenue and the fee ship ONLY on an LM row. An AM- or DM-only row carries its date and roles
-   with its money blanked, so it cannot add a dollar to anything even if a client ignored `_as`. */
-function scopedClosings_(ss, tabs, person) {
+   with its money blanked, so it cannot add a dollar to anything even if a client ignored `_as`.
+   P0d: money follows the LM role and the team rule. With a Team Deals tab to go by, a closing ships only to a person attached to it. */
+function scopedClosings_(ss, tabs, person, deals) {
   var mine = lmContacts_(tabs['Contracts']);
   var sh = ss.getSheetByName('Closings');
   if (!sh) return null;
@@ -481,6 +549,7 @@ function scopedClosings_(ss, tabs, person) {
   function has(row, cols) { return cols.length > 0 && norm_(row[cols[0]]) === want; }
   var out = [v[0].concat(['_as'])];
   for (var j = 1; j < v.length; j++) {
+    if (deals && !onDeal_(deals, '', ci.length ? v[j][ci[0]] : '', want)) continue;
     var isLM = has(v[j], lm) || (ci.length > 0 && !!v[j][ci[0]] && mine[v[j][ci[0]]] === true);
     var tag = (isLM ? ['LM'] : []).concat(has(v[j], am) ? ['AM'] : [], has(v[j], dm) ? ['DM'] : []).join(',');
     if (!tag) continue;
@@ -534,12 +603,14 @@ function readLMTargets_(ss, person) {
    An ALLOW-LIST of exact headers, in the order they ship: a column nobody listed cannot leave,
    however it is renamed or wherever it is inserted. NO name, phone, email or address column may
    ever join these lists. Closings' fee is its derived gross; its net Revenue stays out. Only
-   Contracts has an Opportunity ID. */
+   Contracts has an Opportunity ID. Headers are exact: Marketing Spend's is 'Spend ($)' on the sheet. */
 var KPI_FEED_TABS = {
   'Appointments': ['Confirmed Date', 'Disposition Date', 'Outcome', 'Booker (LM)', 'AM', 'Contact ID'],
   'Offers':       ['Offer Made Date', 'Disposition Date', 'Outcome', 'Booker (LM)', 'AM', 'Contact ID'],
   'Contracts':    ['Sent Date', 'Signed Date', 'Disposition Date', 'Outcome', 'Booker (LM)', 'AM', 'Contact ID', 'Opportunity ID'],
-  'Closings':     ['Closed Date', 'Booker (LM)', 'AM', 'DM', 'Contact ID', 'Gross Assignment Fee (derived)']
+  'Closings':     ['Closed Date', 'Booker (LM)', 'AM', 'DM', 'Contact ID', 'Gross Assignment Fee (derived)'],
+  'Leads':        ['Created Date', 'Contact ID'],              // P0d, for New Lead and Follow-Up Offers: the date and the join, nothing else on that tab
+  'Marketing Spend': ['Month', 'Channel', 'Spend ($)']         // P0d, so P4 needs no redeploy of its own
 };
 var KPI_FEED_TARGETS = ['Metric', 'Lens', 'Person', 'Target'];   // no Note: free text no routine needs
 
@@ -555,7 +626,7 @@ function feedTab_(ss, name, allow, nowMs) {
   allow.forEach(function (h) {
     var c = colsByName_(head, [h]);
     if (!c.length) { missing.push(h); return; }
-    if (/ date$/i.test(h)) dates.push(c[0]);
+    if (/( date|^month)$/i.test(h)) dates.push(c[0]);
     keep.push({ h: h, c: c[0] });
   });
   var out = [keep.map(function (k) { return k.h; })], last = NaN;

@@ -62,6 +62,17 @@ strips (one line each), the A1 tile and the data-health cells do the same while 
 deploy. Jordan's Deals page keeps his LM deals under their own label until the board is current. The phone's title is now `CLT · Scoreboard`; an installed icon keeps its old label until it
 is re-added. Run the D2 probes in step 6 with both LM tokens and Michael's owner token.
 
+**P0d (Team Deals, the feed, the decided tiles).** The same order, and this one moves the engine, so
+step 7 is a real check. A new client on the old script finds no `Team Deals` key and reads as it does
+today. The new script reads as today too until the tab has rows, and with no tab, an empty one or a
+renamed column, both endpoints serve what they served. So the order between this release and P0 does not
+matter for the rule, nor for the tiles: until P0's first run A11, A12, A13, J11, J12, J13, M8, M9 and M10
+have no row, so each waits, off both phones and the owner's strips, and the Owner strip with them. The first
+row a run writes brings its tile, and from then on a lost row reads `source stale`. The feed's Leads must be
+live before P0 can read `New Lead Offers`. This redeploy also covers P4's Marketing Spend, so P4 needs none of its own. Create the
+`Team Deals` tab by hand with `Opp ID`, `Contact ID`, `Attached People` in A1:C1; P0 never creates it. Run the P0d
+probes in step 6.
+
 ### The steps
 
 Follow the REDEPLOY CHECKLIST at the top of each `.gs` file. In short:
@@ -118,6 +129,14 @@ Follow the REDEPLOY CHECKLIST at the top of each `.gs` file. In short:
      `syncStatus` are present. `syncStatus.day` is the last day daily-sync ran, normally today after
      about 9 AM, and never a day after today. Once the tabs exist, `tabs["Deal Board"][0]` carries `Value`
      and `As Of`.
+   - P0d, `kpi_feed`: `tabs.Leads[0]` is exactly `["Created Date","Contact ID"]`, `tabs["Marketing Spend"][0]` is exactly
+     `["Month","Channel","Spend ($)"]`, and `missing` is empty. A `Marketing Spend` entry in `missing` means the sheet's
+     header moved.
+   - P0d, LM GET, with each LM token: the key `tabs["Team Deals"]` is present. `null` is a pass until the tab has rows: an
+     **absent** key means the old version is still serving. Once it has rows, `tabs["Team Deals"][0]` is `["Opp ID","Contact ID"]`,
+     no name is on it, and the row that started this, the JV deal on Jordan's Contracts, is gone from his payload.
+     `teamNotRead` is a number once the tab has rows, and is not on the payload before that.
+   - P0d, owner GET, with Michael's token: the key `tabs["Team Deals"]` is present, the whole tab, as-of at E1:E2.
    - D2, the owner deck, with Michael's token: open every tab and both people under TEAM. The data-health
      strip on DECK (above the tiles while anything is red, at the foot once all is green) shows Sync Status and
      Tasks with a date, the ticker shows `1ST CALL` and no `S2L`,
@@ -150,7 +169,7 @@ it gets no scoreboard payload. The owner token never goes on disk for the routin
 ## 4. Ship the clients
 
 `lm.html`, `index.html`, `lm-view.js`, `lm-view.css` are served by GitHub Pages. Asset
-tags are at `?v=47` and both service workers (`sw-lm.js`, `sw.js`) use a `v47` cache name,
+tags are at `?v=48` and both service workers (`sw-lm.js`, `sw.js`) use a `v48` cache name,
 so phones and the deck pick the release up on the next launch. Bump all of those together
 on every release that changes a client file (the cache sweep deletes any cache whose name
 differs). Skip this section when no client file changed — e.g. the 2026-10-21 `expire_rules`
@@ -174,16 +193,56 @@ Since D1 a deal row is the person's by its role columns, not by contact. The new
 | `fees`, `stages` | Only the deals the person is the LM of (Contracts rows tagged `LM`). |
 | `lmTargets` | The caller's rows plus blank-Person rows. |
 | `tabs["Role Scorecard"]` | D2. The person's rows by `Person`, every column. `null` when the tab is missing. Michael's `M` rows reach no phone. |
+| `tabs["Team Deals"]` | P0d. The cards the person is attached to, ids only: `Opp ID`, `Contact ID`, never who else is on them. A header alone means the tab is live and they are on nothing. `null` with no tab to go by, below. |
+| `teamNotRead` | P0d. How many of this person's deals took no tag because no run has read the card, by contact. A number, no id. Not on the payload with no tab to go by. |
 | `tabs["Deal Board"]` | D2. The rows that are the person's by **Team role**: the `LM` column if Team makes them an LM, the `AM` column if it makes them an AM, tagged in a trailing `_as` (`LM`, `AM`, `LM,AM`). Twelve cells: the first 11 columns, shipped by name in `DEAL_BOARD_SHIP` order, plus `_as`. `Value` and the as-of block never ship, and neither does a column added later. On a row tagged `LM` alone, `Stage` ships as its leading number, or blank if it has none: the words past it name offers and contracts. `null` when the tab is missing, Team gives the person neither role, or the `LM` or `AM` column of a role they hold was renamed. |
 | `dealBoardAsOf` | D2. The stamp in N2, as ISO. `null` when the tab, the stamp or every deal is gone: a phone sees only its own rows, so this is what tells an empty board from having no deals. |
+
+**The team rule (P0d, Michael's ruling 11/2).** A deal is team when Andrew or Jordan is owner or follower on its
+Acquisitions opportunity, wherever that card went. This endpoint has no GHL read, so the routine writes the
+answer on one tab, `Team Deals`: `Opp ID | Contact ID | Attached People`, Team-tab names, comma-separated, owner
+first, as-of at E1:E2. A blank `Attached People` is a card that was read with neither of them on it, an outside
+deal. A card off the tab was not read.
+
+With rows on that tab, a row of Appointments, Offers, Contracts or Closings ships only to a person attached to
+it. A Contracts row names its own card through `Opportunity ID`. Every other row, and a Contracts row whose card
+is off the tab, joins through the contact, the union of its cards, which is the rule `render_memo.team_of` reads.
+A row that fails takes no `_as` tag, so it neither counts nor brings the contact's other rows along, and a
+closing that fails does not ship at all, so a dollar cannot follow it onto the wire. A card off the tab fails
+closed: nobody is attached to it. So does a row with no Contact ID. `lm-engine.js` holds the same line: a tagged
+row off `tabs["Team Deals"]` counts for nothing, in `contractsSigned`, every other count and `comp()`.
+
+A person being attached is a stricter test than a deal being team. A row on a team deal with only the other
+person on the card leaves this person's phone, and it stays on their scorecard, which reads team. On 11/1 that took
+26 of Jordan's rows on 15 contacts: one is an N9 card, and the rest are his LM history from before 10/15, on dead
+cards Andrew now owns. No tile moved. They left his lists and his LM-tagged counts.
+
+**No tab to go by** is a missing tab, one with no rows, or a renamed column: `tabs["Team Deals"]` is `null` and
+both endpoints serve exactly what they served before P0d. A stale stamp is not that case. The old names stand and
+a new deal fails closed, because reverting would put a dispo deal back on a phone. The owner deck's Data health
+says so.
+
+**A fresh tab fails closed too** on a card the last run never read. The tab holds every card on the four KPI tabs,
+tonight's board and every open Acquisitions card, so that is a lead that arrives and books between two runs: 6 of
+Andrew's 8 Confirmed rows in the last 60 days sat on a card made that same day. Its row takes no tag until the next
+morning's run, so it is off that person's phone and the lanes. The rule is not bent for it. The run says so: `teamNotRead`
+puts one line under the Deals funnel on the phone, the owner's Team Deals cell turns amber with the count, and
+the routine pulls the deck again after it writes the tab, so the email reads the coaching day whole. Whether such a
+row should keep its tag until a run has read it is Michael's call, because it pulls against fail closed.
+
+A contact with both an Acquisitions card and a moved card reads the union here, as `team_of` does for an Offers or
+Appointments row: an unowned duplicate left in Acquisitions cannot outvote the real card that moved.
 
 Read `_as` by splitting on the comma, never by equality. A header with no `_as` column is the old
 shape: treat every row as `LM`. Money ships only on a deal the person is the LM of: on any other
 row of Contracts or Closings, each column whose header matches `MONEY_HEADER` is blank.
 
 **What Andrew's phone holds, and what is left for Michael to decide.** No screen on role LM shows an
-offer, a contract or a dollar figure, and Deal Board carries none on the wire. Two things are held
-back from that on purpose, and each needs a decision before it changes:
+offer, a contract or a dollar figure, and Deal Board carries none on the wire. The one exception is
+three tile names Michael's KPI list gives him, `New Lead Offers`, `Follow-Up Offers` and `Contracts Signed`,
+each a count. The filter is unchanged: their sheet `Label` and any `Note` with the words or a `$` is dropped, and the
+name comes from `LM_KPI`, which holds no figure. Two things are held back from that on purpose, and each
+needs a decision before it changes:
 
 - *His own GET still holds dollars and offer counts, outside Deal Board:* `fees`, the Contracts gross
   and the Closings `Revenue` on his LM rows, `goals.avgWholesaleFee`, the Offers and Contracts tabs,
@@ -202,6 +261,7 @@ back from that on purpose, and each needs a decision before it changes:
 |---|---|
 | `tabs["Role Scorecard"]` | The whole tab, `null` when missing. |
 | `tabs["Deal Board"]` | The whole tab, `null` when missing: `Value` and the `As Of` block at N1:N2 included. |
+| `tabs["Team Deals"]` | P0d. The whole tab, `null` when missing: blanks, names and the `As Of` block at E1:E2 included. |
 | `syncStatus` | The newest day of the Sync Status tab that is not after today, below. `null` when the tab or a readable `daily-sync` row is missing. |
 
 ```jsonc
@@ -248,7 +308,15 @@ readers look cells up by exact name: `Opp Id` is a rename.
   `set_status` bumps `updated_at` too. A `syncStatus.day` after today reads `source stale`, as a backstop to
   the endpoint skipping such rows. While any cell is red the strip sits above the tiles, and otherwise at the foot.
 - **Scorecards.** A tab that is not current prints one line per person. Otherwise J3 and J10 carry their
-  `Note` on the cell (D-10), on a row that is not stale.
+  `Note` on the cell (D-10), on a row that is not stale, and so does the top line, because its pending, closed and fell
+  live there. Michael's strip holds his own rows, M10, M8 and M9. They have no role screen, so they open FUNNEL and
+  PIPELINE. Conversations is on Andrew's phone list as a lens tile with no Role Scorecard row, so it has no strip cell.
+- **Team Deals (P0d).** Nothing below prints until the tab has rows. Data health gains a `Team Deals` cell on Deal
+  Board's line, and it goes red with `new deals not counted` on a stale stamp, amber with a count when a fresh tab has
+  not read a deal of the LM or AM lanes. Revenue YTD and Close rate say they are
+  company totals, outside deals included, and their numbers do not change. FUNNEL's lanes count team rows only, with the
+  scorecard's test, Andrew or Jordan on the card, not the phone's stricter one, the person on the card. One line under
+  the lanes shows what is outside the team, and any signed deal with no card read, counted apart.
 - **PIPELINE.** `Red` is the board's own cell, so the tracker's 7 / 5 / 14 lines stay in `config.yaml`.
   Two values have no cell on the board and are repeated in `index.html` as `DISPO_UC_STAGE` and `UC_STALE_DAYS`:
   change them with `dispo_uc_stage` and `uc_stale_days`. A blank or $0 value is `unvalued`, never added in.
@@ -278,7 +346,9 @@ can ship, whatever happens to the tab.
     "Appointments": [["Confirmed Date", "Disposition Date", "Outcome", "Booker (LM)", "AM", "Contact ID"], ...],
     "Offers":       [["Offer Made Date", "Disposition Date", "Outcome", "Booker (LM)", "AM", "Contact ID"], ...],
     "Contracts":    [["Sent Date", "Signed Date", "Disposition Date", "Outcome", "Booker (LM)", "AM", "Contact ID", "Opportunity ID"], ...],
-    "Closings":     [["Closed Date", "Booker (LM)", "AM", "DM", "Contact ID", "Gross Assignment Fee (derived)"], ...]
+    "Closings":     [["Closed Date", "Booker (LM)", "AM", "DM", "Contact ID", "Gross Assignment Fee (derived)"], ...],
+    "Leads":        [["Created Date", "Contact ID"], ...],
+    "Marketing Spend": [["Month", "Channel", "Spend ($)"], ...]
   },
   "lastWrite": { "Appointments": "2026-10-29", "Offers": "2026-10-28", "Contracts": "2026-10-19", "Closings": "2026-08-27" },
   "missing": {},             // tab -> allow-listed headers it no longer has; {} when all are present
@@ -289,13 +359,15 @@ can ship, whatever happens to the tab.
 ```
 
 - `lastWrite`: the sheet keeps no per-tab write stamp, so this is the latest date in the tab's date
-  columns, ignoring future-dated cells, as `YYYY-MM-DD` in the script's time zone. `null` when no date
+  columns (`Month` on Marketing Spend), ignoring future-dated cells, as `YYYY-MM-DD` in the script's time zone. `null` when no date
   is readable or the tab is missing.
 - Date cells ship the way the sheet holds them: a real date as an ISO UTC string, a text date as its
   text (`10/29/2026 1:03 PM`). Parse both.
 - `Closings`' fee is the derived gross. A non-numeric value there is the sheet's "no partner rate on
   file" alarm: carry it as an error, never coerce it. Net `Revenue` is not served.
 - Only Contracts has an `Opportunity ID`; Appointments and Offers join on `Contact ID`.
+- Leads ship their date and `Contact ID` only, and every other column stays home. Marketing Spend's header is
+  `Spend ($)` on the sheet, and headers are exact.
 - A name in `missing` means someone renamed a column. Fail loud on it: the column is absent from the
   rows, and the fix is the rename or `KPI_FEED_TABS`.
 
@@ -315,9 +387,9 @@ owner preview and the phone cannot drift (`scoper-parity.test.js` is an older lo
 `role-tabs.test.js` runs the D2 reader on its own and behind both endpoints and the scoper, then again
 under other device time zones;
 `phone-roles.test.js` boots `lm.html` for both roles on today's live shape and on a fake workbook with both
-tabs, walks every route on every lens (Andrew's phone: no offer, contract or `$` anywhere, and on a salted Tasks
-tab no dollar figure, the task's own words being the one exception, §5), checks a resume from the background, and
-repeats in other zones;
+tabs, walks every route on every lens (Andrew's phone: no offer, contract or `$` anywhere past his three count tiles'
+names, and on a salted Tasks tab no dollar figure, the task's own words being the other exception, §5), checks a resume
+from the background, and repeats in other zones;
 `owner-render.test.js` boots `index.html` whole on the owner payload in the same two shapes, plus stale, empty and
 pre-D2 ones: home, ticker, data health, PIPELINE, FUNNEL, Activity, Team, TASKS lanes, CAPITAL and the Channel Map
 reset, then repeats in other zones.

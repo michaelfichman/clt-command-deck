@@ -1,6 +1,7 @@
 /* D2: the phone by role. lm.html booted on a stub DOM, in both payload shapes: today's live one with neither new tab, and a fake
  * workbook with Role Scorecard and Deal Board, scoped by the real scopeToLM (role-scoper-parity proves it twins Code-LM.gs).
- * The rule under test: Andrew's phone shows no offers, contracts or dollars anywhere; Jordan's shows the AM tiles and his Deals
+ * The rule under test: Andrew's phone shows no offers, contracts or dollars anywhere, the one exception being his three count tiles'
+ * names from LM_KPI (P0d, Michael's KPI ruling); Jordan's shows the AM tiles and his Deals
  * count equals the board rows with AM = Jordan; a missing, empty or stale tab says 'source stale', never a blank, a 0 or a throw.
  * Then it runs itself again in other device time zones. Every lead, stamp and number is fake. The two tabs follow P4's layouts:
  * rates are ratio() fractions, and a KPI measuring nothing has a blank Value with Stale false. Run: node phone-roles.test.js */
@@ -53,6 +54,9 @@ function fullRaw() {
     sc(A, 'lm', 'A8', 7, { Note: '7 d 3, counts 2 phone offers', Source: 'kpi_feed + phone offers' }),
     sc(A, 'lm', 'A9', 1, { Target: 0, 'Target Status': 'behind' }),
     sc(A, 'lm', 'A10', 0.14, { Target: 0.15, 'Target Status': 'behind', Label: 'lead to contract $' }),
+    sc(A, 'lm', 'A11', 3, { N: 7, Label: 'New Lead Offers', Note: '3 of 7 offers, last 4 weeks, team', Source: 'kpi_feed Offers Made' }),
+    sc(A, 'lm', 'A12', 4, { N: 7, Label: 'Follow-Up Offers', Note: '4 of 7 offers, last 4 weeks, team', Source: 'kpi_feed Offers Made' }),
+    sc(A, 'lm', 'A13', 0.75, { N: 3, Target: 1, 'Target Status': 'behind', Label: 'Contracts Signed', Note: '3 in the last 4 weeks · since 4/27: 9 signed, 5 pending, 1 closed, 2 fell, team only', Source: 'kpi_feed Contracts Signed' }),
     sc(J, 'am', 'J1', 18.5, { Target: 24, 'Target Status': 'on_track', Note: 'walkthrough basis 3 of 4' }),
     sc(J, 'am', 'J3', 0.2, { Target: 0.25, 'Target Status': 'behind', Note: 'AM credit since 9/30 · team 24%' }),
     sc(J, 'am', 'J4', 0.03, { Target: 0.05, 'Target Status': 'on_track' }),
@@ -60,8 +64,12 @@ function fullRaw() {
     sc(J, 'am', 'J6', 2, { Target: 0, 'Target Status': 'behind' }),
     sc(J, 'am', 'J9', 0, { Target: 0, 'Target Status': 'on_track' }),
     sc(J, 'am', 'J10', 4, { Note: 'AM credit since 9/30 · team 6' }),
+    sc(J, 'am', 'J11', 3, { N: 7, Label: 'New Lead Offers', Note: '3 of 7 offers, last 4 weeks, team' }),
+    sc(J, 'am', 'J12', 4, { N: 7, Label: 'Follow-Up Offers', Note: '4 of 7 offers, last 4 weeks, team' }),
+    sc(J, 'am', 'J13', 0.75, { N: 3, Target: 1, 'Target Status': 'behind', Label: 'Contracts Signed', Note: '3 in the last 4 weeks · since 4/27: 9 signed, 5 pending, 1 closed, 2 fell, team only' }),
     sc(J, 'am', 'JB1', 3, { Note: '2 due today' }),
-    sc(J, 'am', 'JB2', 1)];
+    sc(J, 'am', 'JB2', 1),
+    sc(MF, 'owner', 'M8', 2, { Label: 'Deals to Sell' }), sc(MF, 'owner', 'M9', 22222, { Label: 'Pending Revenue' }), sc(MF, 'owner', 'M10', 0.75, { Label: 'Contracts Signed', Note: '$11,111 closed' })];
   raw['Deal Board'] = [HB,
     bd('o1', A, J, '5.2: Offer Sent', 9, 'TRUE', '11/5/2026', '11/3/2026 2:30 PM', STAMP),
     bd('o2', A, J, '6.1 Contract For Review', 3, '', '', ''),
@@ -105,26 +113,31 @@ const ok = (l, c) => { console.log((c ? '  ✓ ' : '  ✗ ') + l); c ? pass++ : 
 const count = (h, re) => (h.match(re) || []).length;
 const tileBy = (h, label) => { const i = h.indexOf('lm-t-lbl">' + label + '<'); return i < 0 ? '' : h.slice(h.lastIndexOf('<button', i), h.indexOf('</button>', i)); };
 const has = (h, x) => h.indexOf(x) > -1;
-const LM_LABELS = ['First call on time', 'Untouched leads', 'Sellers waiting on us', 'Holding past 1 hour', 'Cadence behind', '15 touches in the first 72 hours', 'Walkthroughs set', 'Lead→walkthrough', 'Dials made vs required'];
-const AM_LABELS = ['Stuck in 5.1', 'Hours, 5.1 to offer', 'Offers out', 'Offer→contract', 'Next Contact current', 'MAO accuracy', 'Walkthrough status not set'];
+const LM_LABELS = ['Contracts Signed', 'Appts Set', 'Speed to Lead', 'Lead to Appt', 'New Lead Offers', 'Follow-Up Offers', 'Untouched leads', 'Sellers waiting on us', 'Holding past 1 hour', 'Cadence behind', '15 touches in the first 72 hours', 'Dials made vs required'];
+const AM_LABELS = ['Contracts Signed', 'Offers Sent', 'Late Offers', 'Offer to Contract', 'New Lead Offers', 'Follow-Up Offers', 'Hours, 5.1 to offer', 'Next Contact current', 'MAO accuracy', 'Walkthrough status not set'];
+/* what a phone leads with before P0's first run: its own tiles wait for their first row */
+const P0_LABELS = ['Contracts Signed', 'New Lead Offers', 'Follow-Up Offers'], LM_LABELS_NOW = LM_LABELS.filter(l => !P0_LABELS.includes(l)), AM_LABELS_NOW = AM_LABELS.filter(l => !P0_LABELS.includes(l));
+/* the three names Michael's KPI list puts on Andrew's phone. Everything else on it stays bare of the words */
+const LM_COUNT_NAMES = /New Lead Offers|Follow-Up Offers|Contracts Signed/g, WALL = /offer|contract|\$/i;
 const inOrder = (h, ls) => ls.every((l, i) => i === 0 || (h.indexOf('lm-t-lbl">' + ls[i - 1] + '<') > -1 && h.indexOf('lm-t-lbl">' + ls[i - 1] + '<') < h.indexOf('lm-t-lbl">' + l + '<')));
 /* every page a phone can reach, a saved link included */
 const LENSES = ['today', 'week', 'month', 'quarter'];
 const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations', 'qualifying', 'connectRate', 'reached', 'talkTime', 'speed', 'leads', 'apptsBooked', 'apptsShowed', 'showRate', 'leadToAppt', 'offersMade', 'contractsSigned', 'apptToContract', 'connected', 'deepConv', 'earned', 'earmarked', 'projected', 'potential',
-  'kpi-A1', 'kpi-A2', 'kpi-A3', 'kpi-A4', 'kpi-A5', 'kpi-A6', 'kpi-A7', 'kpi-A8', 'kpi-A9', 'kpi-A10', 'kpi-J1', 'kpi-J3', 'kpi-J4', 'kpi-J5', 'kpi-J6', 'kpi-J9', 'kpi-J10', 'kpi-JB1', 'kpi-JB2', 'kpi-M1', 'kpi-nope', 'nope', 'constructor', '__proto__'];
+  'kpi-A1', 'kpi-A2', 'kpi-A3', 'kpi-A4', 'kpi-A5', 'kpi-A6', 'kpi-A7', 'kpi-A8', 'kpi-A9', 'kpi-A10', 'kpi-A11', 'kpi-A12', 'kpi-A13', 'kpi-J1', 'kpi-J3', 'kpi-J4', 'kpi-J5', 'kpi-J6', 'kpi-J9', 'kpi-J10', 'kpi-J11', 'kpi-J12', 'kpi-J13', 'kpi-JB1', 'kpi-JB2', 'kpi-M1', 'kpi-M8', 'kpi-M9', 'kpi-M10', 'kpi-nope', 'nope', 'constructor', '__proto__'];
 
 (async function () {
   console.log("TODAY'S LIVE PAYLOAD: neither new tab");
   {
     const a = await boot(andrew(liveRaw())), j = await boot(jordan(liveRaw()));
     const ah = a.view(), jh = j.view();
-    ok('Andrew: 9 scorecard tiles + Dials + Conversations', count(ah, /class="lm-tile /g) === 11 && inOrder(ah, LM_LABELS) && has(ah, '>Dials<') && has(ah, '>Conversations ≥75s<'));
-    ok('Andrew: every scorecard tile says source stale, with its own label', count(ah, /lm-t-val stale">source stale</g) === 9 && LM_LABELS.every(l => has(tileBy(ah, l), STALE)));
-    ok('Andrew: no number on a stale tile', LM_LABELS.every(l => { const t = tileBy(ah, l); return !/\d/.test(t.slice(t.indexOf('lm-t-val'))); }));
+    ok('m6: Andrew: the 9 older scorecard tiles + Conversations + Dials, P0\'s tiles waiting on their first row', count(ah, /class="lm-tile /g) === 11 && inOrder(ah, LM_LABELS_NOW) && !has(ah, 'New Lead Offers') && has(ah, '>Dials<') && has(ah, '>Conversations ≥75s<'));
+    ok('Andrew: Michael\'s order, Conversations third, between Appts Set and Speed to Lead', ah.indexOf('lm-t-lbl">Appts Set<') < ah.indexOf('>Conversations ≥75s<') && ah.indexOf('>Conversations ≥75s<') < ah.indexOf('lm-t-lbl">Speed to Lead<'));
+    ok('Andrew: every scorecard tile says source stale, with its own label', count(ah, /lm-t-val stale">source stale</g) === 9 && LM_LABELS_NOW.every(l => has(tileBy(ah, l), STALE)));
+    ok('Andrew: no number on a stale tile', LM_LABELS_NOW.every(l => { const t = tileBy(ah, l); return !/\d/.test(t.slice(t.indexOf('lm-t-val'))); }));
     ok('Andrew: the section says it too', has(ah, 'Scorecard') && has(ah, '<span class="tag">source stale</span>'));
     ok('Andrew: the Deals button says it', has(ah, 'Deals &amp; Pipeline — source stale →'));
     ok('Andrew: no Offers/Contracts tile, no $', !/Offers Made|>Contracts<|Appt→Contract/.test(ah) && !has(ah, '$'));
-    ok('Jordan: the 7 AM tiles in order, all source stale', count(jh, /class="lm-tile /g) === 7 && inOrder(jh, AM_LABELS) && count(jh, /lm-t-val stale">source stale</g) === 7);
+    ok('m6: Jordan: the 7 older AM tiles in order, all source stale', count(jh, /class="lm-tile /g) === 7 && inOrder(jh, AM_LABELS_NOW) && count(jh, /lm-t-val stale">source stale</g) === 7);
     ok('Jordan: the Deals button and the day strip say it', has(jh, 'Deals &amp; Pipeline — source stale →') && /Today &amp; tomorrow<\/div><div class="lm-rec none">source stale/.test(jh));
     ok('Jordan: My book is there', has(jh, 'My book'));
     const bk = j.go('book');
@@ -134,7 +147,7 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
     ok('every route on every lens: no render error, no undefined, NaN or null' + (threw.length ? ' ' + threw.slice(0, 6) : ''), threw.length === 0);
     const k = j.go('kpi-J10');
     ok('a stale detail says it in plain words, with no number', has(k, '>source stale<') && has(k, 'not published yet') && !has(k, 'tab missing') && !has(k, 'lm-bars'));
-    ok('a stale tile too: the reader\'s code never reaches a person', has(tileBy(ah, 'First call on time'), 'not published yet') && !has(ah, 'tab missing'));
+    ok('a stale tile too: the reader\'s code never reaches a person', has(tileBy(ah, 'Speed to Lead'), 'not published yet') && !has(ah, 'tab missing'));
     const f = a.go('focus');
     ok('levers on a stale tab say source stale, not a number', count(f, /lm-scen-now">source stale</g) === 5);
   }
@@ -150,35 +163,35 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
     const stale = fullRaw(); stale['Role Scorecard'] = stale['Role Scorecard'].map((r, i) => i ? [...r.slice(0, 0), '2026-10-31', ...r.slice(1)] : r);
     stale['Deal Board'] = stale['Deal Board'].map(r => r.map(c => c === STAMP ? '2026-11-01T10:40:00.000Z' : c));
     const S = await boot(jordan(stale)), SA = await boot(andrew(stale));
-    ok('a stale Date: every tile says it, and the old numbers are nowhere', count(S.view(), /lm-t-val stale">source stale</g) === 7 && !has(S.view(), '18.5') && !has(S.view(), 'AM credit since'));
+    ok('a stale Date: every tile says it, and the old numbers are nowhere', count(S.view(), /lm-t-val stale">source stale</g) === 10 && !has(S.view(), '18.5') && !has(S.view(), 'AM credit since'));
     ok('...the tag says when it last wrote', has(S.view(), 'source stale · last 10/31'));
-    ok('...each tile and its detail say how old it is, not one word', has(tileBy(S.view(), 'Stuck in 5.1'), 'last run 10/31') && !/<span>stale<\/span>/.test(S.view()) && has(S.go('kpi-J6'), 'last run 10/31')); S.go('');
+    ok('...each tile and its detail say how old it is, not one word', has(tileBy(S.view(), 'Late Offers'), 'last run 10/31') && !/<span>stale<\/span>/.test(S.view()) && has(S.go('kpi-J6'), 'last run 10/31')); S.go('');
     ok('a stale board: no rows on either phone', !has(S.go('deals'), 'Lead o1') && !has(SA.go('deals'), 'Lead o1') && has(S.go('deals'), STALE) && has(SA.go('deals'), STALE));
     const r = await boot(jordan(fullRaw()), { at: RealDate.UTC(2026, 10, 3, 13, 59) });
     ok('before 9 AM the same numbers stand', !has(r.view(), 'lm-t-val stale'));
     const clock = { t: TEN }, open = await boot(jordan(fullRaw()), { at: clock });
     ok('a phone left open: fresh at 10 AM', !has(open.view(), 'lm-t-val stale'));
     clock.t = RealDate.UTC(2026, 10, 4, 15, 0); open.go('');
-    ok('...and stale the next morning with no reload: the clock is read at render', count(open.view(), /lm-t-val stale/g) === 7 && !has(open.go('deals'), 'Lead o1'));
+    ok('...and stale the next morning with no reload: the clock is read at render', count(open.view(), /lm-t-val stale/g) === 10 && !has(open.go('deals'), 'Lead o1'));
     const tomorrow = await boot(jordan(fullRaw()), { at: RealDate.UTC(2026, 10, 4, 15, 0) });
-    ok('the next morning with no new run: stale', count(tomorrow.view(), /lm-t-val stale/g) === 7);
+    ok('the next morning with no new run: stale', count(tomorrow.view(), /lm-t-val stale/g) === 10);
   }
 
   console.log('A SCORECARD TILE');
   {
     const a = await boot(andrew(fullRaw())), j = await boot(jordan(fullRaw())), ah = a.view(), jh = j.view();
-    ok('Andrew: the set, in order', count(ah, /class="lm-tile /g) === 11 && inOrder(ah, LM_LABELS));
-    ok('A1: the number, its target, last week, its median verbatim', /lm-t-val">85%</.test(tileBy(ah, 'First call on time')) && has(tileBy(ah, 'First call on time'), '🎯 <b>80%</b>') && has(tileBy(ah, 'First call on time'), 'last wk <b>75%</b>') && has(tileBy(ah, 'First call on time'), 'median 12 min · 2 pending'));
+    ok('Andrew: the set, in order', count(ah, /class="lm-tile /g) === 14 && inOrder(ah, LM_LABELS));
+    ok('A1: the number, its target, last week, its median verbatim', /lm-t-val">85%</.test(tileBy(ah, 'Speed to Lead')) && has(tileBy(ah, 'Speed to Lead'), '🎯 <b>80%</b>') && has(tileBy(ah, 'Speed to Lead'), 'last wk <b>75%</b>') && has(tileBy(ah, 'Speed to Lead'), 'median 12 min · 2 pending'));
     ok('a real 0 is 0', /lm-t-val">0</.test(tileBy(ah, 'Untouched leads')));
-    ok('on_track is green', has(tileBy(ah, 'First call on time'), 'lm-tile lm-ahead'));
+    ok('on_track is green', has(tileBy(ah, 'Speed to Lead'), 'lm-tile lm-ahead'));
     ok('behind is red', has(tileBy(ah, 'Sellers waiting on us'), 'lm-tile lm-behind') && has(tileBy(ah, 'Sellers waiting on us'), 'behind'));
     ok('weekend gets no colour (D-6)', has(tileBy(ah, 'Holding past 1 hour'), 'lm-tile lm-none') && has(tileBy(ah, 'Holding past 1 hour'), 'weekend'));
     ok('target not set is written out, no colour, no 0', has(tileBy(ah, 'Cadence behind'), 'target not set') && has(tileBy(ah, 'Cadence behind'), 'lm-tile lm-none') && !has(tileBy(ah, 'Cadence behind'), '🎯'));
     ok('a row the routine marked stale says so, and keeps its Note', has(tileBy(ah, '15 touches in the first 72 hours'), 'lm-t-val stale">source stale') && has(tileBy(ah, '15 touches in the first 72 hours'), 'lm-tile lm-stale') && has(tileBy(ah, '15 touches in the first 72 hours'), 'needs a touch count'));
     ok('Vs Last Week never colours', !/lm-up|lm-dn/.test(tileBy(ah, 'Sellers waiting on us')) && has(tileBy(ah, 'Sellers waiting on us'), 'last wk <b>5</b>'));
-    ok('Jordan: the set, in order, no Dials, no lens bar, no streak, no pace', count(jh, /class="lm-tile /g) === 7 && inOrder(jh, AM_LABELS) && !has(jh, '>Dials<') && !has(jh, 'lm-seg') && !has(jh, 'lm-hero') && !has(jh, 'PACE THE DAY'));
+    ok('Jordan: the set, in order, no Dials, no lens bar, no streak, no pace', count(jh, /class="lm-tile /g) === 10 && inOrder(jh, AM_LABELS) && !has(jh, '>Dials<') && !has(jh, 'lm-seg') && !has(jh, 'lm-hero') && !has(jh, 'PACE THE DAY'));
     ok('J1 reads in hours', /lm-t-val">18.5 h</.test(tileBy(jh, 'Hours, 5.1 to offer')));
-    ok('J3 and J10 carry the AM label from the Note, verbatim', has(tileBy(jh, 'Offer→contract'), 'AM credit since 9/30') && has(tileBy(jh, 'Offers out'), 'AM credit since 9/30'));
+    ok('J3 and J10 carry the AM label from the Note, verbatim', has(tileBy(jh, 'Offer to Contract'), 'AM credit since 9/30') && has(tileBy(jh, 'Offers Sent'), 'AM credit since 9/30'));
     ok('J5 is parked: target not set, no colour, no target rail, whatever its row says', has(tileBy(jh, 'Next Contact current'), 'target not set') && has(tileBy(jh, 'Next Contact current'), 'lm-tile lm-none') && !has(tileBy(jh, 'Next Contact current'), 'behind') && !has(tileBy(jh, 'Next Contact current'), '🎯'));
     ok('...its detail too', has(j.go('kpi-J5'), 'lm-bar dim"><span class="lm-bl">🎯 Target</span><span class="lm-bv">not set') && !has(j.view(), 'lm-big lm-behind')); j.go('');
     const raw = fullRaw(); raw['Role Scorecard'].push(sc(A, 'lm', 'A2', 9, { Date: '2026-11-01', Note: 'old note 9' }));
@@ -187,21 +200,21 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
     ok('a row behind the tab: source stale, and its old Note is withheld too', has(tileBy(b.view(), 'Untouched leads'), STALE) && !has(b.view(), 'old note 9') && !has(b.go('kpi-A2'), 'old note 9'));
     const blank = fullRaw(); blank['Role Scorecard'][1] = sc(A, 'lm', 'A1', '', { N: 0, Target: 0.8, 'Target Status': 'on_track', Note: '0 of 0 · 0 pending · last 7 days' });
     blank['Role Scorecard'][7] = sc(A, 'lm', 'A7', '', { N: 0, Note: 'no dials required that day' });
-    const BL = await boot(andrew(blank)), bh = BL.view(), bt = tileBy(bh, 'First call on time'), bd7 = tileBy(bh, 'Dials made vs required');
+    const BL = await boot(andrew(blank)), bh = BL.view(), bt = tileBy(bh, 'Speed to Lead'), bd7 = tileBy(bh, 'Dials made vs required');
     ok('P4\'s null with a target: a dash, its status word and Note, no colour, never 0 and never source stale', has(bt, 'lm-t-val">—<') && has(bt, 'lm-tile lm-none') && has(bt, 'on track') && has(bt, '🎯 <b>80%</b>') && has(bt, '0 of 0 · 0 pending') && !has(bt, STALE));
     ok('P4\'s null with no target: a dash, target not set, the Note says why', has(bd7, 'lm-t-val">—<') && has(bd7, 'lm-tile lm-none') && has(bd7, 'target not set') && has(bd7, 'no dials required that day') && !has(bd7, STALE));
     const bk7 = BL.go('kpi-A7');
     ok('...its detail the same, no red and no stale', has(bk7, 'lm-big lm-none') && has(bk7, '>—<') && has(bk7, 'no dials required that day') && !has(bk7, STALE));
     ok('...its lever: a dash, not source stale', has(BL.go('focus'), 'lm-scen-now">— · target 80%<'));
     const hollow = fullRaw(); hollow['Role Scorecard'][1] = sc(A, 'lm', 'A1', '', { 'Target Status': '' });
-    ok('a blank Value with no status at all is source stale', has(tileBy((await boot(andrew(hollow))).view(), 'First call on time'), 'lm-t-val stale'));
+    ok('a blank Value with no status at all is source stale', has(tileBy((await boot(andrew(hollow))).view(), 'Speed to Lead'), 'lm-t-val stale'));
     const lbl = fullRaw(); lbl['Role Scorecard'][1] = sc(A, 'lm', 'A1', 0.85, { Label: 'First call kept' });
     ok('the Label cell wins over the fallback', has((await boot(andrew(lbl))).view(), 'lm-t-lbl">First call kept<'));
     const txt = fullRaw(); txt['Role Scorecard'][1] = sc(A, 'lm', 'A1', '#N/A', { Target: 0.8, 'Target Status': 'on_track' });
-    const tt = tileBy((await boot(andrew(txt))).view(), 'First call on time');
+    const tt = tileBy((await boot(andrew(txt))).view(), 'Speed to Lead');
     ok('text in Value is source stale, never green under an on_track', has(tt, 'lm-t-val stale') && has(tt, 'lm-tile lm-stale') && !has(tt, '#N/A') && has(tt, 'the cell is not a number'));
     const real = fullRaw(); real['Role Scorecard'][6] = sc(A, 'lm', 'A6', 1, { N: 2, 'Vs Last Week': 0.5, Note: 'share of his leads' });
-    real['Role Scorecard'][14] = sc(J, 'am', 'J5', 0.071, { N: 14, 'Vs Last Week': 0.143 });
+    real['Role Scorecard'][17] = sc(J, 'am', 'J5', 0.071, { N: 14, 'Vs Last Week': 0.143 });
     const RA = await boot(andrew(real)), RJ = await boot(jordan(real)), a6 = tileBy(RA.view(), '15 touches in the first 72 hours');
     ok('A6 at exactly 1 reads 100%, on the tile, its last week and the lever', has(a6, 'lm-t-val">100%<') && has(a6, 'last wk <b>50%</b>') && has(RA.go('focus'), '15 touches in the first 72 hours 100%'));
     ok('...and its detail', has(RA.go('kpi-A6'), '>100%<'));
@@ -210,13 +223,13 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
     ok('A6 at exactly 0 reads 0%', has(tileBy((await boot(andrew(zero))).view(), '15 touches in the first 72 hours'), 'lm-t-val">0%<'));
   }
 
-  console.log("ANDREW'S PHONE: no offers, contracts or dollars, anywhere");
+  console.log("ANDREW'S PHONE: no offers, contracts or dollars, anywhere, past the names of his three count tiles");
   {
-    const BAR = /offer|contract|\$/i, A1 = await boot(andrew(fullRaw())), A2 = await boot(andrew(liveRaw())), bad = [];
-    [A1, A2].forEach((P, i) => LENSES.forEach(l => ROUTES.forEach(m => { const h = P.go(m, l); if (BAR.test(h)) bad.push((i ? 'live:' : 'full:') + l + ':' + m + ':' + (h.match(/.{30}(offer|contract|\$).{20}/i) || [''])[0]); })));
+    const BAR = WALL, A1 = await boot(andrew(fullRaw())), A2 = await boot(andrew(liveRaw())), bad = [];
+    [A1, A2].forEach((P, i) => LENSES.forEach(l => ROUTES.forEach(m => { const h = P.go(m, l).replace(LM_COUNT_NAMES, ''); if (BAR.test(h)) bad.push((i ? 'live:' : 'full:') + l + ':' + m + ':' + (h.match(/.{30}(offer|contract|\$).{20}/i) || [''])[0]); })));
     ok('every route, every lens, both shapes' + (bad.length ? ' ' + bad.slice(0, 4).join(' | ') : ''), bad.length === 0);
     const h = A1.view();
-    ok('his routine text with those words is dropped, the tile stands', has(h, 'lm-t-lbl">Walkthroughs set<') && !has(h, 'phone offers') && has(tileBy(h, 'Lead→walkthrough'), '14%'));
+    ok('his routine text with those words is dropped, the tile stands', has(h, 'lm-t-lbl">Appts Set<') && !has(h, 'phone offers') && has(tileBy(h, 'Lead to Appt'), '14%'));
     ok('a saved link to the three old pages shows no page', ['offersMade', 'contractsSigned', 'apptToContract'].every(k => { const d = A1.go(k); return has(d, 'NOT ON THIS PHONE') && has(d, 'lm-back') && !has(d, 'lmchart'); }));
     const before = A1.charts.length; A1.go('offersMade'); A1.go('apptToContract');
     ok('...and mounts no chart', A1.charts.length === before);
@@ -265,6 +278,75 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
     ok('...and only an https link', !has(dl, 'javascript:'));
   }
 
+  console.log('THE DECIDED TILES');
+  {
+    const a = await boot(andrew(fullRaw())), j = await boot(jordan(fullRaw())), ah = a.view(), jh = j.view();
+    ok('the top line leads both phones, in the sheet\'s number', inOrder(ah, ['Contracts Signed', 'Appts Set']) && inOrder(jh, ['Contracts Signed', 'Offers Sent']) && has(tileBy(ah, 'Contracts Signed'), 'lm-t-val">0.8<') && has(tileBy(jh, 'Contracts Signed'), '🎯 <b>1</b>'));
+    ok('New Lead and Follow-Up Offers print as counts, Andrew\'s and Jordan\'s alike', has(tileBy(ah, 'New Lead Offers'), 'lm-t-val">3<') && has(tileBy(ah, 'Follow-Up Offers'), 'lm-t-val">4<') && has(tileBy(jh, 'New Lead Offers'), 'lm-t-val">3<') && has(tileBy(jh, 'Follow-Up Offers'), 'lm-t-val">4<'));
+    ok('the top line keeps pending, closed and fell beside it, on Andrew\'s with no dollar', has(tileBy(ah, 'Contracts Signed'), '5 pending, 1 closed, 2 fell') && !has(ah, '$'));
+    ok('...and Jordan\'s holds no dollar either: the endpoint serves no company revenue, and his email reads the fee from detail', has(tileBy(jh, 'Contracts Signed'), '5 pending, 1 closed, 2 fell') && !has(tileBy(jh, 'Contracts Signed'), '$'));
+    ok('Conversations on the list is the lens tile, once, with Dials alone left in Activity', count(ah, />Conversations ≥75s</g) === 1 && has(a.go('', 'month').slice(a.go('', 'month').indexOf('<h2>Activity')), '>Dials<') && !has(a.go('', 'month').slice(a.go('', 'month').indexOf('<h2>Activity')), 'Conversations'));
+    a.go('');
+    ok('each new tile opens its page, with coach text', [['kpi-A11', 'New Lead Offers'], ['kpi-A12', 'Follow-Up Offers'], ['kpi-A13', 'Contracts Signed']].every(([m, l]) => { const d = a.go(m); return has(d, '<h1>' + l + '</h1>') && has(d, 'COACH'); }) && has(j.go('kpi-J11'), '<h1>New Lead Offers</h1>') && has(j.go('kpi-J12'), '<h1>Follow-Up Offers</h1>') && has(j.go('kpi-J13'), '<h1>Contracts Signed</h1>'));
+    ok('Jordan\'s top line opens his Contracts page', has(j.go('kpi-J13'), "'contractsSigned'"));
+    ok('a role\'s page never opens on the other phone', has(a.go('kpi-J13'), '<h2>Scorecard</h2>') && has(j.go('kpi-A11'), '<h2>Scorecard</h2>') && has(a.go('kpi-M9'), '<h2>Scorecard</h2>') && has(j.go('kpi-M9'), '<h2>Scorecard</h2>'));
+    const pre = fullRaw(); pre['Role Scorecard'] = pre['Role Scorecard'].filter(r => !['A11', 'A12', 'A13', 'J11', 'J12', 'J13', 'M8', 'M9', 'M10'].includes(r[3]));
+    const ba = (await boot(andrew(pre))).view(), bj = (await boot(jordan(pre))).view();
+    ok('m6: before P0\'s first run a new tile with no row yet waits: both phones lead with what they lead with today, no source stale', !has(ba, 'New Lead Offers') && !has(ba, 'Follow-Up Offers') && !has(ba, '>Contracts Signed<') && !has(bj, 'New Lead Offers') && !has(bj, '>Contracts Signed<') && !has(ba, 'no number for this KPI') && !has(bj, 'no number for this KPI'));
+    ok('m6: the rest of the list stands', has(ba, '>Appts Set<') && has(bj, '>Offers Sent<'));
+    const one = fullRaw(); one['Role Scorecard'] = one['Role Scorecard'].filter(r => r[3] !== 'A2');
+    ok('m6: an older tile with no row still reads source stale, never gone', has(tileBy((await boot(andrew(one))).view(), 'Untouched leads'), 'lm-t-val stale">source stale'));
+    const lost = fullRaw();
+    lost['Role Scorecard'] = lost['Role Scorecard'].map(r => r[3] === 'A13' ? ['10/28/2026', ...r.slice(1)] : r);
+    ok('m6: a new tile whose row was written and then lost reads source stale: it has been seen, so it never vanishes', has(tileBy((await boot(andrew(lost))).view(), 'Contracts Signed'), 'lm-t-val stale">source stale'));
+    ok('Michael\'s rows reach no phone, on the scoper', [andrew(fullRaw()), jordan(fullRaw())].every(p => p.tabs['Role Scorecard'].slice(1).every(r => !/^M/.test(r[3]))));
+  }
+
+  console.log('A DEAL NO RUN HAS READ YET');
+  {
+    const lag = (p, n) => Object.assign(p, { teamNotRead: n });
+    const one = (await boot(lag(andrew(fullRaw()), 1))).go('deals', 'month'), two = (await boot(lag(jordan(fullRaw()), 2))).go('deals', 'month');
+    ok('the Deals page says so under the funnel, where the count would show', has(one, '1 deal not read yet · counts after the next morning run') && has(two, '2 deals not read yet') && one.indexOf('lm-funnel') < one.indexOf('not read yet'));
+    ok('no such rows, or an old endpoint: nothing prints', !has((await boot(lag(andrew(fullRaw()), 0))).go('deals', 'month'), 'not read yet') && !has((await boot(andrew(fullRaw()))).go('deals', 'month'), 'not read yet'));
+    ok('the wall: the line holds no word and no figure of ours', !WALL.test('1 deal not read yet · counts after the next morning run') && !has(one, '$'));
+  }
+
+  console.log("THE WALL ON ANDREW'S NEW TILES");
+  {
+    const salt = fullRaw(), row = id => salt['Role Scorecard'].findIndex(r => r[3] === id);
+    salt['Role Scorecard'][row('A11')] = sc(A, 'lm', 'A11', 3, { Label: 'New Lead Offers $9,999', Note: 'offers at $9,999', Source: 'offer $9,999' });
+    salt['Role Scorecard'][row('A12')] = sc(A, 'lm', 'A12', 4, { Label: 'Follow-Up $9,999', Note: 'a $9,999 follow-up' });
+    salt['Role Scorecard'][row('A13')] = sc(A, 'lm', 'A13', 0.75, { Target: 1, 'Target Status': 'behind', Label: 'Contracts $43,210', Note: '2 closed, $43,210' });
+    const P = await boot(andrew(salt)), h = P.view(), pages = ['', 'kpi-A11', 'kpi-A12', 'kpi-A13'].map(m => P.go(m));
+    ok('a salted Label falls back to LM_KPI\'s name', has(tileBy(h, 'New Lead Offers'), 'lm-t-val">3<') && has(tileBy(h, 'Follow-Up Offers'), 'lm-t-val">4<') && has(tileBy(h, 'Contracts Signed'), 'lm-t-val">0.8<'));
+    ok('a salted Note, a dollar or the word, is dropped on the tile and its page', pages.every(x => !has(x, '$') && !has(x, '9,999') && !has(x, '43,210') && !has(x, 'offers at')));
+    ok('a tile the filter leaves bare still stands', has(tileBy(h, 'Contracts Signed'), 'lm-tile lm-behind'));
+    const F = await boot(andrew(fullRaw()));
+    ok('his plain Note on New Lead Offers holds the word, so it is dropped: the filter stays as it was', !has(F.view(), 'of 7 offers'));
+    ok('LM_KPI holds no figure of ours for him: names and coach text are bare of a dollar and past the name, of the words', ['A11', 'A12', 'A13'].every(id => { const d = F.run('LM_KPI.' + id); return !/\$/.test(d.label) && !WALL.test(d.coach); }));
+    ok('none of his new tiles formats money', ['A11', 'A12', 'A13', 'J11', 'J12', 'J13'].every(id => F.run('LM_KPI.' + id + '.fmt') === 'num'));
+  }
+
+  console.log('TEAM DEALS ON THE PHONE');
+  {
+    const HT = ['Opp ID', 'Contact ID', 'Attached People', '', 'As Of'];
+    const jv = () => { const raw = fullRaw();
+      raw.Contracts.push(['', '10/30/2026', '', 'Signed', MF, J, 'Seller JV', 'PJV', '', '', 'cjv', 'op-jv']);
+      raw.Offers.push(['10/29/2026', '', 'Made', MF, J, 'Seller JV', 'PJV', '', '', 'cjv', '']);
+      return raw; };
+    const live = () => { const raw = jv(); raw['Team Deals'] = [HT, ['op-c1', 'c1', A + ', ' + J, '', STAMP], ['op-jv', 'cjv', '', '', ''], ['op-c2', 'c2', J, '', '']]; return raw; };
+    const contracts = h => (h.match(/lm-fl">Contracts<\/span><span class="lm-fv">(\d+)/) || [])[1];
+    const off = await boot(jordan(jv())), on = await boot(jordan(live()));
+    ok('no tab: the outside row counts on his Deals funnel, as today', contracts(off.go('deals', 'quarter')) === '2' && has(off.go('contractsSigned', 'quarter'), 'PJV'));
+    ok('tab live: his Contracts count reads 1', contracts(on.go('deals', 'quarter')) === '1');
+    ok('...and the deal is off his Contracts page, by name', !has(on.go('contractsSigned', 'quarter'), 'PJV') && !has(on.go('contractsSigned', 'quarter'), 'Seller JV'));
+    ok('...and off his payload, every tab', !has(JSON.stringify(jordan(live())), 'cjv') && !has(JSON.stringify(jordan(live())), 'Seller JV'));
+    const empty = jv(); empty['Team Deals'] = [HT];
+    ok('an empty tab reads as today', contracts((await boot(jordan(empty))).go('deals', 'quarter')) === '2');
+    const stamp = jv(); stamp['Team Deals'] = [HT, ['', '', '', '', STAMP]];
+    ok('a tab with only its stamp reads as today', contracts((await boot(jordan(stamp))).go('deals', 'quarter')) === '2');
+  }
+
   console.log('DETAIL AND ROUTES');
   {
     const a = await boot(andrew(fullRaw())), j = await boot(jordan(fullRaw()));
@@ -292,7 +374,7 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
   console.log('SHEET TEXT IS ESCAPED');
   {
     const X = '<img src=x onerror=alert(1)>', raw = fullRaw();
-    raw['Role Scorecard'][12] = sc(J, 'am', 'J3', X, { Note: X, Label: X, Source: X });
+    raw['Role Scorecard'][15] = sc(J, 'am', 'J3', X, { Note: X, Label: X, Source: X });
     raw['Deal Board'][1] = bd('o1', A, J, X, X, 'TRUE', X, '11/3/2026 2:30 PM', STAMP); raw['Deal Board'][1][1] = X;
     const P = await boot(jordan(raw)), B = await boot(andrew(raw));
     const pages = [P.view(), P.go('deals'), P.go('kpi-J3'), P.go('focus'), B.go('deals')];
@@ -361,7 +443,7 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
     ok('the flag form repeats the ask with the figure masked', has(h, "label:'Tell the seller the [figure] stands'") && !has(h, "label:'Tell the seller the $200k"));
     ok('a rate is his work, not a figure: $/sqft stands', has(h, 'Pull comps at $/sqft'));
     ok('the task survives whole: plain English stands, three rows, none dropped', has(h, 'contract ends Friday') && (h.match(/class="lm-task-ask"/g) || []).length === 3);
-    const bad = []; LENSES.forEach(l => ROUTES.filter(m => m !== 'tasks').forEach(m => { const x = P.go(m, l); if (/offer|contract|\$/i.test(x)) bad.push(l + ':' + m); }));
+    const bad = []; LENSES.forEach(l => ROUTES.filter(m => m !== 'tasks').forEach(m => { const x = P.go(m, l).replace(LM_COUNT_NAMES, ''); if (WALL.test(x)) bad.push(l + ':' + m); }));
     ok('every other route stays bare with those tasks attached' + (bad.length ? ' ' + bad.slice(0, 4) : ''), bad.length === 0);
     const J2 = await boot(withTasks(jordan(fullRaw()), rows(J)));
     ok('an AM reads his own task whole', has(J2.go('tasks'), 'Tell the seller the $200k stands'));
@@ -392,7 +474,7 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
     ok('Red renamed: Jordan is told, his reds are not silently cleared', await staleDeals(ren('Red', 'Late'), jordan));
     const hs = fullRaw(); hs['Role Scorecard'][0] = hs['Role Scorecard'][0].map(c => c === 'Target Status' ? 'Status' : c);
     const P = await boot(andrew(hs));
-    ok('Target Status renamed: every tile says so, none reads target not set', has(tileBy(P.view(), 'First call on time'), STALE) && has(tileBy(P.view(), 'First call on time'), 'a column was renamed'));
+    ok('Target Status renamed: every tile says so, none reads target not set', has(tileBy(P.view(), 'Speed to Lead'), STALE) && has(tileBy(P.view(), 'Speed to Lead'), 'a column was renamed'));
   }
 
   console.log('AN AM WITH NO BOARD');
@@ -431,11 +513,11 @@ const ROUTES = ['', 'deals', 'focus', 'tasks', 'book', 'calls', 'conversations',
     P.ctx.document.hidden = false;
     const fresh = fullRaw(); fresh['Role Scorecard'] = fresh['Role Scorecard'].map((r, i) => i ? ['2026-11-03', ...r.slice(1)] : r); fresh['Deal Board'] = fresh['Deal Board'].map(r => r.map(c => c === STAMP ? '2026-11-04T10:40:00.000Z' : c));
     P.ctx.serve = andrew(fresh); await wake();
-    ok('back the next morning: it fetches and shows today\'s numbers', P.ctx.fetches === 2 && !has(P.view(), 'lm-t-val stale">source stale</div><div class="lm-t-foot"><span>last run') && has(tileBy(P.view(), 'First call on time'), '85%'));
+    ok('back the next morning: it fetches and shows today\'s numbers', P.ctx.fetches === 2 && !has(P.view(), 'lm-t-val stale">source stale</div><div class="lm-t-foot"><span>last run') && has(tileBy(P.view(), 'Speed to Lead'), '85%'));
     ok('...the dot is live again', P.els.dot.className === 'dot ok' && has(P.els.fresh.textContent, 'live ·'));
     const Q = await boot(andrew(raw), { at: (clock.t = SIX_PM, clock) }), wq = async () => { Q.ctx.on.visibilitychange(); await new Promise(r => setTimeout(r, 30)); };
     clock.t = NEXT_TEN; Q.ctx.fails = 1; await wq();
-    ok('no network: the tiles still read the clock, no old number passed off as today\'s', has(tileBy(Q.view(), 'First call on time'), STALE) && !has(tileBy(Q.view(), 'First call on time'), '85%'));
+    ok('no network: the tiles still read the clock, no old number passed off as today\'s', has(tileBy(Q.view(), 'Speed to Lead'), STALE) && !has(tileBy(Q.view(), 'Speed to Lead'), '85%'));
     ok('...the dot is red and dates its last good fetch', Q.els.dot.className === 'dot err' && /last \d{1,2}\/\d{1,2} /.test(Q.els.fresh.textContent));   // the device's own day, so no fixed date
     const D = await boot(andrew(raw), { at: (clock.t = SIX_PM, clock) }); const was = D.view();
     D.ctx.fields = [{ value: 'half a note', defaultValue: '' }]; clock.t = NEXT_TEN; D.ctx.on.visibilitychange(); await new Promise(r => setTimeout(r, 30));

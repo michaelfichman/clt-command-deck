@@ -66,6 +66,8 @@ function fullRaw() {
     sc(A, 'lm', 'A7', 0.97, { Target: 1, 'Target Status': 'behind' }),
     sc(A, 'lm', 'A8', 7),
     sc(A, 'lm', 'A10', 0.14, { Target: 0.15, 'Target Status': 'behind', Label: 'lead to contract $ words' }),   // the phone drops these words, the owner reads them
+    sc(A, 'lm', 'A11', 3, { N: 7, Label: 'New Lead Offers' }), sc(A, 'lm', 'A12', 4, { N: 7, Label: 'Follow-Up Offers' }),
+    sc(A, 'lm', 'A13', 0.75, { N: 3, Target: 1, 'Target Status': 'behind', Label: 'Contracts Signed', Note: '3 in the last 4 weeks · since 4/27: 9 signed, 5 pending, 1 closed, 2 fell, team only' }),
     sc(J, 'am', 'J1', 18.5, { Target: 24, 'Target Status': 'on_track' }),
     sc(J, 'am', 'J3', 0.2, { Target: 0.25, 'Target Status': 'behind', Note: 'AM credit since 9/30 · team 24%' }),
     sc(J, 'am', 'J4', 0.03, { Target: 0.05, 'Target Status': 'on_track' }),
@@ -73,7 +75,12 @@ function fullRaw() {
     sc(J, 'am', 'J6', 2, { Target: 0, 'Target Status': 'behind' }),
     sc(J, 'am', 'J9', 0, { Target: 0, 'Target Status': 'on_track' }),
     sc(J, 'am', 'J10', 4, { Note: 'AM credit since 9/30 · team 6' }),
-    sc(MF, 'owner', 'M1', 9)];
+    sc(J, 'am', 'J11', 3, { N: 7, Label: 'New Lead Offers' }), sc(J, 'am', 'J12', 4, { N: 7, Label: 'Follow-Up Offers' }),
+    sc(J, 'am', 'J13', 0.75, { N: 3, Target: 1, 'Target Status': 'behind', Label: 'Contracts Signed', Note: '3 in the last 4 weeks · since 4/27: 9 signed, 5 pending, 1 closed, 2 fell, team only' }),
+    sc(MF, 'owner', 'M1', 9),
+    sc(MF, 'owner', 'M8', 2, { N: 5, Label: 'Deals to Sell', Note: 'every deal, no owner split' }),
+    sc(MF, 'owner', 'M9', 22222, { N: 2, Label: 'Pending Revenue', Note: 'gross, nothing presumed' }),
+    sc(MF, 'owner', 'M10', 0.75, { N: 3, Target: 1, 'Target Status': 'behind', Label: 'Contracts Signed', Note: '3 in the last 4 weeks · since 4/27: 9 signed, 5 pending, 1 closed, $11,111, 2 fell, team only' })];
   raw['Deal Board'] = [HB,
     bd('d1', DIS, '1: Deal Analysis', 3, '', 11111, { stamp: STAMP }),
     bd('d2', DIS, '3: Marketing', 20, 'TRUE', 22222),
@@ -127,8 +134,8 @@ const rowOf = (h, lead) => { const i = h.search(new RegExp(lead + '(</a>)?</td>'
 const step = (h, label) => { const i = h.indexOf('f-lbl">' + label + '<'); return i < 0 ? '' : h.slice(i, h.indexOf('funnel-row', i)); };
 const VIEWS = ['home', 'revenue', 'funnel', 'channels', 'pipeline', 'activity', 'profit', 'pace', 'lm', 'tasks'];
 const clean = h => !/undefined(?! by construction)|NaN|\[object|RENDER ERROR|build error/.test(h);
-const LM_LABELS = ['First call on time', 'Untouched leads', 'Sellers waiting on us', 'Holding past 1 hour', 'Cadence behind', '15 touches in the first 72 hours', 'Walkthroughs set', 'Lead→walkthrough', 'Dials made vs required'];
-const AM_LABELS = ['Stuck in 5.1', 'Hours, 5.1 to offer', 'Offers out', 'Offer→contract', 'Next Contact current', 'MAO accuracy', 'Walkthrough status not set'];
+const LM_LABELS = ['Contracts Signed', 'Appts Set', 'Speed to Lead', 'Lead to Appt', 'New Lead Offers', 'Follow-Up Offers', 'Untouched leads', 'Sellers waiting on us', 'Holding past 1 hour', 'Cadence behind', '15 touches in the first 72 hours', 'Dials made vs required'];
+const AM_LABELS = ['Contracts Signed', 'Offers Sent', 'Late Offers', 'Offer to Contract', 'New Lead Offers', 'Follow-Up Offers', 'Hours, 5.1 to offer', 'Next Contact current', 'MAO accuracy', 'Walkthrough status not set'];
 
 (async function () {
   const src = fs.readFileSync(__dirname + '/index.html', 'utf8');
@@ -137,9 +144,9 @@ const AM_LABELS = ['Stuck in 5.1', 'Hours, 5.1 to offer', 'Offers out', 'Offer�
   {
     const P = await boot(payload(liveRaw())), h = P.view();
     ok('boots to a home with no throw and no broken value', has(h, 'Path to') && clean(h));
-    ok('the speed tile is gone, First call on time stands in its place, and says source stale', !has(h, 'Speed to lead') && has(h, '>First call on time</div><div class="t-val stale">' + STALE + '<'));
+    ok('m4: the old speed tile is gone, the A1 tile reads Speed to Lead, and says source stale', !has(h, 'Speed to lead') && !has(h, 'First call on time') && has(h, '>Speed to Lead</div><div class="t-val stale">' + STALE + '<'));
     ok('both strips, Team order, never ranked: Jordan before Andrew, one line each, not 16 identical cells', before(h, J + ' ›', A + ' ›') && !has(h, 'sc-grid') && count(h, /class="stale">source stale<\/b> · not published yet/g) === 2);
-    ok('Owner and Partner get no strip', !has(h, MF + ' ›') && !has(h, ED + ' ›'));
+    ok('m6: no Owner strip before his rows exist, and Partner gets none', !has(h, MF + ' ›') && !has(h, 'strip-nm" style="cursor:default">') && !has(h, ED));
     ok('a name still opens the role screen', has(h, `lmGo('${A}','week','')`) && has(h, `lmGo('${J}','week','')`));
     ok('the reader\'s code reaches nobody: the tile says it in plain words', !/= tab missing/.test(h) && has(h, '= not published yet'));
     ok('something is red, so Data health leads the page, above the tiles', before(h, 'Data health', 'Revenue YTD'));
@@ -154,8 +161,8 @@ const AM_LABELS = ['Stuck in 5.1', 'Hours, 5.1 to offer', 'Offers out', 'Offer�
     ok('funnel, Activity, Team, Tasks, Capital all render', VIEWS.every(v => clean(P.go(v))));
     const ac = P.go('activity');
     ok('Activity: the head says source stale, Jordan\'s row says he has no first-call KPI', has(ac, 'hm-big stale">' + STALE) && has(ac, 'no first-call KPI'));
-    ok('Team view: Andrew\'s role screen on the live shape', has(P.team(A), 'First call on time') && !has(P.team(A), 'Offers Made'));
-    ok('Team view: Jordan\'s role screen on the live shape', has(P.team(J), 'Stuck in 5.1') && !has(P.team(J), 'Lead→walkthrough'));
+    ok('Team view: Andrew\'s role screen on the live shape', has(P.team(A), 'Speed to Lead') && !has(P.team(A), 'Offers Made'));
+    ok('Team view: Jordan\'s role screen on the live shape', has(P.team(J), 'Late Offers') && !has(P.team(J), 'Lead to Appt'));
   }
 
   console.log('A FAKE WORKBOOK WITH BOTH TABS');
@@ -168,17 +175,17 @@ const AM_LABELS = ['Stuck in 5.1', 'Hours, 5.1 to offer', 'Offers out', 'Offer�
     ok('strips in Team order', before(home, J + ' ›', A + ' ›'));
     ok('a name goes to the role screen, a cell to its KPI', has(home, `lmGo('${A}','week','')`) && has(home, `lmGo('${J}','week','kpi-J6')`));
     ok('a real 0 stays 0', has(cell(home, 'Untouched leads'), 'sc-v">0<'));
-    ok('on_track is green, behind is red, each with its target', has(cell(home, 'First call on time'), 'lm-ahead') && has(cell(home, 'First call on time'), '🎯 80%') && has(cell(home, 'Sellers waiting on us'), 'lm-behind'));
+    ok('on_track is green, behind is red, each with its target', has(cell(home, 'Speed to Lead'), 'lm-ahead') && has(cell(home, 'Speed to Lead'), '🎯 80%') && has(cell(home, 'Sellers waiting on us'), 'lm-behind'));
     ok('D-6: weekend is uncoloured', has(cell(home, 'Holding past 1 hour'), 'sc lm-none') && has(cell(home, 'Holding past 1 hour'), 'weekend'));
     ok('a row behind the tab says source stale, no old number', has(cell(home, 'Cadence behind'), STALE) && !has(cell(home, 'Cadence behind'), 'sc-v">3'));
     ok('a row marked stale says source stale', has(cell(home, '15 touches in the first 72 hours'), STALE));
     ok('all green: Data health sits at the foot, below the strips', before(home, 'Scorecards', 'Data health') && before(home, 'Revenue YTD', 'Data health'));
-    ok('D-10: J3 and J10 carry their label and the team rate on the strip, from the Note', has(cell(home, 'Offer→contract'), 'sc-n">AM credit since 9/30 · team 24%<') && has(cell(home, 'Offers out'), 'sc-n">AM credit since 9/30 · team 6<'));
-    ok('...and no other cell does', !has(cell(home, 'First call on time'), 'sc-n') && !has(cell(home, 'Stuck in 5.1'), 'sc-n'));
+    ok('D-10: J3 and J10 carry their label and the team rate on the strip, from the Note', has(cell(home, 'Offer to Contract'), 'sc-n">AM credit since 9/30 · team 24%<') && has(cell(home, 'Offers Sent'), 'sc-n">AM credit since 9/30 · team 6<'));
+    ok('...and no other cell does', !has(cell(home, 'Speed to Lead'), 'sc-n') && !has(cell(home, 'Late Offers'), 'sc-n'));
     ok('A9 has no row and is not on the tile set; no KPI invents a tile', !has(home, 'LM-Law'));
     ok('the owner reads the routine\'s words whole', has(home, 'sc-l">lead to contract $ words<'));
     ok('J5: no colour, no target, whatever the row says', has(cell(home, 'Next Contact current'), 'sc lm-none') && has(cell(home, 'Next Contact current'), 'target not set') && !has(cell(home, 'Next Contact current'), '🎯'));
-    ok('a number from the routine stays in its format', has(cell(home, 'Hours, 5.1 to offer'), '18.5 h') && has(cell(home, 'Offer→contract'), '20%'));
+    ok('a number from the routine stays in its format', has(cell(home, 'Hours, 5.1 to offer'), '18.5 h') && has(cell(home, 'Offer to Contract'), '20%'));
     ok('data health all green, with the dates', has(hc(home, 'Sync Status'), 'hc ok') && has(hc(home, 'Sync Status'), '11/3') && has(hc(home, 'Role Scorecard'), 'as of 11/2') && has(hc(home, 'Deal Board'), 'as of 11/3') && has(hc(home, 'Deal Board'), '11 deals') && has(hc(home, 'Tasks'), 'nightly 11/3'));
     ok('the old PIPE tile and ticker still read the Pipeline tab', has(home, '>$15,551<') && has(F.tape(), 'PIPE'));
   }
@@ -191,23 +198,23 @@ const AM_LABELS = ['Stuck in 5.1', 'Hours, 5.1 to offer', 'Offers out', 'Offer�
     ok('A6 at 1 reads 100%, J5 at 0.071 reads 7%', has(cell(h, '15 touches in the first 72 hours'), 'sc-v">100%<') && has(cell(h, 'Next Contact current'), 'sc-v">7%<'));
     const staleJ3 = fullRaw(); staleJ3['Role Scorecard'][staleJ3['Role Scorecard'].findIndex(r => r[3] === 'J3')] = sc(J, 'am', 'J3', '', { 'Target Status': 'source stale', Stale: true, Note: 'AM credit since 9/30 · team 24%' });
     h = (await boot(payload(staleJ3))).view();
-    ok('a stale J3 prints no Note: its team figure is not today\'s', has(cell(h, 'Offer→contract'), STALE) && !has(cell(h, 'Offer→contract'), 'sc-n'));
+    ok('a stale J3 prints no Note: its team figure is not today\'s', has(cell(h, 'Offer to Contract'), STALE) && !has(cell(h, 'Offer to Contract'), 'sc-n'));
     const nil = fullRaw(); nil['Role Scorecard'][1] = sc(A, 'lm', 'A1', '', { N: 0, Target: 0.8, 'Target Status': 'on_track', Note: '0 of 0 · 0 pending · last 7 days' });
     nil['Role Scorecard'][nil['Role Scorecard'].findIndex(r => r[3] === 'A7')] = sc(A, 'lm', 'A7', '', { N: 0, Note: 'no dials required that day' });
     const P = await boot(payload(nil)), n = P.view();
     ok('P4\'s null: a dash on the home tile, no colour, the Note, never source stale', has(n, '<div class="t-val ">—</div>') && has(n, '= 0 of 0 · 0 pending · last 7 days') && !has(n.slice(n.indexOf('First call on time'), n.indexOf('Awaiting value')), STALE));
-    ok('...a dash in the strip, no colour, its status word', has(cell(n, 'First call on time'), 'sc lm-none') && has(cell(n, 'First call on time'), 'sc-v">—<') && has(cell(n, 'First call on time'), 'on track'));
+    ok('...a dash in the strip, no colour, its status word', has(cell(n, 'Speed to Lead'), 'sc lm-none') && has(cell(n, 'Speed to Lead'), 'sc-v">—<') && has(cell(n, 'Speed to Lead'), 'on track'));
     ok('...and the ticker neutral, not a red source stale', has(P.tape(), '1ST CALL <b class="">—</b>'));
     ok('...while Data health is green beside it: nothing false to chase', has(hc(n, 'Role Scorecard'), 'hc ok') && !has(n, 'class="stale">source stale'));
     const ac = P.go('activity');
-    ok('Activity: the head a dash, the diagnosis says nothing to measure, not a rate with no number', has(ac, '<span class="hm-big">—</span>') && has(ac, 'First call on time: nothing to measure') && !has(ac, 'First call on time <b class="m">—'));
+    ok('Activity: the head a dash, the diagnosis says nothing to measure, not a rate with no number', has(ac, '<span class="hm-big">—</span>') && has(ac, 'Speed to Lead: nothing to measure') && !has(ac, 'Speed to Lead <b class="m">—'));
     ok('the Role row: a dash and the Note', has(ac, '<b class="m">—</b><br>0 of 0 · 0 pending') && !has(ac, 'class="wrap fit late"'));
     const txt = fullRaw(); txt['Role Scorecard'][1] = sc(A, 'lm', 'A1', '#N/A', { Target: 0.8, 'Target Status': 'on_track' });
     const T = await boot(payload(txt));
-    ok('text in Value is stale, on the tile, the strip and the ticker, never green', has(T.view(), '<div class="t-val stale">' + STALE) && has(cell(T.view(), 'First call on time'), 'sc lm-stale') && has(T.tape(), '1ST CALL <b class="dn">' + STALE) && !has(T.view(), '#N/A'));
+    ok('text in Value is stale, on the tile, the strip and the ticker, never green', has(T.view(), '<div class="t-val stale">' + STALE) && has(cell(T.view(), 'Speed to Lead'), 'sc lm-stale') && has(T.tape(), '1ST CALL <b class="dn">' + STALE) && !has(T.view(), '#N/A'));
     const words = fullRaw(); words['Role Scorecard'] = words['Role Scorecard'].map((r, i) => i ? ['2026-10-26', ...r.slice(1)] : r);
     const W = await boot(payload(words));
-    ok('a stale tab: each person\'s line says how old it is', count(W.view(), /class="stale">source stale<\/b> · last run 10\/26/g) === 2);
+    ok('a stale tab: each person\'s line says how old it is', count(W.view(), /class="stale">source stale<\/b> · last run 10\/26/g) === 3);
     ok('...and the tile', has(W.view(), '= last run 10/26'));
     ok('...and a KPI page opened by hash', has(W.team(A, 'week', 'kpi-A1'), 'last run 10/26'));
   }
@@ -330,6 +337,90 @@ const AM_LABELS = ['Stuck in 5.1', 'Hours, 5.1 to offer', 'Offers out', 'Offer�
     ok('the other lane stands', has(await fun(ren('Offers', 'AM', 'Acq')), 'Walkthroughs set<b>3</b>'));
   }
 
+  console.log('THE DECIDED TILES ON THE OWNER DECK');
+  {
+    const P = await boot(payload(fullRaw())), h = P.view(), strip = name => { const i = h.indexOf(name + (name === MF ? '</span>' : ' ›')), e = h.indexOf('class="card strip"', i); return h.slice(i, e < 0 ? undefined : e); };
+    const own = strip(MF), andrew = strip(A), jordan = strip(J);
+    ok('Owner\'s strip has no role screen behind it', !has(h, MF + ' ›') && has(h, 'strip-nm" style="cursor:default">' + MF + '<'));
+    const pre = fullRaw(); pre['Role Scorecard'] = pre['Role Scorecard'].filter(r => !['A11', 'A12', 'A13', 'J11', 'J12', 'J13', 'M8', 'M9', 'M10'].includes(r[3]));
+    const ph = (await boot(payload(pre))).view();
+    ok('m6: before P0\'s first run the strips carry no cell for a row not yet written, and no Owner strip, so nothing new reads source stale', !has(ph, 'Contracts Signed') && !has(ph, 'New Lead Offers') && !has(ph, 'no number for this KPI') && !has(ph, 'strip-nm" style="cursor:default">') && has(ph, 'sc-l">Appts Set<') && has(ph, 'sc-l">Offers Sent<'));
+    ok('Owner\'s strip: the top line, Deals to Sell, Pending Revenue, in that order', before(own, 'sc-l">Contracts Signed<', 'sc-l">Deals to Sell<') && before(own, 'sc-l">Deals to Sell<', 'sc-l">Pending Revenue<') && count(own, /class="sc /g) === 3);
+    ok('Pending Revenue prints as dollars, gross, the rest as counts', has(cell(own, 'Pending Revenue'), '$22,222') && has(cell(own, 'Deals to Sell'), 'sc-v">2<') && has(cell(own, 'Contracts Signed'), 'sc-v">0.8<'));
+    ok('its cells open the owner\'s own pages, never a role screen', has(cell(own, 'Pending Revenue'), `go('pipeline')`) && has(cell(own, 'Deals to Sell'), `go('pipeline')`) && has(cell(own, 'Contracts Signed'), `go('funnel')`) && !has(own, 'lmGo('));
+    ok('the top line carries pending, closed and fell on each strip, the fee on the owner\'s alone', has(cell(own, 'Contracts Signed'), '5 pending, 1 closed, $11,111, 2 fell') && has(cell(jordan, 'Contracts Signed'), '5 pending, 1 closed, 2 fell') && has(cell(andrew, 'Contracts Signed'), '5 pending, 1 closed, 2 fell'));
+    ok('both role strips hold the decided tiles, in order, and tap through to the role screen', has(cell(andrew, 'New Lead Offers'), "'kpi-A11'") && has(cell(jordan, 'Follow-Up Offers'), "'kpi-J12'") && before(andrew, 'sc-l">Contracts Signed<', 'sc-l">Appts Set<') && before(jordan, 'sc-l">Offers Sent<', 'sc-l">Late Offers<'));
+    ok('Conversations is a lens tile with no scorecard row, so no strip cell, and no throw', !has(andrew, 'conversations') && clean(h));
+    ok('Andrew\'s screen in preview still drops his sheet text, past the names', has(P.team(A), 'lm-t-lbl">New Lead Offers<') && !has(P.team(A), '$'));
+    const none = fullRaw(); none['Role Scorecard'] = none['Role Scorecard'].filter(r => !/^M(8|9|10)$/.test(r[3]));
+    const n = (await boot(payload(none))).view();
+    ok('m6: no M rows yet: no Owner strip at all, so never a $0 cell', !has(n, 'sc-l">Pending Revenue<') && !has(n, 'strip-nm" style="cursor:default">'));
+    const gone = fullRaw(); gone['Role Scorecard'] = gone['Role Scorecard'].map(r => /^M(8|9|10)$/.test(r[3]) ? ['2026-10-28', ...r.slice(1)] : r);
+    const g = (await boot(payload(gone))).view();
+    ok('m6: a row written and then lost: each cell reads source stale, never $0', has(cell(g, 'Pending Revenue'), STALE) && !has(cell(g, 'Pending Revenue'), '$0'));
+  }
+
+  console.log('TEAM DEALS: THE LANES, OUTSIDE, THE COMPANY TILES, DATA HEALTH');
+  {
+    const HT = ['Opp ID', 'Contact ID', 'Attached People', '', 'As Of'], lane = (f, a, b) => f.slice(f.indexOf(a), f.indexOf(b));
+    const jv = () => { const raw = fullRaw();
+      raw.Contracts.push(['', '10/12/2026', '', 'Signed', MF, J, 'S', 'P', '', '', 'cjv', 'k-op-jv']);
+      raw.Offers.push(['10/11/2026', '', 'Made', MF, J, 'S', 'P', '', '', 'cjv', '']);
+      raw.Appointments.push(['', '10/10/2026', 'Showed', J, J, 'S', 'P', '', '', 'cjv', '']);
+      return raw; };
+    const cards = stamp => [HT, ['k-op-1', 'c1', A + ', ' + J, '', stamp || STAMP], ['k-op-2', 'c8', A, '', ''], ['k-op-3', 'c5', J, '', ''], ['g-2', 'c2', A + ', ' + J, '', ''], ['g-3', 'c3', A, '', ''], ['g-4', 'c4', A, '', ''], ['k-op-jv', 'cjv', '', '', '']];
+    const live = stamp => { const raw = jv(); raw['Team Deals'] = cards(stamp); return raw; };
+    /* live, with a blank card for every other contact on the deal tabs, so nothing is off the tab */
+    const whole = () => { const raw = live(), have = new Set(raw['Team Deals'].map(r => r[1])); ['Appointments', 'Offers', 'Contracts'].forEach(t => { const i = raw[t][0].indexOf('Contact ID'); raw[t].slice(1).forEach(r => { if (r[i] && !have.has(r[i])) { have.add(r[i]); raw['Team Deals'].push(['x-' + r[i], r[i], '', '', '']); } }); }); return raw; };
+    const off = await boot(payload(jv())), on = await boot(payload(live())), fo = off.go('funnel'), fl = on.go('funnel');
+    const amOff = lane(fo, 'Jordan · AM', 'Andrew · LM'), amOn = lane(fl, 'Jordan · AM', 'Andrew · LM');
+    ok('no tab: the outside row counts in his lane, as today', has(amOff, 'Contracts<b>2</b>') && has(amOff, 'Offers<b>3</b>') && has(amOff, 'Walkthroughs<b>3</b>'));
+    ok('tab live: his Contracts step reads 1, and his Offers and Walkthroughs lose the row too', has(amOn, 'Contracts<b>1</b>') && has(amOn, 'Offers<b>2</b>') && has(amOn, 'Walkthroughs<b>2</b>'));
+    ok('the team rate reads team deals alone', has(amOff, 'team offer→contract 75.0%') && has(amOn, 'team offer→contract 66.7%'));
+    const early = live(); early.Offers.push(['9/1/2026', '', 'Made', MF, J, 'S', 'P', '', '', 'cjv', '']);
+    ok('AM credit keeps its own start, read off every row: the label is not a team number', has(lane((await boot(payload(early))).go('funnel'), 'Jordan · AM', 'Andrew · LM'), 'AM credit since 9/1'));
+    ok('outside shows once, labeled, on the owner\'s funnel', count(fl, /outside the team:/g) === 1 && has(fl, 'outside the team: <b>1</b> contract signed, in no lane above'));
+    ok('no tab: no such line', !has(fo, 'outside the team'));
+    const lost = live(); lost['Team Deals'] = lost['Team Deals'].filter(x => x[1] !== 'c8');
+    const lf = (await boot(payload(lost))).go('funnel');
+    ok('a signed deal with no card read: in no lane, and the line counts it apart from outside', has(lf, '<b>1</b> contract signed, in no lane above · <b>1</b> with no card read, not counted as team'));
+    const mine = live(); mine['Team Deals'] = mine['Team Deals'].filter(x => x[1] !== 'c1');
+    const mf = (await boot(payload(mine))).go('funnel');
+    ok('one in his own lane: not counted, and the line says so', has(lane(mf, 'Jordan · AM', 'Andrew · LM'), 'Contracts<b>0</b>') && has(mf, '· <b>1</b> with no card read, not counted as team'));
+    const opp = live(); opp['Team Deals'].push(['k-op-other', 'cjv', J, '', '']);
+    ok('a Contracts row reads its own card: the contact\'s other card, attached, does not make it team', has(lane((await boot(payload(opp))).go('funnel'), 'Jordan · AM', 'Andrew · LM'), 'Contracts<b>1</b>'));
+    const stray = live(); stray.Contracts[stray.Contracts.length - 1][11] = 'k-op-gone'; stray['Team Deals'].push(['k-op-other', 'cjv', J, '', '']);
+    ok('a card off the tab falls back to the contact\'s cards', has(lane((await boot(payload(stray))).go('funnel'), 'Jordan · AM', 'Andrew · LM'), 'Contracts<b>2</b>'));
+    const h = on.go('home'), ho = off.go('home');
+    ok('company tiles say so, once the tab is live', has(h, 'closings summed · company, outside deals included') && has(h, ' signed · company, outside deals included'));
+    ok('no tab: the tiles read as today', !has(ho, 'company, outside') && has(ho, 'closings summed</div>'));
+    ok('the numbers on them do not move', (h.match(/>Revenue YTD<\/div><div class="t-val br">([^<]+)/) || [])[1] === (ho.match(/>Revenue YTD<\/div><div class="t-val br">([^<]+)/) || [])[1]);
+    const wr = whole(), wh = (await boot(payload(wr))).go('home');
+    ok('data health: a Team Deals cell once it has rows, green with its count', has(hc(wh, 'Team Deals'), 'hc ok') && has(hc(wh, 'Team Deals'), 'as of 11/3') && has(hc(wh, 'Team Deals'), (wr['Team Deals'].length - 1) + ' cards'));
+    ok('no tab: no cell, nothing new turns red', !has(ho, 'hc-l">Team Deals<'));
+    const newRow = whole(); newRow.Appointments.push(['11/3/2026', '', 'Confirmed', A, J, 'S', 'P', '', '', 'cNEW', '']);
+    const nh = (await boot(payload(newRow))).go('home');
+    ok('T1: a fresh tab with a new booking on a card no run has read: the cell is not green, and says how many', has(hc(nh, 'Team Deals'), 'hc warn') && has(hc(nh, 'Team Deals'), 'as of 11/3') && has(hc(nh, 'Team Deals'), '1 deal not read yet, not counted'));
+    const twoRows = whole(); twoRows.Appointments.push(['11/3/2026', '', 'Confirmed', A, J, 'S', 'P', '', '', 'cNEW', '']); twoRows.Offers.push(['11/3/2026', '', 'Made', A, J, 'S', 'P', '', '', 'cNEW', '']); twoRows.Offers.push(['11/3/2026', '', 'Made', A, J, 'S', 'P', '', '', 'cNEW2', '']);
+    ok('T1: by contact, across the tabs', has(hc((await boot(payload(twoRows))).go('home'), 'Team Deals'), '2 deals not read yet'));
+    const nobody = whole(); nobody.Offers.push(['6/3/2025', '', 'Made', MF, MF, 'S', 'P', '', '', 'cMINE', '']);
+    ok('T1: a row of nobody\'s lane with no card is M7\'s to say, and stays off this cell', has(hc((await boot(payload(nobody))).go('home'), 'Team Deals'), 'hc ok'));
+    const old = await boot(payload(live('2026-10-30T10:40:00.000Z')));
+    ok('a stale stamp is red and says what it costs', has(hc(old.view(), 'Team Deals'), 'hc bad') && has(hc(old.view(), 'Team Deals'), STALE) && has(hc(old.view(), 'Team Deals'), 'last ran 10/30 · new deals not counted'));
+    ok('...and the rule keeps holding: a stale tab does not put the outside row back', has(lane(old.go('funnel'), 'Jordan · AM', 'Andrew · LM'), 'Contracts<b>1</b>'));
+    const noStamp = live(); noStamp['Team Deals'][1][4] = '';
+    ok('rows and no stamp: the rule holds, and the cell says it has no as-of', has(hc((await boot(payload(noStamp))).view(), 'Team Deals'), 'no as-of'));
+    for (const [name, tab] of [['an empty tab', [HT]], ['only a stamp', [HT, ['', '', '', '', STAMP]]], ['a renamed column', [['Opp ID', 'Contact ID', 'Attached'], ['k-op-1', 'c1', J]]], ['no rows at all', []]]) {
+      const raw = jv(); raw['Team Deals'] = tab;
+      const P = await boot(payload(raw)), f = P.go('funnel');
+      ok(name + ': the lanes read as today, no line, no cell', has(lane(f, 'Jordan · AM', 'Andrew · LM'), 'Contracts<b>2</b>') && !has(f, 'outside the team') && !has(P.go('home'), 'hc-l">Team Deals<'));
+    }
+    const pre = jv(); delete pre['Team Deals'];
+    ok('an owner script from before P0d: the same', has(lane((await boot(payload(pre))).go('funnel'), 'Jordan · AM', 'Andrew · LM'), 'Contracts<b>2</b>'));
+    ok('every view renders with the tab live', VIEWS.every(v => clean(on.go(v))));
+    ok('every lead lane and the preview agree: Jordan\'s phone in the deck reads the same 1', /lm-fl">Contracts<\/span><span class="lm-fv">1</.test(on.team(J, 'quarter', 'deals')));
+  }
+
   console.log('A LENS TAP STAYS PUT');
   {
     const P = await boot(payload(fullRaw()));
@@ -357,14 +448,15 @@ const AM_LABELS = ['Stuck in 5.1', 'Hours, 5.1 to offer', 'Offers out', 'Offer�
     ok('the chart labels him too, from Team', labels.indexOf(J + ' · AM calls') > -1 && labels.indexOf(A) > -1);
     ok('the old speed lines and the hard-coded CPL are gone', !has(a, 'industry contact-rate') && !has(a, 'Priority inversion') && !has(a, 'Triage holds') && !has(a, 'CPL) are being reached') && !has(a, 'fastest dots'));
     ok('the legacy column keeps saying first dial, never calls + texts', has(a, 'First dial by source, calls only') && has(a, 'minutes to first dial, calls only'));
-    ok('A1 in the diagnosis', has(a, 'First call on time <b class="m">85%</b> inside 30 working minutes'));
+    ok('A1 in the diagnosis', has(a, 'Speed to Lead <b class="m">85%</b> inside 30 working minutes'));
+    ok('m4: the by-role table reads the label too, so no old words sit beside the strip', has(a, 'Speed to Lead, by role') && !has(a, 'First call on time'));
   }
 
   console.log('TEAM, TASKS, CAPITAL');
   {
     ok('the nav says TEAM and still routes lm', has(src, '<button data-v="lm"><span class="g">⊞</span>TEAM</button>'));
     const a = F.team(A), j = F.team(J);
-    ok('Andrew opens his LM screen: no Offers or Contracts tile and no $', has(a, 'First call on time') && !has(a, 'Offers Made') && !has(a, '>Contracts<') && !has(a, 'Appt→Contract') && !has(a.replace(/\$\{/g, ''), '$'));
+    ok('Andrew opens his LM screen: no Offers or Contracts tile and no $', has(a, 'Speed to Lead') && !has(a, 'Offers Made') && !has(a, '>Contracts<') && !has(a, 'Appt→Contract') && !has(a.replace(/\$\{/g, ''), '$'));
     ok('Jordan opens his AM screen', AM_LABELS.every(l => has(j, 'lm-t-lbl">' + l + '<')));
     ok('his Deals count equals the board rows with AM = Jordan', has(j, 'Deals &amp; Pipeline — 10 deals →'));
     ok('a saved KPI link from a strip opens on the Team view', has(F.team(A, 'week', 'kpi-A1'), 'median 12 working min'));

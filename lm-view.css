@@ -85,6 +85,7 @@ select.lm-person{cursor:pointer}
 .lm-rn{color:var(--txt);font-weight:500;overflow-wrap:anywhere;word-break:break-word;line-height:1.35}
 .lm-funnel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 14px;margin-bottom:6px}
 .lm-frow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px dashed var(--line)}
+.lm-fnote{font-size:12px;opacity:.7;line-height:1.5;margin:0 2px 8px}
 .lm-frow:first-child{border-top:0} .lm-fl{font-size:13px;color:var(--txt2)} .lm-fv{font-family:'IBM Plex Mono';font-weight:600;font-size:17px;color:var(--glow)}
 .lm-foc{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
 .lm-foc.lever{background:radial-gradient(360px 120px at 15% 0%,var(--glow-dim),transparent),var(--card);border-color:var(--line2)}

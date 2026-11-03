@@ -54,7 +54,7 @@ const ct = name => 'tcol-h"><span>' + name + '</span>';   // a column title (a p
   console.log('NAV + VERSIONS');
   ok('nav has ✓ TASKS', src.indexOf('<button data-v="tasks"><span class="g">✓</span>TASKS</button>') > -1);
   const swSrc = fs.readFileSync(__dirname + '/sw.js', 'utf8');
-  ok('index.html loads lm-view.js/css at ?v=47, sw.js cache clt-deck-v47 and V=47', (src.match(/\?v=47/g) || []).length === 4 && src.indexOf('v=46') === -1 && swSrc.indexOf("'clt-deck-v47'") > -1 && swSrc.indexOf("const V = '47'") > -1);
+  ok('index.html loads lm-view.js/css at ?v=48, sw.js cache clt-deck-v48 and V=48', (src.match(/\?v=48/g) || []).length === 4 && src.indexOf('v=47') === -1 && swSrc.indexOf("'clt-deck-v48'") > -1 && swSrc.indexOf("const V = '48'") > -1);
   ok('load() keeps role/person/approver from the payload', src.indexOf("META={role:j.role||'',person:j.person||'',approver:j.approver===true}") > -1);
 
   console.log('APPROVER (Michael)');

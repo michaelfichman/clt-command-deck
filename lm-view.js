@@ -83,7 +83,7 @@ h+='<div class="lm-reach-never">Reach depends on lead mix (inbound answers; cold
 function lmHome(M,person,lens,team){const role=lmRole(M),am=role==='AM',R=lmTabsNow(M),count=lmBoardCount(R.board,role,person),nav=(l,to,cls)=>'<button class="lm-deals-btn'+(cls?' '+cls:'')+'" onclick="lmGo('+lmJsq(person)+','+lmJsq(lens)+','+lmJsq(to)+')">'+l+' →</button>';
   let h='<div class="lm-head"><div><p class="eyebrow">Scoreboard</p><h1>'+person+'</h1></div>'+lmPicker(person,team)+'</div><div class="lm-clockbar">this device&rsquo;s clock → <span id="lm-clock">'+lmNowLbl()+'</span></div>'+lmComp(M,person,lens);
   if(am)h+=lmDayStrip(M,person,R);
-  h+='<div class="sec-h"><h2>Scorecard</h2><span class="tag">'+lmScoreTag(R,'tap a tile')+'</span></div><section class="lm-tiles">'+LM_SCORE_TILES[role].map(id=>lmScoreTile(M,person,lens,R,id)).join('')+'</section>';
+  h+='<div class="sec-h"><h2>Scorecard</h2><span class="tag">'+lmScoreTag(R,'tap a tile')+'</span></div><section class="lm-tiles">'+lmTilesNow(R,person,role).map(id=>lmListTile(M,person,lens,R,id)).join('')+'</section>';
   /* the lens, the streak and the pace of the day are all about dials, and an AM gets no dial coaching */
   if(!am)h+='<div class="sec-h lm-sec2"><h2>Activity</h2><span class="tag">'+LM_LBL[lens]+' · tap a tile</span></div>'+lmLensBar(person,lens)+'<section class="lm-hero">'+lmStreakHL(M,lens)+lmPaceDay(M)+'</section><section class="lm-tiles">'+LM_ACTIVITY_TILES.map(k=>lmTile(M,person,lens,lmTileDef(k))).join('')+'</section>';
   h+=lmTasksBtn(M,person,lens)+nav('💰 Make More Money — your '+(lmPayOn(M)?'earning ':'')+'levers','focus','focusbtn');
@@ -214,7 +214,7 @@ function lmDealsView(M,person,lens){
   h+='<div class="lm-head"><div><p class="eyebrow">Deals &amp; Pipeline</p><h1>'+(pay?'Funnel &amp; Money':'Your deals')+'</h1></div>'+lmLensBar(person,lens,'deals')+'</div>';
   h+=lmComp(M,person,lens);
   if(am)h+=lmDayStrip(M,person,R)+lmAmDeals(M,person,R);
-  h+='<div class="sec-h lm-sec2"><h2>Funnel</h2><span class="tag">'+LM_LBL[lens]+'</span></div><div class="lm-funnel">'+funnel.map(f=>'<div class="lm-frow"><span class="lm-fl">'+f[0]+'</span><span class="lm-fv">'+lmNum(f[1])+'</span></div>').join('')+'</div>';
+  h+='<div class="sec-h lm-sec2"><h2>Funnel</h2><span class="tag">'+LM_LBL[lens]+'</span></div><div class="lm-funnel">'+funnel.map(f=>'<div class="lm-frow"><span class="lm-fl">'+f[0]+'</span><span class="lm-fv">'+lmNum(f[1])+'</span></div>').join('')+'</div>'+lmTeamLag(M);
   if(!am)return h+lmWithList(person,R);
   if(!pay)return R.board.ok?h:h+lmNoBoardLists(c);
   h+=lmDealList('Under contract — earmarked',c.earmarkedDeals)+lmDealList('Projected — pre-contract',c.projectedDeals)+lmOfferList('Offers out — potential',c.openOffers);
@@ -421,12 +421,12 @@ const lmHeadMiss=(head,need)=>head.some(Boolean)&&need.some(n=>head.indexOf(n)<0
 /* The Target Status words scorecard.py writes on a row it stands behind */
 const LM_STATUS_KNOWN={on_track:1,behind:1,'target not set':1,weekend:1};
 
-function lmScoreRead(tab,now){const out={ok:false,why:'tab missing',asOf:'',latest:{}};if(!Array.isArray(tab))return out;
+function lmScoreRead(tab,now){const out={ok:false,why:'tab missing',asOf:'',latest:{},ids:{}};if(!Array.isArray(tab))return out;
   if(lmHeadMiss(lmHeadOf(tab),LM_SCORE_NEED)){out.why='header changed';return out;}
   const today=lmSheetClock(now).day,rows=[];
   lmTabObjs(tab).forEach(r=>{const id=lmCellTxt(r.KPI).toUpperCase(),date=lmSheetDay(r.Date);if(lmNameKey(r.Person)&&id&&date&&date<=today)rows.push({r,id,date});});   // a future date is not a write, and must not hide a stale tab
   if(!rows.length){out.why='tab empty';return out;}
-  rows.forEach(x=>{if(x.date>out.asOf)out.asOf=x.date;});
+  rows.forEach(x=>{if(x.date>out.asOf)out.asOf=x.date;out.ids[lmNameKey(x.r.Person)+'|'+x.id]=1;});   // ids: every KPI a run has written, on a stale tab too
   if(out.asOf<lmStaleFloor(now)){out.why='stale';return out;}
   rows.forEach(x=>{const k=lmNameKey(x.r.Person)+'|'+x.id,was=out.latest[k];if(!was||x.date>=was.date)out.latest[k]=x;});
   out.ok=true;out.why='';return out;}
@@ -473,6 +473,8 @@ function lmRoleTabs(src,now){const s=src||{},tabs=s.tabs||{},t=now||new Date();r
    leaves out A2-A5 and A9, so a good drop there would read red. Rates are fractions (0.85), the deck's own convention.
    Andrew's phone carries no offer, no contract and no dollar: those tiles are gone, saved links to them land on lmNotHere, his
    lists show a stage number only, and Role Scorecard text with those words is dropped before it prints (lmKpiText).
+   P0d, Michael's KPI ruling: three of his tiles are counts with those words in their names, New Lead Offers, Follow-Up Offers and
+   Contracts Signed. The sheet's Label is dropped like any other, and the name comes from LM_KPI, which holds no figure. No number of ours.
    A task's words stand, because they are his work and real rows use them in plain English (an agent's contract ending), but a
    dollar figure in one is masked (lmTaskClean). Whether the words go too is Michael's call: apps-script/README.md §5.
    On the wire, Deal Board carries no Value, and an LM-only row carries its Stage as the number alone (scopeByRole_). His
@@ -486,33 +488,51 @@ function lmStartOf(tabs,person){const want=lmNameKey(person),team=lmTabObjs(tabs
   if(day)return new Date(+day.slice(0,4),+day.slice(5,7)-1,+day.slice(8,10));
   let first=null;lmTabObjs(tabs.Calls).forEach(r=>{if(lmNameKey(r.User)!==want)return;const d=LMEngine.parseDate(r.Date);if(d&&(!first||d<first))first=d;});return first;}
 /* The host's one call after buildModel. It keeps the raw tabs and not a parsed copy, for the same reason as lmTabsNow. */
-function lmRoleAttach(M,p){if(!M)return M;const s=p||{},t=s.tabs||{};M.roleSrc={tabs:{'Role Scorecard':t['Role Scorecard'],'Deal Board':t['Deal Board']},dealBoardAsOf:s.dealBoardAsOf};M.startDate=lmStartOf(t,M.person);return M;}
+function lmRoleAttach(M,p){if(!M)return M;const s=p||{},t=s.tabs||{};M.roleSrc={tabs:{'Role Scorecard':t['Role Scorecard'],'Deal Board':t['Deal Board']},dealBoardAsOf:s.dealBoardAsOf};M.startDate=lmStartOf(t,M.person);M.teamNotRead=+s.teamNotRead||0;return M;}
+/* The team rule fails closed on a card no run has read, the usual same-day lead, so a deal can be missing from these counts until morning. The endpoint counts them, and this says so
+   where the count would show. No id and no figure of ours, on either phone. */
+const lmTeamLag=M=>{const n=M&&M.teamNotRead||0;return n?'<p class="lm-fnote">'+n+' deal'+(n===1?'':'s')+' not read yet · counts after the next morning run</p>':'';};
 
 /* role scopes the id: a saved link can never open another role's page. fmt: pct (scorecard.py's ratio(), a 0 to 1 fraction), hrs, num.
    The Label cell wins over label; a missing tab has no Label cell, so every id has its own. */
 const LM_KPI={
-  A1:{role:'LM',label:'First call on time',fmt:'pct',coach:'Call every new lead inside 30 working minutes of its arrival.'},
+  A1:{role:'LM',label:'Speed to Lead',fmt:'pct',coach:'Call every new lead inside 30 working minutes of its arrival.'},
   A2:{role:'LM',label:'Untouched leads',fmt:'num',coach:'Leads no person has touched yet. Work this queue first.'},
   A3:{role:'LM',label:'Sellers waiting on us',fmt:'num',coach:'Sellers whose last move was toward us. Answer them before new dials.'},
   A4:{role:'LM',label:'Holding past 1 hour',fmt:'num',coach:'Holding means no reply to the first text, so it is your window to call. Nobody sits there past 1 hour.'},
   A5:{role:'LM',label:'Cadence behind',fmt:'num',coach:'Leads behind their call cadence. Bring the oldest back on schedule first.'},
   A6:{role:'LM',label:'15 touches in the first 72 hours',fmt:'pct',coach:'A new lead gets 15 touches, calls and texts, in its first 72 hours.'},
   A7:{role:'LM',label:'Dials made vs required',fmt:'pct',coach:'Dials made against the dials your queue required. The queue sets the number, not a fixed count a day.'},
-  A8:{role:'LM',label:'Walkthroughs set',fmt:'num',coach:'Walkthroughs you set. Each contact counts once.'},
+  A8:{role:'LM',label:'Appts Set',fmt:'num',coach:'Walkthroughs you confirmed, plus phone appointments you set with the AM. Each contact counts once.'},
   A9:{role:'LM',label:'LM-Law misses',fmt:'num',coach:'A lead does not move to 4 until Lead Qualification and Comparables are both Completed.'},
-  A10:{role:'LM',label:'Lead→walkthrough',fmt:'pct',coach:'Walkthroughs set out of the leads that reached you, over 30 days.'},
+  A10:{role:'LM',label:'Lead to Appt',fmt:'pct',coach:'Appts set out of the leads that reached you, over 30 days.'},
+  A11:{role:'LM',label:'New Lead Offers',fmt:'num',coach:'Leads worked through to the AM in the same Mon-Sun week they came in. A count, last 4 weeks, team.'},
+  A12:{role:'LM',label:'Follow-Up Offers',fmt:'num',coach:'The same count for every older lead, last 4 weeks, team. A lead past its first week is still worth working.'},
+  A13:{role:'LM',label:'Contracts Signed',fmt:'num',coach:'The team’s top line: signed over the last 4 weeks, per week. Pending, closed and fell sit beside it.'},
   J1:{role:'AM',label:'Hours, 5.1 to offer',fmt:'hrs',coach:'Hours from 5.1 entry to the offer out. The target is inside 1 business day.'},
-  J3:{role:'AM',label:'Offer→contract',fmt:'pct',coach:'Offers that became contracts, over 90 days.'},
+  J3:{role:'AM',label:'Offer to Contract',fmt:'pct',coach:'Your offers that became contracts, team deals only, over 90 days.'},
   J4:{role:'AM',label:'MAO accuracy',fmt:'pct',coach:'How far your MAO sits from the calculated MAO, median across deals. Stay inside ±5%.'},
   J5:{role:'AM',label:'Next Contact current',fmt:'pct',coach:'Next Contact Date current on 5.2 to 5.4. Shown for reference: it has no target for now.'},
-  J6:{role:'AM',label:'Stuck in 5.1',fmt:'num',coach:'Cards sitting in 5.1 past 1 business day. Clear them to zero.'},
+  J6:{role:'AM',label:'Late Offers',fmt:'num',coach:'Offers stuck or not made past 1 business day: cards sitting in 5.1. Clear them to zero.'},
   J9:{role:'AM',label:'Walkthrough status not set',fmt:'num',coach:'Yesterday’s walkthroughs still marked booked or confirmed. Set the status the same day.'},
-  J10:{role:'AM',label:'Offers out',fmt:'num',coach:'Offers out over 30 days.'},
+  J10:{role:'AM',label:'Offers Sent',fmt:'num',coach:'Offers the seller got from you with a number, any medium, over 30 days. An offer with no number does not count.'},
+  J11:{role:'AM',label:'New Lead Offers',fmt:'num',coach:'Offers on leads that came in the same Mon-Sun week as the offer. Last 4 weeks, team.'},
+  J12:{role:'AM',label:'Follow-Up Offers',fmt:'num',coach:'Every other offer, last 4 weeks, team.'},
+  J13:{role:'AM',label:'Contracts Signed',fmt:'num',coach:'The team’s top line: signed over the last 4 weeks, per week. Pending, closed and fell sit beside it.'},
   JB1:{role:'AM',label:'Own book: due',fmt:'num',book:1,coach:'Your own book: what has come due. A card you touch and re-date leaves the count.'},
-  JB2:{role:'AM',label:'1.5 leads behind',fmt:'num',book:1,coach:'Your own 1.5 leads that have fallen behind.'}
+  JB2:{role:'AM',label:'1.5 leads behind',fmt:'num',book:1,coach:'Your own 1.5 leads that have fallen behind.'},
+  M8:{role:'Owner',label:'Deals to Sell',fmt:'num',coach:'Deals not under contract with a buyer. Every deal, no owner split.'},
+  M9:{role:'Owner',label:'Pending Revenue',fmt:'usd',coach:'Fees on deals under contract with a buyer. Every deal, gross, nothing presumed.'},
+  M10:{role:'Owner',label:'Contracts Signed',fmt:'num',coach:'The team’s top line: signed over the last 4 weeks, per week. Pending, closed and fell sit beside it.'}
 };
-const LM_SCORE_TILES={LM:['A1','A2','A3','A4','A5','A6','A8','A10','A7'],AM:['J6','J1','J10','J3','J5','J4','J9']};
-const LM_ACTIVITY_TILES=['calls','conversations'];
+/* Michael's lists, in his order, the top line first, then what stays as support. A lowercase entry is an engine tile: Conversations,
+   the one KPI on a list that follows the lens and has no Role Scorecard row. The Owner list is the deck's alone: its rows reach no phone. */
+const LM_SCORE_TILES={LM:['A13','A8','conversations','A1','A10','A11','A12','A2','A3','A4','A5','A6','A7'],AM:['J13','J10','J6','J3','J11','J12','J1','J5','J4','J9'],Owner:['M10','M8','M9']};
+const LM_ACTIVITY_TILES=['calls'];
+/* P0's tiles wait for their first row. Until P0's first run these have none, and a list led by source stale is not a reader reading as it does today. Once a row has been written,
+   losing it reads 'row is behind the tab' and the tile stands, stale: only a row never written hides one. Every older id keeps source stale for no row. */
+const LM_NEW_TILES={A11:1,A12:1,A13:1,J11:1,J12:1,J13:1,M8:1,M9:1,M10:1};
+const lmTilesNow=(R,person,role)=>LM_SCORE_TILES[role].filter(id=>LM_NEW_TILES[id]!==1||R.score.ids[lmNameKey(person)+'|'+id]===1);
 const LM_BOOK_TILES=['JB1','JB2'];
 const LM_SPEED_CAP='first touch, calls + texts, clock minutes';
 const LM_NOT_LM={offersMade:1,contractsSigned:1,apptToContract:1};
@@ -524,7 +544,7 @@ const lmLensSafe=l=>LM_LENSES.some(x=>x[0]===l)?l:'week';
 const lmMD=day=>day?(+day.slice(5,7))+'/'+(+day.slice(8,10)):'';
 const lmKpiNum=v=>(Math.round(v*10)/10).toLocaleString();
 /* A Value cell reaches here as a number or null (lmKpi). Target and Vs Last Week come through here too, unchecked, so text prints as itself and never as NaN. */
-function lmKpiShow(v,fmt){if(v==null)return '—';if(typeof v!=='number')return lmEsc(v);return fmt==='pct'?lmPctF(v):fmt==='hrs'?lmKpiNum(v)+' h':lmKpiNum(v);}
+function lmKpiShow(v,fmt){if(v==null)return '—';if(typeof v!=='number')return lmEsc(v);return fmt==='pct'?lmPctF(v):fmt==='hrs'?lmKpiNum(v)+' h':fmt==='usd'?lmMoney(v):lmKpiNum(v);}
 /* J5 is parked (Michael 10/30): no target and no colour, whatever its row says. */
 const lmKpiTarget=k=>k.id==='J5'?null:k.target;
 /* k.why stays the reader's code, for the data-health strip. This is what a person reads under 'source stale'. */
@@ -536,6 +556,8 @@ function lmKpiText(M,k){const ok=s=>lmRole(M)==='LM'&&LM_LM_BAR.test(s)?'':s,d=L
 function lmScoreTile(M,person,lens,R,id){const d=LM_KPI[id],k=lmKpi(R.score,person,id),st=lmKpiStatus(k),tx=lmKpiText(M,k),bits=[];
   if(!k.stale){const tg=lmKpiTarget(k);if(tg!=null)bits.push('🎯 <b>'+lmKpiShow(tg,d.fmt)+'</b>');if(k.vsLastWeek!=null)bits.push('last wk <b>'+lmKpiShow(k.vsLastWeek,d.fmt)+'</b>');if(k.n!=null)bits.push('n <b>'+lmEsc(k.n)+'</b>');}
   return '<button class="lm-tile '+st[0]+'" onclick="lmGo('+lmJsq(person)+','+lmJsq(lens)+','+lmJsq('kpi-'+id)+')"><div class="lm-t-top"><span class="lm-t-lbl">'+lmEsc(tx.label)+'</span></div><div class="lm-t-val'+(k.stale?' stale':'')+'">'+(k.stale?LM_SOURCE_STALE:lmKpiShow(k.shown,d.fmt))+'</div><div class="lm-t-foot"><span>'+lmEsc(st[1])+'</span></div>'+(bits.length?'<div class="lm-t-bars">'+bits.join('<i>·</i>')+'</div>':'')+(tx.note?'<div class="lm-t-note">'+lmEsc(tx.note)+'</div>':'')+'</button>';}
+/* one entry of a tile list, either kind */
+const lmListTile=(M,person,lens,R,id)=>LM_KPI[id]?lmScoreTile(M,person,lens,R,id):lmTile(M,person,lens,lmTileDef(id));
 const lmScoreTag=(R,tail)=>R.score.ok?'as of '+lmMD(R.score.asOf)+(tail?' · '+tail:''):LM_SOURCE_STALE+(R.score.asOf?' · last '+lmMD(R.score.asOf):'');
 function lmScoreDetail(M,person,lens,id){const d=LM_KPI[id],R=lmTabsNow(M),k=lmKpi(R.score,person,id),st=lmKpiStatus(k),tx=lmKpiText(M,k),go=(l,to)=>'<button class="lm-deals-btn" onclick="lmGo('+lmJsq(person)+','+lmJsq(lens)+','+lmJsq(to)+')">'+l+' →</button>';
   let h=lmBack(person,lens,d.book?'book':'')+'<div class="lm-head"><div><p class="eyebrow">Scorecard'+(k.stale?'':' · as of '+lmMD(k.date))+'</p><h1>'+lmEsc(tx.label)+'</h1></div></div>';
@@ -547,6 +569,7 @@ function lmScoreDetail(M,person,lens,id){const d=LM_KPI[id],R=lmTabsNow(M),k=lmK
   h+='<div class="lm-coach"><div class="lm-d-h">COACH — what moves the number</div><p>'+d.coach+'</p></div>';
   if(id==='A1'){const s=M.lenses[lmLensSafe(lens)].speed;h+=go('Clock speed '+lmSpd(s.current)+' · '+LM_SPEED_CAP,'speed');}
   if(id==='J3'||id==='J10')h+=go('Offers Made','offersMade')+go('Contracts','contractsSigned');
+  if(id==='J13')h+=go('Contracts','contractsSigned');
   if(id==='J6')h+=go('Deals','deals');
   return h;}
 /* ── work lists: Deal Board, through lmBoardMine ── */
