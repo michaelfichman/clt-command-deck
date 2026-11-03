@@ -449,6 +449,7 @@ const AM_LABELS = ['Contracts Signed', 'Offers Sent', 'Late Offers', 'Offer to C
     ok('the old speed lines and the hard-coded CPL are gone', !has(a, 'industry contact-rate') && !has(a, 'Priority inversion') && !has(a, 'Triage holds') && !has(a, 'CPL) are being reached') && !has(a, 'fastest dots'));
     ok('the legacy column keeps saying first dial, never calls + texts', has(a, 'First dial by source, calls only') && has(a, 'minutes to first dial, calls only'));
     ok('A1 in the diagnosis', has(a, 'Speed to Lead <b class="m">85%</b> inside 30 working minutes'));
+    ok('m4: the by-role table reads the label too, so no old words sit beside the strip', has(a, 'Speed to Lead, by role') && !has(a, 'First call on time'));
   }
 
   console.log('TEAM, TASKS, CAPITAL');
