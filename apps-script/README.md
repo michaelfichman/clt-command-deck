@@ -192,9 +192,9 @@ Since D1 a deal row is the person's by its role columns, not by contact. The new
 | `tabs.Leads` | `Assigned User` only. `Current Owner` no longer scopes anything. |
 | `fees`, `stages` | Only the deals the person is the LM of (Contracts rows tagged `LM`). |
 | `lmTargets` | The caller's rows plus blank-Person rows. |
-| `tabs["Role Scorecard"]` | D2. The person's rows by `Person`, every column. `null` when the tab is missing. Michael's `M` rows reach no phone. |
-| `tabs["Team Deals"]` | P0d. The cards the person is attached to, ids only: `Opp ID`, `Contact ID`, never who else is on them. A header alone means the tab is live and they are on nothing. `null` with no tab to go by, below. |
-| `teamNotRead` | P0d. How many of this person's deals took no tag because no run has read the card, by contact. A number, no id. Not on the payload with no tab to go by. |
+| `tabs["Role Scorecard"]` | D2. The person's rows by `Person`, every column. `null` when the tab is missing. Michael's `M` rows reach no phone. An AM's top line (`J13`) `Note` carries the gross fee of the team closings it counts once the routine writes it there (Michael 11/3: show closed fees on Jordan's phone); the LM's (`A13`) carries none, and role LM's phone drops any `Note` with a `$`. |
+| `tabs["Team Deals"]` | P0d. The cards the person is attached to, ids only: `Opp ID`, `Contact ID`, never who else is on them. After them, the unread cards of a brand-new lead their rows sit on, for the day of the stamp (below), so the engine counts those rows too. A header alone means the tab is live and they are on nothing. `null` with no tab to go by, below. |
+| `teamNotRead` | P0d. How many of this person's deals took no tag because no run has read the card and its contact is not a brand-new lead under a stamp less than a day old, by contact. A number, no id. Not on the payload with no tab to go by. |
 | `tabs["Deal Board"]` | D2. The rows that are the person's by **Team role**: the `LM` column if Team makes them an LM, the `AM` column if it makes them an AM, tagged in a trailing `_as` (`LM`, `AM`, `LM,AM`). Twelve cells: the first 11 columns, shipped by name in `DEAL_BOARD_SHIP` order, plus `_as`. `Value` and the as-of block never ship, and neither does a column added later. On a row tagged `LM` alone, `Stage` ships as its leading number, or blank if it has none: the words past it name offers and contracts. `null` when the tab is missing, Team gives the person neither role, or the `LM` or `AM` column of a role they hold was renamed. |
 | `dealBoardAsOf` | D2. The stamp in N2, as ISO. `null` when the tab, the stamp or every deal is gone: a phone sees only its own rows, so this is what tells an empty board from having no deals. |
 
@@ -209,7 +209,7 @@ it. A Contracts row names its own card through `Opportunity ID`. Every other row
 is off the tab, joins through the contact, the union of its cards, which is the rule `render_memo.team_of` reads.
 A row that fails takes no `_as` tag, so it neither counts nor brings the contact's other rows along, and a
 closing that fails does not ship at all, so a dollar cannot follow it onto the wire. A card off the tab fails
-closed: nobody is attached to it. So does a row with no Contact ID. `lm-engine.js` holds the same line: a tagged
+closed: nobody is attached to it, save a same-day row (below). So does a row with no Contact ID. `lm-engine.js` holds the same line: a tagged
 row off `tabs["Team Deals"]` counts for nothing, in `contractsSigned`, every other count and `comp()`.
 
 A person being attached is a stricter test than a deal being team. A row on a team deal with only the other
@@ -222,13 +222,28 @@ both endpoints serve exactly what they served before P0d. A stale stamp is not t
 a new deal fails closed, because reverting would put a dispo deal back on a phone. The owner deck's Data health
 says so.
 
-**A fresh tab fails closed too** on a card the last run never read. The tab holds every card on the four KPI tabs,
-tonight's board and every open Acquisitions card, so that is a lead that arrives and books between two runs: 6 of
-Andrew's 8 Confirmed rows in the last 60 days sat on a card made that same day. Its row takes no tag until the next
-morning's run, so it is off that person's phone and the lanes. The rule is not bent for it. The run says so: `teamNotRead`
-puts one line under the Deals funnel on the phone, the owner's Team Deals cell turns amber with the count, and
-the routine pulls the deck again after it writes the tab, so the email reads the coaching day whole. Whether such a
-row should keep its tag until a run has read it is Michael's call, because it pulls against fail closed.
+**A same-day booking keeps its tag (Michael's ruling 11/3).** The tab holds every card on the four KPI tabs,
+tonight's board and every open Acquisitions card, so a card the last run never read is a lead that arrives and
+books between two runs: 6 of Andrew's 8 Confirmed rows in the last 60 days sat on a card made that same day. A row of
+Appointments, Offers or Contracts on such a card keeps its own `LM` / `AM` tag when its contact is a **brand-new lead**:
+every row of that contact on those three tabs has its latest date cell after the tab's as-of stamp at E2, and none is in
+the future. It counts on that person's phone that day, and its ids join their `tabs["Team Deals"]` so the engine counts
+it too. The risk Michael took is an outside deal on a phone for that one day, so the stamp counts for **24 hours**
+(`SAME_DAY_MS`): past that the next run has not landed, and every unread card fails closed again, as P0d had it. The
+next run reads the card, and from then on the team rule decides. A card on the tab is never this case: a deal read as
+outside stays off, whatever its date. A closing never is either, so no dollar rides on it. The owner's lanes keep the
+scorecard's test and do not count such a row.
+
+**What still fails closed** on a card the last run never read: a contact with any row dated before the stamp, undated
+or ahead of now, because the run had that row to read and wrote no card (it skipped it, or the tab holds no card of the
+contact, a deal with only a Dispositions or Transaction Coordination card); a row with no Contact ID; and everything
+unread on a tab whose stamp is missing or more than a day old. A contact is new or it is not, so one deal is never both
+counted and shown. A date-only cell reads as midnight, before a morning stamp, so a same-day row written with no time
+fails closed with its contact: conservative, never a leak. The run says so: `teamNotRead` puts one line under the Deals
+funnel on the phone (`N deals the last run did not read · not counted`), the owner's Team Deals cell turns amber with the
+count of every unread deal of the lanes (`N deals not read yet, not in the lanes`: a phone may count a brand-new lead's
+rows that day, the lanes never do), and the routine pulls the deck again after it writes the tab, so the email reads the
+coaching day whole.
 
 A contact with both an Acquisitions card and a moved card reads the union here, as `team_of` does for an Offers or
 Appointments row: an unowned duplicate left in Acquisitions cannot outvote the real card that moved.

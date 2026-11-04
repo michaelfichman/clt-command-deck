@@ -256,7 +256,8 @@
   }
   function hasRole(row, role) { return (row.as || ['LM']).indexOf(role) > -1; }
 
-  /* THE TEAM RULE (P0d). tabs['Team Deals'] is the person's own cards, ids only: a card they are owner or follower on. A tagged row
+  /* THE TEAM RULE (P0d). tabs['Team Deals'] is the person's own cards, ids only: a card they are owner or follower on, and, for the day of
+     the run's stamp, a brand-new lead no run has read yet that holds a row of theirs (Michael 11/3: a same-day booking counts that day). A tagged row
      off that list reads as a record row, so contractsSigned, every other count and comp() leave it out at once, and money follows
      the LM role and the team rule. The endpoint already takes the tag off such a row; this holds for any payload that reaches the
      engine, the nightly's included. null (no tab to go by) or no key (an endpoint from before P0d) tests nothing, as before. */

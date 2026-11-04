@@ -489,9 +489,10 @@ function lmStartOf(tabs,person){const want=lmNameKey(person),team=lmTabObjs(tabs
   let first=null;lmTabObjs(tabs.Calls).forEach(r=>{if(lmNameKey(r.User)!==want)return;const d=LMEngine.parseDate(r.Date);if(d&&(!first||d<first))first=d;});return first;}
 /* The host's one call after buildModel. It keeps the raw tabs and not a parsed copy, for the same reason as lmTabsNow. */
 function lmRoleAttach(M,p){if(!M)return M;const s=p||{},t=s.tabs||{};M.roleSrc={tabs:{'Role Scorecard':t['Role Scorecard'],'Deal Board':t['Deal Board']},dealBoardAsOf:s.dealBoardAsOf};M.startDate=lmStartOf(t,M.person);M.teamNotRead=+s.teamNotRead||0;return M;}
-/* The team rule fails closed on a card no run has read, the usual same-day lead, so a deal can be missing from these counts until morning. The endpoint counts them, and this says so
-   where the count would show. No id and no figure of ours, on either phone. */
-const lmTeamLag=M=>{const n=M&&M.teamNotRead||0;return n?'<p class="lm-fnote">'+n+' deal'+(n===1?'':'s')+' not read yet · counts after the next morning run</p>':'';};
+/* A booking on a brand-new lead no run has read keeps its tag for the day of the stamp (Michael 11/3). What still fails closed is a deal the last run had a row of and did not
+   read (skipped, or a deal with only a Dispositions card), and everything unread once the stamp is a day old, so nothing says the next run will. The endpoint counts those,
+   and this says so where the count would show. No id and no figure of ours, on either phone. */
+const lmTeamLag=M=>{const n=M&&M.teamNotRead||0;return n?'<p class="lm-fnote">'+n+' deal'+(n===1?'':'s')+' the last run did not read · not counted</p>':'';};
 
 /* role scopes the id: a saved link can never open another role's page. fmt: pct (scorecard.py's ratio(), a 0 to 1 fraction), hrs, num.
    The Label cell wins over label; a missing tab has no Label cell, so every id has its own. */

@@ -348,7 +348,7 @@ const AM_LABELS = ['Contracts Signed', 'Offers Sent', 'Late Offers', 'Offer to C
     ok('Owner\'s strip: the top line, Deals to Sell, Pending Revenue, in that order', before(own, 'sc-l">Contracts Signed<', 'sc-l">Deals to Sell<') && before(own, 'sc-l">Deals to Sell<', 'sc-l">Pending Revenue<') && count(own, /class="sc /g) === 3);
     ok('Pending Revenue prints as dollars, gross, the rest as counts', has(cell(own, 'Pending Revenue'), '$22,222') && has(cell(own, 'Deals to Sell'), 'sc-v">2<') && has(cell(own, 'Contracts Signed'), 'sc-v">0.8<'));
     ok('its cells open the owner\'s own pages, never a role screen', has(cell(own, 'Pending Revenue'), `go('pipeline')`) && has(cell(own, 'Deals to Sell'), `go('pipeline')`) && has(cell(own, 'Contracts Signed'), `go('funnel')`) && !has(own, 'lmGo('));
-    ok('the top line carries pending, closed and fell on each strip, the fee on the owner\'s alone', has(cell(own, 'Contracts Signed'), '5 pending, 1 closed, $11,111, 2 fell') && has(cell(jordan, 'Contracts Signed'), '5 pending, 1 closed, 2 fell') && has(cell(andrew, 'Contracts Signed'), '5 pending, 1 closed, 2 fell'));
+    ok('the top line carries pending, closed and fell on each strip, a fee only where the routine\'s Note has one', has(cell(own, 'Contracts Signed'), '5 pending, 1 closed, $11,111, 2 fell') && has(cell(jordan, 'Contracts Signed'), '5 pending, 1 closed, 2 fell') && has(cell(andrew, 'Contracts Signed'), '5 pending, 1 closed, 2 fell'));
     ok('both role strips hold the decided tiles, in order, and tap through to the role screen', has(cell(andrew, 'New Lead Offers'), "'kpi-A11'") && has(cell(jordan, 'Follow-Up Offers'), "'kpi-J12'") && before(andrew, 'sc-l">Contracts Signed<', 'sc-l">Appts Set<') && before(jordan, 'sc-l">Offers Sent<', 'sc-l">Late Offers<'));
     ok('Conversations is a lens tile with no scorecard row, so no strip cell, and no throw', !has(andrew, 'conversations') && clean(h));
     ok('Andrew\'s screen in preview still drops his sheet text, past the names', has(P.team(A), 'lm-t-lbl">New Lead Offers<') && !has(P.team(A), '$'));
@@ -400,7 +400,8 @@ const AM_LABELS = ['Contracts Signed', 'Offers Sent', 'Late Offers', 'Offer to C
     ok('no tab: no cell, nothing new turns red', !has(ho, 'hc-l">Team Deals<'));
     const newRow = whole(); newRow.Appointments.push(['11/3/2026', '', 'Confirmed', A, J, 'S', 'P', '', '', 'cNEW', '']);
     const nh = (await boot(payload(newRow))).go('home');
-    ok('T1: a fresh tab with a new booking on a card no run has read: the cell is not green, and says how many', has(hc(nh, 'Team Deals'), 'hc warn') && has(hc(nh, 'Team Deals'), 'as of 11/3') && has(hc(nh, 'Team Deals'), '1 deal not read yet, not counted'));
+    ok('T1: a fresh tab with a new booking on a card no run has read: the cell is not green, and says how many', has(hc(nh, 'Team Deals'), 'hc warn') && has(hc(nh, 'Team Deals'), 'as of 11/3') && has(hc(nh, 'Team Deals'), '1 deal not read yet, not in the lanes'));
+    ok('...and says what it costs here, the lanes: a phone counts a brand-new lead\'s booking that day (Michael 11/3), so "not counted" would be wrong', !has(hc(nh, 'Team Deals'), 'not counted'));
     const twoRows = whole(); twoRows.Appointments.push(['11/3/2026', '', 'Confirmed', A, J, 'S', 'P', '', '', 'cNEW', '']); twoRows.Offers.push(['11/3/2026', '', 'Made', A, J, 'S', 'P', '', '', 'cNEW', '']); twoRows.Offers.push(['11/3/2026', '', 'Made', A, J, 'S', 'P', '', '', 'cNEW2', '']);
     ok('T1: by contact, across the tabs', has(hc((await boot(payload(twoRows))).go('home'), 'Team Deals'), '2 deals not read yet'));
     const nobody = whole(); nobody.Offers.push(['6/3/2025', '', 'Made', MF, MF, 'S', 'P', '', '', 'cMINE', '']);
